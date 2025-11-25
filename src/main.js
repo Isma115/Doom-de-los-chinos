@@ -3,6 +3,7 @@ import { World } from './core/World.js';
 import { Player } from './entities/Player.js';
 import { EnemyManager } from './entities/EnemyManager.js';
 import { Door } from './entities/Door.js';
+import { ENEMY_TYPES, CONFIG } from './Constants.js';
 import * as THREE from '../node_modules/three/build/three.module.js';
 
 class Game {
@@ -35,16 +36,15 @@ class Game {
         this.world = new World(this.scene);
         await this.world.init(mapName);
 
-        // Limpiar puertas antiguas y registrar las nuevas
         Door.clearAll();
         const doorMeshes = this.world.getDoorMeshes();
         doorMeshes.forEach(mesh => {
-            new Door(mesh); // Esto añade la puerta a Door.instances automáticamente
+            new Door(mesh);
         });
-
         this.enemyManager = new EnemyManager(this.scene, this.world);
+        this.enemyManager.spawnPoints = this.world.getEnemySpawns(); // ← NUEVO: asegura spawn correcto
+
         this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world);
-        
         const playerSpawn = this.world.getPlayerSpawn();
         if (playerSpawn) {
             this.player.teleport(playerSpawn);
@@ -54,34 +54,49 @@ class Game {
     }
 
     animate() {
-        requestAnimationFrame(() => this.animate());
+    requestAnimationFrame(() => this.animate());
+    const time = performance.now();
+    const delta = (time - this.prevTime) / 1000;
 
-        const time = performance.now();
-        const delta = (time - this.prevTime) / 1000;
+    if (this.player && !this.player.isGameOver) {
+        this.player.update(delta);
+        // Spawn de enemigos según el mapa
+        const enemySpawns = this.world.getEnemySpawns();
+        // Iterar sobre cada spawn point
+        enemySpawns.forEach(spawn => {
+            // Verificar temporizador INDIVIDUAL de este spawn point
+            if (time - spawn.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
+                spawn.lastSpawnTime = time;
 
-        if (this.player && !this.player.isGameOver) {
-            this.player.update(delta);
-            this.enemyManager.spawn(time);
-            this.enemyManager.update(delta, this.player.getPosition(), () => {
-                this.player.takeDamage();
-            });
-            
-            // Actualizar TODAS las puertas a través de la clase estática
-            Door.updateAll(delta, this.player.getPosition());
+                // Buscar el tipo de enemigo específico en ENEMY_TYPES según el tipo del spawn
+                const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
+                console.log("tipo de enenmigo: ", enemyType);
+                if (enemyType) {
+                    // Si encontramos el tipo específico, spawnearlo
+                    this.enemyManager.spawn(time, enemyType, spawn.position);
+                } else {
+                    // Si no hay tipo específico o es 'random', spawn aleatorio
+                    this.enemyManager.spawn(time, null, spawn.position);
+                }
+            }
+        });
+        
+        this.enemyManager.update(delta, this.player.getPosition(), (damage) => {
+            this.player.takeDamage(damage);
+        });
+        Door.updateAll(delta, this.player.getPosition());
 
-            // NUEVO: Actualizar items de comida
-            this.updateFoodItems(delta);
+        this.updateFoodItems(delta);
 
-            this.performPeriodicCleanup(time);
-        }
-
-        this.prevTime = time;
-        this.renderer.render(this.scene, this.camera);
-
-        this.frameCount++;
+        this.performPeriodicCleanup(time);
     }
 
-    // NUEVO: Método para actualizar items de comida
+    this.prevTime = time;
+    this.renderer.render(this.scene, this.camera);
+
+    this.frameCount++;
+}
+
     updateFoodItems(delta) {
         const foodMeshes = this.world.getFoodMeshes();
         const playerPos = this.player.getPosition();
@@ -89,12 +104,10 @@ class Game {
         foodMeshes.forEach(foodMesh => {
             if (foodMesh.userData.collected) return;
 
-            // Animación de rotación
             foodMesh.rotation.y += foodMesh.userData.rotationSpeed * delta;
 
-            // Verificar colisión con el jugador
             const distance = playerPos.distanceTo(foodMesh.position);
-            if (distance < 2.0) { // Radio de recolección
+            if (distance < 2.0) {
                 this.player.collectFood(foodMesh.userData.healAmount);
                 foodMesh.userData.collected = true;
                 this.scene.remove(foodMesh);

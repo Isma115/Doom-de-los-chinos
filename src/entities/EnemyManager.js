@@ -1,6 +1,6 @@
 /*sección [GESTOR DE ENEMIGOS] Código de gestión de enemigos*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
-import { CONFIG } from '../Constants.js';
+import { CONFIG, ENEMY_TYPES } from '../Constants.js';
 
 export class EnemyManager {
 
@@ -13,29 +13,29 @@ export class EnemyManager {
         this.sharedGeometry = new THREE.PlaneGeometry(2, 2);
 
         const textureLoader = new THREE.TextureLoader();
-        this.enemyTexture = textureLoader.load('assets/enemies/enemigo.png');
-        this.enemyTexture.colorSpace = THREE.SRGBColorSpace;
-
+        this.enemyTextures = {};
+        ENEMY_TYPES.forEach(enemyType => {
+            this.enemyTextures[enemyType.id] = textureLoader.load(enemyType.texture);
+            this.enemyTextures[enemyType.id].colorSpace = THREE.SRGBColorSpace;
+        });
         this.sharedMaterial = null;
 
         this.enemyPool = [];
         this.maxPoolSize = 20;
         this.activeEnemies = new Set();
-        this.spawnPoints = world.getEnemySpawns();
+
+        this.spawnPoints = [];
         this.walls = world.getWalls();
 
-        // Sistema de partículas de sangre
         this.bloodParticles = new Map();
-        // Mapa de enemigo -> partículas de sangre
-        
         this.bloodGeometry = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-        this.bloodMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xcc0000, // Rojo un poco más brillante para que destaque
+        this.bloodMaterial = new THREE.MeshBasicMaterial({
+            color: 0xcc0000,
             transparent: true,
             opacity: 1.0
         });
 
-        // DEBUG helpers
+        // ⭐ Helpers de colisión, ahora controlados por CONFIG.DEBUG_SHOW_HITBOXES
         this.enemyCollisionHelpers = new Map();
     }
 
@@ -46,10 +46,8 @@ export class EnemyManager {
         }
 
         const particles = existingParticles || [];
-        // Más partículas para que se vea bien la explosión
         const particleCount = 12 + Math.floor(Math.random() * 8);
 
-        // Si no hay hitPosition, usamos el centro del enemigo pero desplazado hacia la cámara
         const spawnPos = hitPosition ? hitPosition.clone() : enemy.position.clone();
         if (!hitPosition) {
             spawnPos.y += 1.0;
@@ -57,10 +55,8 @@ export class EnemyManager {
 
         for (let i = 0; i < particleCount; i++) {
             const particle = new THREE.Mesh(this.bloodGeometry, this.bloodMaterial.clone());
-
             particle.position.copy(spawnPos);
-            
-            // Dispersión inicial aleatoria un poco más amplia para que no nazcan todas en un punto
+
             particle.position.x += (Math.random() - 0.5) * 0.4;
             particle.position.y += (Math.random() - 0.5) * 0.4;
             particle.position.z += (Math.random() - 0.5) * 0.4;
@@ -68,11 +64,10 @@ export class EnemyManager {
             particle.rotation.x = Math.random() * Math.PI;
             particle.rotation.y = Math.random() * Math.PI;
 
-            // FÍSICA MEJORADA: Explosión cónica hacia arriba y hacia afuera
             const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 5.0, // Explosión lateral fuerte
-                (Math.random() * 4.0) + 2.0, // Impulso vertical fuerte (tipo fuente)
-                (Math.random() - 0.5) * 5.0  // Explosión profundidad
+                (Math.random() - 0.5) * 5.0,
+                (Math.random() * 4.0) + 2.0,
+                (Math.random() - 0.5) * 5.0
             );
 
             particle.userData = {
@@ -85,11 +80,10 @@ export class EnemyManager {
                 isOnGround: false,
                 creationTime: performance.now(),
             };
-            
-            // Escala variable: algunas gotas grandes, otras pequeñas
+
             const scale = 0.5 + Math.random() * 0.8;
             particle.scale.set(scale, scale, scale);
-            
+
             particles.push(particle);
             this.scene.add(particle);
         }
@@ -107,7 +101,6 @@ export class EnemyManager {
 
         const toRemove = [];
         const now = performance.now();
-        
         for (let i = 0; i < particles.length; i++) {
             const particle = particles[i];
             if (!particle || !particle.userData) {
@@ -117,34 +110,27 @@ export class EnemyManager {
 
             const data = particle.userData;
             const age = now - data.creationTime;
-            
+
             if (age > 2000) {
                 toRemove.push(i);
                 continue;
             }
 
             if (!data.isOnGround) {
-                // Gravedad
                 data.velocity.y -= CONFIG.GRAVITY * 2.0 * delta;
-
-                // Movimiento
                 particle.position.x += data.velocity.x * delta;
                 particle.position.y += data.velocity.y * delta;
                 particle.position.z += data.velocity.z * delta;
 
-                // Rotación violenta en el aire
                 particle.rotation.x += data.rotationSpeed.x * delta;
                 particle.rotation.z += data.rotationSpeed.y * delta;
 
-                // Colisión con suelo
                 if (particle.position.y <= 0.05) {
                     particle.position.y = 0.05;
                     data.isOnGround = true;
-                    // Al tocar suelo se frenan en seco
                     data.velocity.set(0, 0, 0);
                 }
             } else {
-                // En el suelo se encogen
                 data.life -= delta * 0.8;
             }
 
@@ -176,76 +162,107 @@ export class EnemyManager {
         }
     }
 
-    getEnemyFromPool() {
+
+    getRandomEnemyType() {
+        const weightedTypes = [];
+        ENEMY_TYPES.forEach(enemyType => {
+            for (let i = 0; i < enemyType.spawnWeight; i++) {
+                weightedTypes.push(enemyType);
+            }
+        });
+        return weightedTypes[Math.floor(Math.random() * weightedTypes.length)];
+    }
+
+    getEnemyFromPool(enemyType = null) {
+        const type = enemyType || this.getRandomEnemyType();
+        
+        const width = type.width || 2.0;
+        const height = type.height || 2.0;
+
         if (this.enemyPool.length > 0) {
             const enemy = this.enemyPool.pop();
             enemy.visible = true;
-            enemy.userData.hp = 200;
+            enemy.userData.hp = type.hp;
+            enemy.userData.speed = type.speed;
+            enemy.userData.damage = type.damage;
+            enemy.userData.enemyType = type.id;
             enemy.userData.bloodTime = 0;
             enemy.userData.velocity = new THREE.Vector3();
             enemy.userData.canJump = false;
 
+            enemy.scale.set(width / 2.0, height / 2.0, 1.0);
+
+            enemy.material = new THREE.MeshBasicMaterial({
+                map: this.enemyTextures[type.id],
+                transparent: true,
+                alphaTest: 0.01
+            });
+
             this.clearBloodParticles(enemy);
+
             if (!this.enemyCollisionHelpers.has(enemy)) {
                 const box = new THREE.Box3();
                 const helper = new THREE.Box3Helper(box, 0xff0000);
+
+                // ⭐ Aquí se respeta el toggle
+                helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+
                 this.scene.add(helper);
                 this.enemyCollisionHelpers.set(enemy, helper);
+            } else {
+                this.enemyCollisionHelpers.get(enemy).visible = CONFIG.DEBUG_SHOW_HITBOXES;
             }
 
-            enemy.userData.collisionSize = {
-                x: 0.3, 
-                y: 2,
-                z: 0.3
-            };
+            enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
             return enemy;
         }
 
         const textureLoader = new THREE.TextureLoader();
-        this.enemyTexture = textureLoader.load('assets/enemies/enemigo.png');
-        this.enemyTexture.colorSpace = THREE.SRGBColorSpace;
-        const enemyMaterial = new THREE.MeshLambertMaterial({
-            map: this.enemyTexture,
-            side: THREE.DoubleSide,
+        const enemyTexture = textureLoader.load(type.texture);
+        enemyTexture.colorSpace = THREE.SRGBColorSpace;
+
+        const enemyMaterial = new THREE.MeshBasicMaterial({
+            map: enemyTexture,
             transparent: true,
             depthWrite: false,
             alphaTest: 0.01
         });
         const enemy = new THREE.Mesh(this.sharedGeometry, enemyMaterial);
+
+        enemy.scale.set(width / 2.0, height / 2.0, 1.0);
+
         enemy.matrixAutoUpdate = true;
-        enemy.userData.hp = 200;
+        enemy.userData.hp = type.hp;
+        enemy.userData.speed = type.speed;
+        enemy.userData.damage = type.damage;
+        enemy.userData.enemyType = type.id;
         enemy.userData.bloodTime = 0;
         enemy.userData.velocity = new THREE.Vector3();
         enemy.userData.canJump = false;
 
-        // --- LÓGICA CORREGIDA AQUÍ PARA POSICIONAR SANGRE ---
         enemy.userData.drawBlood = (hitPosition = null) => {
             const actualHitPosition = enemy.position.clone();
-            actualHitPosition.y = 1.0; // Altura del pecho
-            
-            // Calculamos vector hacia adelante basado en rotación del enemigo
-            // El enemigo siempre mira al jugador con lookAt, así que su vector Z nos sirve
-            const forward = new THREE.Vector3(0, 0, 1); 
-            forward.applyQuaternion(enemy.quaternion);
-            forward.multiplyScalar(0.5); // Movemos 0.5 unidades hacia el jugador
-            
-            actualHitPosition.add(forward);
+            actualHitPosition.y = height / 2.0;
 
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(enemy.quaternion);
+            forward.multiplyScalar(0.5);
+
+            actualHitPosition.add(forward);
             const particles = this.createBloodParticles(enemy, actualHitPosition);
             this.bloodParticles.set(enemy, particles);
         };
-        // ----------------------------------------------------
 
-        enemy.userData.clearBlood = () => {
-            this.clearBloodParticles(enemy);
-        };
-        enemy.userData.collisionSize = {
-            x: 0.3, 
-            y: 2,  
-            z: 0.3  
-        };
+        enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
+
+        enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
+
         const helperBox = new THREE.Box3();
         const helper = new THREE.Box3Helper(helperBox, 0xff0000);
+
+        // ⭐ Respeta el toggle
+        helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+
         this.scene.add(helper);
         this.enemyCollisionHelpers.set(enemy, helper);
 
@@ -273,8 +290,10 @@ export class EnemyManager {
         enemy.userData.velocity.set(0, 0, 0);
 
         this.clearBloodParticles(enemy);
+
         if (this.enemyCollisionHelpers.has(enemy)) {
-            this.enemyCollisionHelpers.get(enemy).visible = false;
+            const helper = this.enemyCollisionHelpers.get(enemy);
+            helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
         }
 
         if (this.enemyPool.length < this.maxPoolSize) {
@@ -284,20 +303,42 @@ export class EnemyManager {
         }
     }
 
-    spawn(time) {
-        if (time - this.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
-            const enemy = this.getEnemyFromPool();
-            const spawnPoint = this.spawnPoints.length > 0
-                ?
-                this.spawnPoints[Math.floor(Math.random() * this.spawnPoints.length)]
-                : new THREE.Vector3(
-                    (Math.random() - 0.5) * 100,
-                    1,
-                    (Math.random() - 0.5) * 100
-                );
 
+    spawn(time, specificType = null, specificPosition = null) {
+        if (specificPosition || time - this.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
+            const enemyType = specificType ||
+                this.getRandomEnemyType();
+
+            const enemy = this.getEnemyFromPool(enemyType);
+
+            const spawnHeight = (enemyType.height || 2.0) / 2.0;
+
+            const spawnPoint = specificPosition
+                ? specificPosition
+                : (this.spawnPoints.length > 0
+                    ? this.spawnPoints[Math.floor(Math.random() * this.spawnPoints.length)].position
+                    : new THREE.Vector3(
+                        (Math.random() - 0.5) * 100,
+                        1,
+                        (Math.random() - 0.5) * 100
+                    ));
+            
             enemy.position.copy(spawnPoint);
+
+            if (specificPosition && specificPosition.y === 1) {
+                 enemy.position.y = spawnHeight; 
+            } else if (!specificPosition) {
+                 enemy.position.y = spawnHeight;
+            }
+
             enemy.visible = true;
+
+            const tex = this.enemyTextures[enemy.userData.enemyType];
+            enemy.material = new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: true,
+                alphaTest: 0.01
+            });
 
             if (!this.activeEnemies.has(enemy)) {
                 this.scene.add(enemy);
@@ -305,12 +346,15 @@ export class EnemyManager {
                 this.activeEnemies.add(enemy);
             }
 
-            this.lastSpawnTime = time;
+            if (!specificPosition) {
+                this.lastSpawnTime = time;
+            }
         }
     }
 
     update(delta, playerPos, onHitPlayer) {
         const tempEnemyBox = new THREE.Box3();
+
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const enemy = this.enemies[i];
             if (!enemy.visible) continue;
@@ -323,12 +367,13 @@ export class EnemyManager {
 
             const direction = new THREE.Vector3();
             direction.subVectors(playerPos, enemy.position).normalize();
-            const moveDist = CONFIG.ENEMY_SPEED * delta;
+            const moveDist = enemy.userData.speed * delta;
             const tentativePos = enemy.position.clone().addScaledVector(direction, moveDist);
 
             tentativePos.y += enemy.userData.velocity.y * delta;
 
             const s = enemy.userData.collisionSize;
+
             tempEnemyBox.min.set(
                 tentativePos.x - s.x,
                 tentativePos.y - s.y * 0.5,
@@ -339,11 +384,15 @@ export class EnemyManager {
                 tentativePos.y + s.y * 0.5,
                 tentativePos.z + s.z
             );
+
             if (this.enemyCollisionHelpers.has(enemy)) {
                 const helper = this.enemyCollisionHelpers.get(enemy);
+
+                // ⭐ Mostrar u ocultar dinámicamente si se cambia CONFIG.DEBUG_SHOW_HITBOXES
+                helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+
                 helper.box.copy(tempEnemyBox);
                 helper.updateMatrixWorld(true);
-                helper.visible = true;
             }
 
             let blocked = false;
@@ -359,14 +408,15 @@ export class EnemyManager {
                 enemy.position.copy(tentativePos);
             }
 
-            if (enemy.position.y <= 1.0) {
+            const floorHeight = s.y / 2.0;
+            if (enemy.position.y <= floorHeight) {
                 enemy.userData.velocity.y = 0;
-                enemy.position.y = 1.0;
+                enemy.position.y = floorHeight;
                 enemy.userData.canJump = true;
             }
 
             if (enemy.position.distanceTo(playerPos) < 2.5) {
-                onHitPlayer();
+                onHitPlayer(enemy.userData.damage);
             }
         }
 
@@ -378,7 +428,7 @@ export class EnemyManager {
 
     removeEnemy(enemy) {
         this.clearBloodParticles(enemy);
-        
+
         this.scene.remove(enemy);
         this.enemies = this.enemies.filter(e => e !== enemy);
         this.activeEnemies.delete(enemy);
@@ -393,7 +443,7 @@ export class EnemyManager {
 
         if (this.bloodGeometry) this.bloodGeometry.dispose();
         if (this.bloodMaterial) this.bloodMaterial.dispose();
-        
+
         this.enemyCollisionHelpers.forEach(helper => {
             this.scene.remove(helper);
         });

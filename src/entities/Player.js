@@ -11,11 +11,9 @@ export class Player {
     constructor(scene, camera, domElement, enemyManager, world) {
 
         this.controls = new PointerLockControls(camera, domElement);
-        this.camera = camera; // <<< GUARDAR REFERENCIA A LA CÁMARA
+        this.camera = camera;
 
-        /* >>> FIX: PointerLockControls moderno NO usa getObject() <<< */
         scene.add(camera);
-        /* >>> FIN FIX <<< */
 
         this.world = world;
         this.velocity = new THREE.Vector3();
@@ -37,7 +35,6 @@ export class Player {
     }
 
     teleport(position) {
-        /* >>> FIX: Usar this.camera directamente en lugar de this.controls.getObject() <<< */
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
         this.velocity.set(0, 0, 0);
@@ -89,9 +86,9 @@ export class Player {
         }
     }
 
-    takeDamage() {
+    takeDamage(damageAmount = 1) {
         if (this.isGameOver) return;
-        this.health -= 1;
+        this.health -= damageAmount;
         UIManager.updateHealth(this.health);
 
         if (this.health <= 0) {
@@ -121,7 +118,6 @@ export class Player {
         if (this.moveFlags.fwd || this.moveFlags.bwd) this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta;
         if (this.moveFlags.left || this.moveFlags.right) this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta;
 
-        /* >>> FIX: Usar this.camera directamente en lugar de this.controls.getObject() <<< */
         const oldPosition = this.camera.position.clone();
 
         this.controls.moveRight(-this.velocity.x * delta);
@@ -141,12 +137,10 @@ export class Player {
     const playerPos = this.camera.position;
     const offset = 1.0;
 
-    // --- CAJA DEL JUGADOR ---
     const playerBox = new THREE.Box3();
     playerBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);
     playerBox.max.set(playerPos.x + offset, playerPos.y + 1.0, playerPos.z + offset);
 
-    // --- COLISIONES CON PUERTAS ---
     for (const door of Door.instances) {
         if (!door.isOpen) {
             if (!door.mesh.userData.boundingBox) {
@@ -173,7 +167,6 @@ export class Player {
         }
     }
 
-    // --- COLISIONES CON MUROS ---
     const walls = this.world.getWalls();
     let collided = false;
 
@@ -188,9 +181,6 @@ export class Player {
 
     if (!collided) return;
 
-    // --- SISTEMA DE DESLIZAMIENTO (SLIDING) ---
-
-    // Intento 1: Permitir sólo movimiento X
     const slidePosX = new THREE.Vector3(oldPosition.x, playerPos.y, playerPos.z);
     const slideBoxX = new THREE.Box3(
         new THREE.Vector3(slidePosX.x - offset, slidePosX.y - 1.0, slidePosX.z - offset),
@@ -205,7 +195,6 @@ export class Player {
         }
     }
 
-    // Intento 2: Permitir sólo movimiento Z
     const slidePosZ = new THREE.Vector3(playerPos.x, playerPos.y, oldPosition.z);
     const slideBoxZ = new THREE.Box3(
         new THREE.Vector3(slidePosZ.x - offset, slidePosZ.y - 1.0, slidePosZ.z - offset),
@@ -220,30 +209,24 @@ export class Player {
         }
     }
 
-    // --- RESOLUCIÓN FINAL DEL MOVIMIENTO ---
-
     if (!blockedX) {
-        // Puede deslizar en X
         playerPos.copy(slidePosX);
-        this.velocity.z = 0; // Bloquear avance contra la pared pero permitir lateral
+        this.velocity.z = 0;
         return;
     }
 
     if (!blockedZ) {
-        // Puede deslizar en Z
         playerPos.copy(slidePosZ);
         this.velocity.x = 0;
         return;
     }
 
-    // Si X y Z están bloqueados → es una esquina: retrocede
     playerPos.copy(oldPosition);
     this.velocity.x = 0;
     this.velocity.z = 0;
 }
 
     getPosition() {
-        /* >>> FIX: Usar this.camera directamente en lugar de this.controls.getObject() <<< */
         return this.camera.position;
     }
 }

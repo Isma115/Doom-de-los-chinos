@@ -16,15 +16,13 @@ export class World {
         this.mapLoader = new MapLoader();
         this.walls = [];
         this.doorMeshes = [];
-        this.foodMeshes = []; // NUEVO: Array para meshes de comida
+        this.foodMeshes = [];
     }
 
     async init(mapName = 'default') {
     this.mapData = await this.mapLoader.loadMapFile(mapName);
     this.enemySpawns = this.mapData.enemySpawns;
 
-    // Intentar usar un skybox (imagen equirectangular) si está disponible.
-    // Si falla, volver al color sólido como fallback.
     const textureLoader = new THREE.TextureLoader();
     let skyTexture = null;
 
@@ -42,7 +40,6 @@ export class World {
     }
 
     if (skyTexture) {
-        // Configurar mapeo equirectangular para que la imagen JPG actúe como skybox
         if (THREE.EquirectangularReflectionMapping) {
             skyTexture.mapping = THREE.EquirectangularReflectionMapping;
         }
@@ -51,19 +48,15 @@ export class World {
         }
 
         this.scene.background = skyTexture;
-        // Opcionalmente usar como environment para PBR materiales si se desea
         if (this.renderer && this.renderer.capabilities && !this.scene.environment) {
             try {
                 this.scene.environment = skyTexture;
             } catch (e) {
-                // no crítico, continuar
             }
         }
 
-        // Mantener una niebla compatible con el skybox para profundidad
         this.scene.fog = new THREE.Fog(0x87CEEB, 120, 350);
     } else {
-        // Fallback: color sólido y niebla
         const skyColor = 0x87CEEB;
         this.scene.background = new THREE.Color(skyColor);
         this.scene.fog = new THREE.Fog(skyColor, 120, 350);
@@ -117,7 +110,6 @@ export class World {
     this.createDoorsFromMap();
     this.createFoodItemsFromMap();
 
-    // NUEVO: cargar modelos 3D generados en MapLoader
     await this.create3DModelsFromMap();
 }
 
@@ -138,7 +130,7 @@ export class World {
     }
 
     getFoodMeshes() {
-        return this.foodMeshes; // NUEVO: Getter para items de comida
+        return this.foodMeshes;
     }
 
     createFoodItemsFromMap() {
@@ -166,7 +158,7 @@ export class World {
 
             const foodSprite = new THREE.Sprite(spriteMaterial);
 
-            foodSprite.scale.set(3, 3, 1); // Tamaño visible del sprite
+            foodSprite.scale.set(3, 3, 1);
             foodSprite.position.set(pos.x, 2, pos.z);
 
             foodSprite.userData = {
@@ -265,7 +257,6 @@ export class World {
 
             this.scene.add(finalObject);
 
-            /* 🔥 CAJA DE COLISIÓN MÁS CLARA (X:25, Y:500, Z:25) 🔥 */
             const colliderWidth  = 5;
             const colliderDepth  = 5;
             const colliderHeight = 500;
@@ -288,7 +279,6 @@ export class World {
 
             finalObject.userData.boundingBox = collisionBox;
 
-            /* Registrar palmera como objeto sólido */
             this.walls.push(finalObject);
 
         } catch (err) {
@@ -307,7 +297,7 @@ export class World {
         }
 
         const doorWidth = CONFIG.BLOCK_SIZE;
-        const doorHeight = CONFIG.BLOCK_SIZE; // Igual altura que los muros (cuadrados)
+        const doorHeight = CONFIG.BLOCK_SIZE;
 
         const doorGeometry = new THREE.PlaneGeometry(doorWidth, doorHeight);
 
@@ -359,7 +349,7 @@ export class World {
         });
     }
     createWallsFromMap() {
-        const wallHeight = CONFIG.BLOCK_SIZE; // Mismos que las puertas (cuadrados)
+        const wallHeight = CONFIG.BLOCK_SIZE;
         this.walls = [];
 
         this.sharedGeometries.wall = new THREE.BoxGeometry(
@@ -417,7 +407,7 @@ export class World {
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
         this.walls = [];
         this.doorMeshes = [];
-        this.foodMeshes = []; // NUEVO: Limpiar items de comida
+        this.foodMeshes = [];
     }
 }
 /*[Fin de sección]*/
