@@ -31,6 +31,8 @@ export class Player {
 
         this.weaponSystem = new WeaponSystem(camera, enemyManager);
 
+        this.isShooting = false;   // ⭐ NUEVO
+
         this.initEvents(domElement);
     }
 
@@ -51,7 +53,10 @@ export class Player {
 
         document.addEventListener('keydown', (e) => this.onKey(e, true));
         document.addEventListener('keyup', (e) => this.onKey(e, false));
+
         document.addEventListener('mousedown', () => this.onMouseDown());
+        document.addEventListener('mouseup', () => this.onMouseUp());   // ⭐ NUEVO
+
         document.addEventListener('wheel', (e) => this.weaponSystem.switchWeapon(e.deltaY));
     }
 
@@ -79,11 +84,16 @@ export class Player {
 
     onMouseDown() {
         if (this.controls.isLocked && !this.isGameOver) {
+            this.isShooting = true;   // ⭐ NUEVO
             this.weaponSystem.tryShoot(() => {
                 this.score++;
                 UIManager.updateScore(this.score);
             });
         }
+    }
+
+    onMouseUp() {          // ⭐ NUEVO
+        this.isShooting = false;
     }
 
     takeDamage(damageAmount = 1) {
@@ -106,6 +116,14 @@ export class Player {
 
     update(delta) {
         if (!this.controls.isLocked) return;
+
+        // ⭐ NUEVO: disparo automático mientras se mantiene pulsado
+        if (this.isShooting) {
+            this.weaponSystem.tryShoot(() => {
+                this.score++;
+                UIManager.updateScore(this.score);
+            });
+        }
 
         this.velocity.x -= this.velocity.x * 10.0 * delta;
         this.velocity.z -= this.velocity.z * 10.0 * delta;
@@ -134,97 +152,97 @@ export class Player {
     }
 
     checkCollisions(oldPosition) {
-    const playerPos = this.camera.position;
-    const offset = 1.0;
+        const playerPos = this.camera.position;
+        const offset = 1.0;
 
-    const playerBox = new THREE.Box3();
-    playerBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);
-    playerBox.max.set(playerPos.x + offset, playerPos.y + 1.0, playerPos.z + offset);
+        const playerBox = new THREE.Box3();
+        playerBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);
+        playerBox.max.set(playerPos.x + offset, playerPos.y + 1.0, playerPos.z + offset);
 
-    for (const door of Door.instances) {
-        if (!door.isOpen) {
-            if (!door.mesh.userData.boundingBox) {
-                door.mesh.geometry.computeBoundingBox();
-                door.mesh.userData.boundingBox = new THREE.Box3().setFromObject(door.mesh);
+        for (const door of Door.instances) {
+            if (!door.isOpen) {
+                if (!door.mesh.userData.boundingBox) {
+                    door.mesh.geometry.computeBoundingBox();
+                    door.mesh.userData.boundingBox = new THREE.Box3().setFromObject(door.mesh);
+                }
+
+                const doorBox = door.mesh.userData.boundingBox.clone();
+                doorBox.min.x -= 0.2;
+                doorBox.max.x += 0.2;
+                doorBox.min.z -= 0.2;
+                doorBox.max.z += 0.2;
+
+                const playerTempBox = new THREE.Box3();
+                playerTempBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);
+                playerTempBox.max.set(playerPos.x + offset, playerPos.y + 1.0, playerPos.z + offset);
+
+                if (playerTempBox.intersectsBox(doorBox)) {
+                    playerPos.copy(oldPosition);
+                    this.velocity.x = 0;
+                    this.velocity.z = 0;
+                    return;
+                }
             }
+        }
 
-            const doorBox = door.mesh.userData.boundingBox.clone();
-            doorBox.min.x -= 0.2;
-            doorBox.max.x += 0.2;
-            doorBox.min.z -= 0.2;
-            doorBox.max.z += 0.2;
+        const walls = this.world.getWalls();
+        let collided = false;
 
-            const playerTempBox = new THREE.Box3();
-            playerTempBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);
-            playerTempBox.max.set(playerPos.x + offset, playerPos.y + 1.0, playerPos.z + offset);
+        for (const wall of walls) {
+            if (!wall.userData.boundingBox) continue;
 
-            if (playerTempBox.intersectsBox(doorBox)) {
-                playerPos.copy(oldPosition);
-                this.velocity.x = 0;
-                this.velocity.z = 0;
-                return;
+            if (playerBox.intersectsBox(wall.userData.boundingBox)) {
+                collided = true;
+                break;
             }
         }
-    }
 
-    const walls = this.world.getWalls();
-    let collided = false;
+        if (!collided) return;
 
-    for (const wall of walls) {
-        if (!wall.userData.boundingBox) continue;
+        const slidePosX = new THREE.Vector3(oldPosition.x, playerPos.y, playerPos.z);
+        const slideBoxX = new THREE.Box3(
+            new THREE.Vector3(slidePosX.x - offset, slidePosX.y - 1.0, slidePosX.z - offset),
+            new THREE.Vector3(slidePosX.x + offset, slidePosX.y + 1.0, slidePosX.z + offset)
+        );
 
-        if (playerBox.intersectsBox(wall.userData.boundingBox)) {
-            collided = true;
-            break;
+        let blockedX = false;
+        for (const wall of walls) {
+            if (wall.userData.boundingBox && slideBoxX.intersectsBox(wall.userData.boundingBox)) {
+                blockedX = true;
+                break;
+            }
         }
-    }
 
-    if (!collided) return;
+        const slidePosZ = new THREE.Vector3(playerPos.x, playerPos.y, oldPosition.z);
+        const slideBoxZ = new THREE.Box3(
+            new THREE.Vector3(slidePosZ.x - offset, slidePosZ.y - 1.0, slidePosZ.z - offset),
+            new THREE.Vector3(slidePosZ.x + offset, slidePosZ.y + 1.0, slidePosZ.z + offset)
+        );
 
-    const slidePosX = new THREE.Vector3(oldPosition.x, playerPos.y, playerPos.z);
-    const slideBoxX = new THREE.Box3(
-        new THREE.Vector3(slidePosX.x - offset, slidePosX.y - 1.0, slidePosX.z - offset),
-        new THREE.Vector3(slidePosX.x + offset, slidePosX.y + 1.0, slidePosX.z + offset)
-    );
-
-    let blockedX = false;
-    for (const wall of walls) {
-        if (wall.userData.boundingBox && slideBoxX.intersectsBox(wall.userData.boundingBox)) {
-            blockedX = true;
-            break;
+        let blockedZ = false;
+        for (const wall of walls) {
+            if (wall.userData.boundingBox && slideBoxZ.intersectsBox(wall.userData.boundingBox)) {
+                blockedZ = true;
+                break;
+            }
         }
-    }
 
-    const slidePosZ = new THREE.Vector3(playerPos.x, playerPos.y, oldPosition.z);
-    const slideBoxZ = new THREE.Box3(
-        new THREE.Vector3(slidePosZ.x - offset, slidePosZ.y - 1.0, slidePosZ.z - offset),
-        new THREE.Vector3(slidePosZ.x + offset, slidePosZ.y + 1.0, slidePosZ.z + offset)
-    );
-
-    let blockedZ = false;
-    for (const wall of walls) {
-        if (wall.userData.boundingBox && slideBoxZ.intersectsBox(wall.userData.boundingBox)) {
-            blockedZ = true;
-            break;
+        if (!blockedX) {
+            playerPos.copy(slidePosX);
+            this.velocity.z = 0;
+            return;
         }
-    }
 
-    if (!blockedX) {
-        playerPos.copy(slidePosX);
-        this.velocity.z = 0;
-        return;
-    }
+        if (!blockedZ) {
+            playerPos.copy(slidePosZ);
+            this.velocity.x = 0;
+            return;
+        }
 
-    if (!blockedZ) {
-        playerPos.copy(slidePosZ);
+        playerPos.copy(oldPosition);
         this.velocity.x = 0;
-        return;
+        this.velocity.z = 0;
     }
-
-    playerPos.copy(oldPosition);
-    this.velocity.x = 0;
-    this.velocity.z = 0;
-}
 
     getPosition() {
         return this.camera.position;

@@ -70,7 +70,6 @@ class Game {
 
                 // Buscar el tipo de enemigo específico en ENEMY_TYPES según el tipo del spawn
                 const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
-                console.log("tipo de enenmigo: ", enemyType);
                 if (enemyType) {
                     // Si encontramos el tipo específico, spawnearlo
                     this.enemyManager.spawn(time, enemyType, spawn.position);

@@ -34,7 +34,7 @@ export const WEAPONS_DATA = [
         geo: machineGunGeometry
     }
 ];
-// NUEVO: Configuración de tipos de enemigos
+
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
@@ -44,25 +44,49 @@ export const ENEMY_TYPES = [
         texture: 'assets/enemies/pablo.png',
         spawnWeight: 3,
         width: 5,
-        height: 7
+        height: 7,
+        projectileSize: 0.3   // ⭐ NUEVO
     },
     {
-        id: 'pera', 
+        id: 'pera',
         speed: 2.2,
         damage: 6,
         hp: 160,
         texture: 'assets/enemies/pera.png',
         spawnWeight: 3,
         width: 2.5,
-        height: 3.25
+        height: 3.25,
+        projectileSize: 0.25   // ⭐ NUEVO
     },
+
+    {
+        id: 'patica',
+        speed: 1.5,
+        damage: 10,
+        hp: 120,
+        texture: 'assets/enemies/patica.png',
+        spawnWeight: 2,
+        width: 6,
+        height: 7.5,
+        isShooter: true,
+        shootRate: 2000,
+        projectileSpeed: 15.0,
+
+        projectileOffsetX: 0,
+        projectileOffsetY: -0.9,
+        projectileOffsetZ: 0,
+
+        projectileSize: 0.6   // ⭐ NUEVO (proyectil grande)
+    },
+
     {
         id: 'slow_low3',
         speed: 1.8,
         damage: 4,
         hp: 140,
         texture: 'assets/enemies/slow_low3.png',
-        spawnWeight: 3
+        spawnWeight: 3,
+        projectileSize: 0.3   // ⭐ NUEVO
     },
     {
         id: 'medium_med',
@@ -70,7 +94,8 @@ export const ENEMY_TYPES = [
         damage: 15,
         hp: 200,
         texture: 'assets/enemies/medium_med.png',
-        spawnWeight: 2
+        spawnWeight: 2,
+        projectileSize: 0.35   // ⭐ NUEVO
     },
     {
         id: 'medium_med2',
@@ -78,9 +103,11 @@ export const ENEMY_TYPES = [
         damage: 16,
         hp: 210,
         texture: 'assets/enemies/medium_med2.png',
-        spawnWeight: 2
-    }
+        spawnWeight: 2,
+        projectileSize: 0.35   // ⭐ NUEVO
+    },
 ];
+
 export const MAP_BLOCKS = {
     '#': { type: 'wall', color: 0x888888, height: CONFIG.BLOCK_SIZE, solid: true },
     'D': { type: 'door', color: 0x00ffff, height: CONFIG.BLOCK_SIZE, solid: false },
@@ -93,6 +120,8 @@ export const MAP_BLOCKS = {
     '2': { type: 'enemy_slow_low2', color: 0x44aa44, height: 0, solid: false },
     '3': { type: 'enemy_slow_low3', color: 0x44aa44, height: 0, solid: false },
     '4': { type: 'enemy_medium_med', color: 0x44aa44, height: 0, solid: false },
-    '5': { type: 'enemy_medium_med2', color: 0x44aa44, height: 0, solid: false }
+    '5': { type: 'enemy_medium_med2', color: 0x44aa44, height: 0, solid: false },
+    // ⭐ NUEVO EN EL MAPA
+    '6': { type: 'enemy_shooter', color: 0x44aa44, height: 0, solid: false }
 };
 /*[Fin de sección]*/

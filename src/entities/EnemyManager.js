@@ -26,7 +26,6 @@ export class EnemyManager {
 
         this.spawnPoints = [];
         this.walls = world.getWalls();
-
         this.bloodParticles = new Map();
         this.bloodGeometry = new THREE.BoxGeometry(0.12, 0.12, 0.12);
         this.bloodMaterial = new THREE.MeshBasicMaterial({
@@ -34,9 +33,13 @@ export class EnemyManager {
             transparent: true,
             opacity: 1.0
         });
-
         // ⭐ Helpers de colisión, ahora controlados por CONFIG.DEBUG_SHOW_HITBOXES
         this.enemyCollisionHelpers = new Map();
+
+        // ⭐ NUEVO: Sistema de proyectiles
+        this.projectiles = [];
+        this.projectileGeometry = new THREE.SphereGeometry(0.3, 8, 8); // Bolas redondas
+        this.projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Rojas
     }
 
     createBloodParticles(enemy, hitPosition) {
@@ -63,13 +66,11 @@ export class EnemyManager {
 
             particle.rotation.x = Math.random() * Math.PI;
             particle.rotation.y = Math.random() * Math.PI;
-
             const velocity = new THREE.Vector3(
                 (Math.random() - 0.5) * 5.0,
                 (Math.random() * 4.0) + 2.0,
                 (Math.random() - 0.5) * 5.0
             );
-
             particle.userData = {
                 life: 1.0,
                 velocity: velocity,
@@ -80,7 +81,6 @@ export class EnemyManager {
                 isOnGround: false,
                 creationTime: performance.now(),
             };
-
             const scale = 0.5 + Math.random() * 0.8;
             particle.scale.set(scale, scale, scale);
 
@@ -174,64 +174,19 @@ export class EnemyManager {
     }
 
     getEnemyFromPool(enemyType = null) {
-        const type = enemyType || this.getRandomEnemyType();
-        
-        const width = type.width || 2.0;
-        const height = type.height || 2.0;
+    const type = enemyType || this.getRandomEnemyType();
 
-        if (this.enemyPool.length > 0) {
-            const enemy = this.enemyPool.pop();
-            enemy.visible = true;
-            enemy.userData.hp = type.hp;
-            enemy.userData.speed = type.speed;
-            enemy.userData.damage = type.damage;
-            enemy.userData.enemyType = type.id;
-            enemy.userData.bloodTime = 0;
-            enemy.userData.velocity = new THREE.Vector3();
-            enemy.userData.canJump = false;
+    const width = type.width || 2.0;
+    const height = type.height || 2.0;
 
-            enemy.scale.set(width / 2.0, height / 2.0, 1.0);
+    const isShooter = type.isShooter || false;
+    const shootRate = type.shootRate || 2000;
+    const projSpeed = type.projectileSpeed || 15.0;
+    const projSize = type.projectileSize || 0.3;   // ⭐ NUEVO
 
-            enemy.material = new THREE.MeshBasicMaterial({
-                map: this.enemyTextures[type.id],
-                transparent: true,
-                alphaTest: 0.01
-            });
-
-            this.clearBloodParticles(enemy);
-
-            if (!this.enemyCollisionHelpers.has(enemy)) {
-                const box = new THREE.Box3();
-                const helper = new THREE.Box3Helper(box, 0xff0000);
-
-                // ⭐ Aquí se respeta el toggle
-                helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
-
-                this.scene.add(helper);
-                this.enemyCollisionHelpers.set(enemy, helper);
-            } else {
-                this.enemyCollisionHelpers.get(enemy).visible = CONFIG.DEBUG_SHOW_HITBOXES;
-            }
-
-            enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
-            return enemy;
-        }
-
-        const textureLoader = new THREE.TextureLoader();
-        const enemyTexture = textureLoader.load(type.texture);
-        enemyTexture.colorSpace = THREE.SRGBColorSpace;
-
-        const enemyMaterial = new THREE.MeshBasicMaterial({
-            map: enemyTexture,
-            transparent: true,
-            depthWrite: false,
-            alphaTest: 0.01
-        });
-        const enemy = new THREE.Mesh(this.sharedGeometry, enemyMaterial);
-
-        enemy.scale.set(width / 2.0, height / 2.0, 1.0);
-
-        enemy.matrixAutoUpdate = true;
+    if (this.enemyPool.length > 0) {
+        const enemy = this.enemyPool.pop();
+        enemy.visible = true;
         enemy.userData.hp = type.hp;
         enemy.userData.speed = type.speed;
         enemy.userData.damage = type.damage;
@@ -240,34 +195,94 @@ export class EnemyManager {
         enemy.userData.velocity = new THREE.Vector3();
         enemy.userData.canJump = false;
 
-        enemy.userData.drawBlood = (hitPosition = null) => {
-            const actualHitPosition = enemy.position.clone();
-            actualHitPosition.y = height / 2.0;
+        enemy.userData.isShooter = isShooter;
+        enemy.userData.shootRate = shootRate;
+        enemy.userData.projectileSpeed = projSpeed;
+        enemy.userData.projectileSize = projSize;   // ⭐ NUEVO
+        enemy.userData.lastShootTime = performance.now();
 
-            const forward = new THREE.Vector3(0, 0, 1);
-            forward.applyQuaternion(enemy.quaternion);
-            forward.multiplyScalar(0.5);
+        enemy.scale.set(width / 2.0, height / 2.0, 1.0);
 
-            actualHitPosition.add(forward);
-            const particles = this.createBloodParticles(enemy, actualHitPosition);
-            this.bloodParticles.set(enemy, particles);
-        };
+        enemy.material = new THREE.MeshBasicMaterial({
+            map: this.enemyTextures[type.id],
+            transparent: true,
+            alphaTest: 0.01
+        });
 
-        enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
+        this.clearBloodParticles(enemy);
+
+        if (!this.enemyCollisionHelpers.has(enemy)) {
+            const box = new THREE.Box3();
+            const helper = new THREE.Box3Helper(box, 0xff0000);
+            helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+            this.scene.add(helper);
+            this.enemyCollisionHelpers.set(enemy, helper);
+        } else {
+            this.enemyCollisionHelpers.get(enemy).visible = CONFIG.DEBUG_SHOW_HITBOXES;
+        }
 
         enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
-
-        const helperBox = new THREE.Box3();
-        const helper = new THREE.Box3Helper(helperBox, 0xff0000);
-
-        // ⭐ Respeta el toggle
-        helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
-
-        this.scene.add(helper);
-        this.enemyCollisionHelpers.set(enemy, helper);
-
         return enemy;
     }
+
+    const textureLoader = new THREE.TextureLoader();
+    const enemyTexture = textureLoader.load(type.texture);
+    enemyTexture.colorSpace = THREE.SRGBColorSpace;
+
+    const enemyMaterial = new THREE.MeshBasicMaterial({
+        map: enemyTexture,
+        transparent: true,
+        depthWrite: false,
+        alphaTest: 0.01
+    });
+
+    const enemy = new THREE.Mesh(this.sharedGeometry, enemyMaterial);
+    enemy.scale.set(width / 2.0, height / 2.0, 1.0);
+
+    enemy.matrixAutoUpdate = true;
+    enemy.userData.hp = type.hp;
+    enemy.userData.speed = type.speed;
+    enemy.userData.damage = type.damage;
+    enemy.userData.enemyType = type.id;
+    enemy.userData.bloodTime = 0;
+    enemy.userData.velocity = new THREE.Vector3();
+    enemy.userData.canJump = false;
+
+    enemy.userData.isShooter = isShooter;
+    enemy.userData.shootRate = shootRate;
+    enemy.userData.projectileSpeed = projSpeed;
+    enemy.userData.projectileSize = projSize;   // ⭐ NUEVO
+    enemy.userData.lastShootTime = performance.now();
+
+    enemy.userData.projectileOffsetX = type.projectileOffsetX || 0;
+    enemy.userData.projectileOffsetY = type.projectileOffsetY || 0;
+    enemy.userData.projectileOffsetZ = type.projectileOffsetZ || 0;
+
+    enemy.userData.drawBlood = (hitPosition = null) => {
+        const actualHitPosition = enemy.position.clone();
+        actualHitPosition.y = height / 2.0;
+
+        const forward = new THREE.Vector3(0, 0, 1);
+        forward.applyQuaternion(enemy.quaternion);
+        forward.multiplyScalar(0.5);
+
+        actualHitPosition.add(forward);
+        const particles = this.createBloodParticles(enemy, actualHitPosition);
+        this.bloodParticles.set(enemy, particles);
+    };
+
+    enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
+
+    enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
+
+    const helperBox = new THREE.Box3();
+    const helper = new THREE.Box3Helper(helperBox, 0xff0000);
+    helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+    this.scene.add(helper);
+    this.enemyCollisionHelpers.set(enemy, helper);
+
+    return enemy;
+}
 
     clearBloodParticles(enemy) {
         const particles = this.bloodParticles.get(enemy);
@@ -312,7 +327,6 @@ export class EnemyManager {
             const enemy = this.getEnemyFromPool(enemyType);
 
             const spawnHeight = (enemyType.height || 2.0) / 2.0;
-
             const spawnPoint = specificPosition
                 ? specificPosition
                 : (this.spawnPoints.length > 0
@@ -322,13 +336,12 @@ export class EnemyManager {
                         1,
                         (Math.random() - 0.5) * 100
                     ));
-            
             enemy.position.copy(spawnPoint);
 
             if (specificPosition && specificPosition.y === 1) {
-                 enemy.position.y = spawnHeight; 
+                enemy.position.y = spawnHeight;
             } else if (!specificPosition) {
-                 enemy.position.y = spawnHeight;
+                enemy.position.y = spawnHeight;
             }
 
             enemy.visible = true;
@@ -339,7 +352,6 @@ export class EnemyManager {
                 transparent: true,
                 alphaTest: 0.01
             });
-
             if (!this.activeEnemies.has(enemy)) {
                 this.scene.add(enemy);
                 this.enemies.push(enemy);
@@ -352,9 +364,37 @@ export class EnemyManager {
         }
     }
 
+    shootProjectile(enemy, targetPos) {
+    const size = enemy.userData.projectileSize || 0.3;   // ⭐ NUEVO
+
+    const projectileGeo = new THREE.SphereGeometry(size, 8, 8);   // ⭐ PROYECTIL CUSTOM
+    const projectile = new THREE.Mesh(projectileGeo, this.projectileMaterial);
+
+    const spawnPos = new THREE.Vector3(
+        enemy.position.x + enemy.userData.projectileOffsetX,
+        enemy.position.y + enemy.userData.projectileOffsetY,
+        enemy.position.z + enemy.userData.projectileOffsetZ
+    );
+
+    projectile.position.copy(spawnPos);
+
+    const direction = new THREE.Vector3().subVectors(targetPos, spawnPos).normalize();
+
+    projectile.userData = {
+        velocity: direction.multiplyScalar(enemy.userData.projectileSpeed),
+        damage: enemy.userData.damage,
+        radius: size   // ⭐ HITBOX = TAMAÑO DEL PROYECTIL
+    };
+
+    this.scene.add(projectile);
+    this.projectiles.push(projectile);
+}
+
     update(delta, playerPos, onHitPlayer) {
         const tempEnemyBox = new THREE.Box3();
+        const now = performance.now();
 
+        // 1. Actualizar enemigos
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const enemy = this.enemies[i];
             if (!enemy.visible) continue;
@@ -365,6 +405,17 @@ export class EnemyManager {
 
             enemy.lookAt(playerPos.x, enemy.position.y, playerPos.z);
 
+            // ⭐ Lógica de disparo si es shooter
+            if (enemy.userData.isShooter) {
+                if (now - enemy.userData.lastShootTime > enemy.userData.shootRate) {
+                    // Disparar apuntando un poco arriba (hacia el pecho del jugador)
+                    const target = playerPos.clone();
+                    target.y -= 0.5;
+                    this.shootProjectile(enemy, target);
+                    enemy.userData.lastShootTime = now;
+                }
+            }
+
             const direction = new THREE.Vector3();
             direction.subVectors(playerPos, enemy.position).normalize();
             const moveDist = enemy.userData.speed * delta;
@@ -373,7 +424,6 @@ export class EnemyManager {
             tentativePos.y += enemy.userData.velocity.y * delta;
 
             const s = enemy.userData.collisionSize;
-
             tempEnemyBox.min.set(
                 tentativePos.x - s.x,
                 tentativePos.y - s.y * 0.5,
@@ -384,13 +434,10 @@ export class EnemyManager {
                 tentativePos.y + s.y * 0.5,
                 tentativePos.z + s.z
             );
-
             if (this.enemyCollisionHelpers.has(enemy)) {
                 const helper = this.enemyCollisionHelpers.get(enemy);
-
                 // ⭐ Mostrar u ocultar dinámicamente si se cambia CONFIG.DEBUG_SHOW_HITBOXES
                 helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
-
                 helper.box.copy(tempEnemyBox);
                 helper.updateMatrixWorld(true);
             }
@@ -417,6 +464,46 @@ export class EnemyManager {
 
             if (enemy.position.distanceTo(playerPos) < 2.5) {
                 onHitPlayer(enemy.userData.damage);
+            }
+        }
+
+        // 2. ⭐ Actualizar proyectiles
+        const projBox = new THREE.Box3();
+        const playerHitBox = new THREE.Box3().setFromCenterAndSize(playerPos, new THREE.Vector3(1, 2, 1));
+
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const proj = this.projectiles[i];
+
+            // Mover proyectil
+            proj.position.addScaledVector(proj.userData.velocity, delta);
+
+            // Crear hitbox del proyectil para comprobaciones
+            const r = proj.userData.radius;
+            projBox.min.set(proj.position.x - r, proj.position.y - r, proj.position.z - r);
+            projBox.max.set(proj.position.x + r, proj.position.y + r, proj.position.z + r);
+
+            let destroyed = false;
+
+            // A) Colisión con jugador
+            if (projBox.intersectsBox(playerHitBox)) {
+                onHitPlayer(proj.userData.damage);
+                destroyed = true;
+            }
+
+            // B) Colisión con paredes (si no chocó con jugador)
+            if (!destroyed) {
+                for (const wall of this.walls) {
+                    if (wall.userData.boundingBox && projBox.intersectsBox(wall.userData.boundingBox)) {
+                        destroyed = true;
+                        break;
+                    }
+                }
+            }
+
+            // C) Limpieza si se sale del mapa o choca
+            if (destroyed || proj.position.y < -10 || proj.position.length() > 500) {
+                this.scene.remove(proj);
+                this.projectiles.splice(i, 1);
             }
         }
 
@@ -448,6 +535,12 @@ export class EnemyManager {
             this.scene.remove(helper);
         });
         this.enemyCollisionHelpers.clear();
+
+        // ⭐ Limpiar proyectiles
+        this.projectiles.forEach(p => this.scene.remove(p));
+        this.projectiles = [];
+        if (this.projectileGeometry) this.projectileGeometry.dispose();
+        if (this.projectileMaterial) this.projectileMaterial.dispose();
 
         this.enemies.forEach(enemy => {
             if (enemy.geometry) enemy.geometry.dispose();

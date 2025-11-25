@@ -122,6 +122,16 @@ export class MapLoader {
                     validFloors.push(position);
                     break;
 
+                // ⭐ NUEVO CASO PARA EL ENEMIGO QUE DISPARA
+                case '6':
+                    enemySpawns.push({
+                        position: new THREE.Vector3(position.x, 1, position.z),
+                        type: 'patica',
+                        lastSpawnTime: 0
+                    });
+                    validFloors.push(position);
+                    break;
+
                 case '.': 
                 case ' ': 
                     validFloors.push(position);
@@ -150,7 +160,7 @@ export class MapLoader {
         height,
         blockSize: this.blockSize
     };
-}
+    }
 
     gridToWorld(gridX, gridY, mapWidth, mapHeight) {
         const offsetX = (mapWidth * this.blockSize) / 2;
@@ -161,7 +171,7 @@ export class MapLoader {
             y: 0,
             z: (gridY * this.blockSize) - offsetZ + (this.blockSize / 2)
         };
-}
+    }
 
     getDefaultMap() {
     return {
@@ -175,6 +185,6 @@ export class MapLoader {
         height: 0,
         blockSize: this.blockSize
     };
-}
+    }
 }
 /*[Fin de sección]*/
