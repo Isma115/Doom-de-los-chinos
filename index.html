@@ -1,0 +1,41 @@
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Shooter Arena - Modular</title>
+    <link rel="stylesheet" href="css/style.css">
+
+</head>
+
+<body>
+
+    <div id="ui-layer">
+        <div id="hud-top">
+            <div>
+                <div id="health-display">Salud: 100</div>
+                <div id="fps-display">FPS: 0</div>
+            </div>
+            <div id="score-display">Enemigos: 0</div>
+        </div>
+
+        <div id="crosshair"></div>
+
+        <div id="hud-bottom">
+            <div id="weapon-name">Arma: PISTOLA</div>
+            <div id="ammo-display">Munición: ∞</div>
+        </div>
+    </div>
+
+
+    <div id="start-screen">
+        <h1>ARENA SHOOTER</h1>
+        <p>Haz click para jugar</p>
+        <p>WASD: Moverse | ESPACIO: Saltar</p>
+        <p>Click: Disparar | Scroll: Cambiar Arma</p>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+
+</html>
