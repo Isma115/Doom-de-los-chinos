@@ -3,11 +3,16 @@ import { World } from './core/World.js';
 import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
 import { Door } from './entities/Door.js';
-import { ENEMY_TYPES, CONFIG } from './Constants.js'; //
+// ⭐ NUEVO: Importamos UIManager para poder mostrar la pantalla de inicio
+import { UIManager } from './UI.js';
+import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js'; //
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { AudioManager } from './core/AudioManager.js';
+// ⭐ NUEVO: Importamos el gestor de eventos
+import { EventManager } from './core/EventManager.js';
+
 class Game { //
-    constructor() {
+    constructor(mapName) {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); //
         this.renderer = new THREE.WebGLRenderer({
@@ -24,21 +29,20 @@ class Game { //
         this.prevTime = performance.now();
         this.frameCount = 0;
         this.lastCleanupTime = 0;
-        window.addEventListener('resize', () => this.onWindowResize()); //
+        window.addEventListener('resize', () => this.onWindowResize());
+        //
 
         // Inicializamos el gestor de audio
         this.audioManager = new AudioManager();
-        
-        this.initGame();
+        this.initGame(mapName);
     }
 
-    async initGame() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const mapName = "mapa2";//urlParams.get('map') || 'default'; //
+    async initGame(mapName) {
+        // const urlParams = new URLSearchParams(window.location.search);
+        // const mapName = "mapa2";//urlParams.get('map') || 'default'; //
 
         // Esperamos a que carguen los sonidos
         await this.audioManager.init();
-
         this.world = new World(this.scene);
         await this.world.init(mapName);
 
@@ -47,9 +51,9 @@ class Game { //
         doorMeshes.forEach(mesh => { //
             new Door(mesh);
         });
-        
         // Pasamos el audioManager al gestor de enemigos
-        this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager); //
+        this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
+        //
         this.enemyManager.spawnPoints = this.world.getEnemySpawns();
 
         this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
@@ -58,29 +62,46 @@ class Game { //
             this.player.teleport(playerSpawn);
         } //
 
+        // ⭐ NUEVO: Inicializamos el sistema de eventos
+        this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
+
         // Reproducimos música de fondo
         this.audioManager.playMusic('background');
-
+        // ⭐ CORRECCIÓN: Forzamos la aparición de la pantalla de inicio/pausa
+        // Esto permite al usuario hacer click para bloquear el ratón y empezar a moverse.
+        // (isLocked = false, isGameOver = false) -> Muestra pantalla "Click para continuar"
+        UIManager.togglePauseScreen(false, false);
         this.animate();
     } //
 
     animate() {
         requestAnimationFrame(() => this.animate());
         const time = performance.now();
-        const delta = (time - this.prevTime) / 1000; //
+        const delta = (time - this.prevTime) / 1000;
+        //
 
         if (this.player && !this.player.isGameOver) {
             this.player.update(delta);
+
+            // ⭐ NUEVO: Actualizamos eventos
+            if (this.eventManager) {
+                this.eventManager.update(delta, this.player.getPosition());
+            }
+
             const enemySpawns = this.world.getEnemySpawns(); //
             enemySpawns.forEach(spawn => {
                 if (time - spawn.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
                     spawn.lastSpawnTime = time;
 
                     const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
+
+
                     if (enemyType) {
                         this.enemyManager.spawn(time, enemyType, spawn.position); //
                     } else {
                         this.enemyManager.spawn(time, null, spawn.position);
+
+
                     }
                 } //
             });
@@ -112,8 +133,10 @@ class Game { //
             const distance = playerPos.distanceTo(foodMesh.position);
             if (distance < 2.0) {
                 this.player.collectFood(foodMesh.userData.healAmount);
-                foodMesh.userData.collected 
-                = true; //
+
+
+                foodMesh.userData.collected
+                    = true; //
                 this.scene.remove(foodMesh);
             }
         });
@@ -136,5 +159,32 @@ class Game { //
     }
 }
 
-new Game();
+// Lógica del selector de mapas
+function createMapSelector() {
+    const selectorDiv = document.createElement('div');
+    selectorDiv.id = 'map-selector';
+
+    const title = document.createElement('div');
+    title.className = 'map-title';
+    title.innerText = 'SELECCIONAR MISIÓN';
+    selectorDiv.appendChild(title);
+
+    const listDiv = document.createElement('div');
+    listDiv.className = 'map-list';
+
+    AVAILABLE_MAPS.forEach(map => {
+        const btn = document.createElement('button');
+        btn.className = 'map-btn';
+        btn.innerText = map.name;
+        btn.onclick = () => {
+            document.body.removeChild(selectorDiv);
+            new Game(map.id);
+        };
+        listDiv.appendChild(btn);
+    });
+    selectorDiv.appendChild(listDiv);
+    document.body.appendChild(selectorDiv);
+}
+
+createMapSelector();
 /*[Fin de sección]*/
