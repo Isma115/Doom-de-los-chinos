@@ -9,11 +9,18 @@ export const CONFIG = {
     ENEMY_SPAWN_RATE: 2000,
     DOOR_OPEN_DURATION: 3000,
     DOOR_CLOSE_DISTANCE: 20,
-    BLOCK_SIZE: 10,  // Tamaño de cada bloque del mapa
+    BLOCK_SIZE: 10,
 
-    // ⭐ NUEVO: Permite activar/desactivar las cajas rojas de depuración
     DEBUG_SHOW_HITBOXES: false
 };
+
+export const AUDIO_CONFIG = {
+    MUSIC_VOLUME: 0.3,
+    SFX_VOLUME: 0.5,
+    ENEMY_SOUND_CHANCE: 0.02,
+    ENEMY_SOUND_COOLDOWN: 3000
+};
+
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);
 export const WEAPONS_DATA = [
@@ -22,16 +29,20 @@ export const WEAPONS_DATA = [
         color: 0x00ff00,
         damage: 25,
         delay: 400,
-        ammo: "Infinito",
-        geo: pistolGeometry
+        ammo: 100,
+        maxAmmo: 100,
+        geo: pistolGeometry,
+        shootSound: 'pistol'
     },
     {
         name: "AMETRALLADORA",
         color: 0xff0000,
         damage: 10,
         delay: 100,
-        ammo: 100,
-        geo: machineGunGeometry
+        ammo: 600,
+        maxAmmo: 600,
+        geo: machineGunGeometry,
+        shootSound: 'machinegun'
     }
 ];
 
@@ -45,7 +56,8 @@ export const ENEMY_TYPES = [
         spawnWeight: 3,
         width: 5,
         height: 7,
-        projectileSize: 0.3   // ⭐ NUEVO
+        projectileSize: 0.3,
+        sounds: ['grunt1', 'grunt2', 'growl1']
     },
     {
         id: 'pera',
@@ -56,7 +68,8 @@ export const ENEMY_TYPES = [
         spawnWeight: 3,
         width: 2.5,
         height: 3.25,
-        projectileSize: 0.25   // ⭐ NUEVO
+        projectileSize: 0.25,
+        sounds: ['grunt1', 'hiss1', 'growl2']
     },
 
     {
@@ -76,7 +89,8 @@ export const ENEMY_TYPES = [
         projectileOffsetY: -0.9,
         projectileOffsetZ: 0,
 
-        projectileSize: 0.6   // ⭐ NUEVO (proyectil grande)
+        projectileSize: 0.6,
+        sounds: ['roar1', 'growl1', 'hiss1']
     },
 
     {
@@ -86,7 +100,8 @@ export const ENEMY_TYPES = [
         hp: 140,
         texture: 'assets/enemies/slow_low3.png',
         spawnWeight: 3,
-        projectileSize: 0.3   // ⭐ NUEVO
+        projectileSize: 0.3,
+        sounds: ['grunt2', 'growl2', 'hiss1']
     },
     {
         id: 'medium_med',
@@ -95,7 +110,8 @@ export const ENEMY_TYPES = [
         hp: 200,
         texture: 'assets/enemies/medium_med.png',
         spawnWeight: 2,
-        projectileSize: 0.35   // ⭐ NUEVO
+        projectileSize: 0.35,
+        sounds: ['roar1', 'growl1', 'grunt1']
     },
     {
         id: 'medium_med2',
@@ -104,7 +120,8 @@ export const ENEMY_TYPES = [
         hp: 210,
         texture: 'assets/enemies/medium_med2.png',
         spawnWeight: 2,
-        projectileSize: 0.35   // ⭐ NUEVO
+        projectileSize: 0.35,
+        sounds: ['roar1', 'growl2', 'grunt2']
     },
 ];
 
@@ -121,7 +138,8 @@ export const MAP_BLOCKS = {
     '3': { type: 'enemy_slow_low3', color: 0x44aa44, height: 0, solid: false },
     '4': { type: 'enemy_medium_med', color: 0x44aa44, height: 0, solid: false },
     '5': { type: 'enemy_medium_med2', color: 0x44aa44, height: 0, solid: false },
-    // ⭐ NUEVO EN EL MAPA
-    '6': { type: 'enemy_shooter', color: 0x44aa44, height: 0, solid: false }
+    '6': { type: 'enemy_shooter', color: 0x44aa44, height: 0, solid: false },
+    'MP': { type: 'MP', color: 0xffff00, height: 0, solid: false },
+    'MA': { type: 'MA', color: 0xff8800, height: 0, solid: false }
 };
 /*[Fin de sección]*/
