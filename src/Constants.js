@@ -13,11 +13,11 @@ export const CONFIG = {
 
     DEBUG_SHOW_HITBOXES: false
 };
-// ⭐ NUEVO: Lista de mapas disponibles para el selector
+// ★ NUEVO: Lista de mapas disponibles para el selector
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
-    { id: 'mapa2', name: 'La Fortaleza' },
-    { id: 'arena', name: 'Arena de Sangre' } 
+    { id: 'mapa1', name: 'La Fortaleza' },
+    { id: 'mapa2', name: 'Arena de Sangre' } 
 ];
 
 export const AUDIO_CONFIG = {
@@ -138,6 +138,8 @@ export const ENEMY_TYPES = [
 
 export const MAP_BLOCKS = {
     '#': { type: 'wall', color: 0x888888, height: CONFIG.BLOCK_SIZE, solid: true },
+    'B': { type: 'bush', color: 0x336633, height: CONFIG.BLOCK_SIZE * 0.6, solid: true },
+    'L': { type: 'brick', color: 0xAA4444, height: CONFIG.BLOCK_SIZE * 0.6, solid: true },
     'D': { type: 'door', color: 0x00ffff, height: CONFIG.BLOCK_SIZE, solid: false },
     '+': { type: 'food', color: 0xff0000, height: 0, solid: false },
     '.': { type: 'floor', color: 0x44aa44, height: 0, solid: false },

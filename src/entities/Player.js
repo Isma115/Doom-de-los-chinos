@@ -35,10 +35,14 @@ export class Player {
         this.initEvents(domElement);
     }
 
-    teleport(position) {
+    teleport(position, rotation = 0) {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
         this.velocity.set(0, 0, 0);
+
+        const rotationRadians = (rotation * Math.PI) / 180;
+        this.camera.rotation.y = rotationRadians;
+
         this.camera.updateMatrixWorld(true);
     }
 
@@ -71,7 +75,7 @@ export class Player {
     onKey(event, isDown) {
         switch (event.code) {
             case 'ArrowUp': case 'KeyW': this.moveFlags.fwd = isDown;
-            break;
+                break;
             case 'ArrowLeft': case 'KeyA': this.moveFlags.left = isDown; break;
             case 'ArrowDown': case 'KeyS': this.moveFlags.bwd = isDown; break;
             case 'ArrowRight': case 'KeyD': this.moveFlags.right = isDown; break;
@@ -285,20 +289,20 @@ export class Player {
                 break;
             }
         }
-            if (!blockedX) {
-                playerPos.copy(slidePosX);
-                this.velocity.z = 0;
-                return;
-            } if (!blockedZ) {
-                playerPos.copy(slidePosZ);
-                this.velocity.x = 0;
-                return;
-            }
-            playerPos.copy(oldPosition);
-            this.velocity.x = 0;
+        if (!blockedX) {
+            playerPos.copy(slidePosX);
             this.velocity.z = 0;
+            return;
+        } if (!blockedZ) {
+            playerPos.copy(slidePosZ);
+            this.velocity.x = 0;
+            return;
         }
-        getPosition() { 
+        playerPos.copy(oldPosition);
+        this.velocity.x = 0;
+        this.velocity.z = 0;
+    }
+    getPosition() {
         return this.camera.position;
     }
 }

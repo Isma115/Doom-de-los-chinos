@@ -35,44 +35,40 @@ class Game { //
         // Inicializamos el gestor de audio
         this.audioManager = new AudioManager();
         this.initGame(mapName);
+        
     }
 
     async initGame(mapName) {
-        // const urlParams = new URLSearchParams(window.location.search);
-        // const mapName = "mapa2";//urlParams.get('map') || 'default'; //
+    await this.audioManager.init();
+    this.world = new World(this.scene);
+    await this.world.init(mapName);
 
-        // Esperamos a que carguen los sonidos
-        await this.audioManager.init();
-        this.world = new World(this.scene);
-        await this.world.init(mapName);
+    Door.clearAll();
+    const doorMeshes = this.world.getDoorMeshes();
+    doorMeshes.forEach(mesh => {
+        new Door(mesh);
+    });
+    
+    this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
+    
+    this.enemyManager.spawnPoints = this.world.getEnemySpawns();
 
-        Door.clearAll();
-        const doorMeshes = this.world.getDoorMeshes();
-        doorMeshes.forEach(mesh => { //
-            new Door(mesh);
-        });
-        // Pasamos el audioManager al gestor de enemigos
-        this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
-        //
-        this.enemyManager.spawnPoints = this.world.getEnemySpawns();
+    this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
+    const playerSpawn = this.world.getPlayerSpawn();
+    const playerRotation = this.world.getPlayerRotation();
+    
+    if (playerSpawn) {
+        this.player.teleport(playerSpawn, playerRotation);
+    }
 
-        this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
-        const playerSpawn = this.world.getPlayerSpawn(); //
-        if (playerSpawn) {
-            this.player.teleport(playerSpawn);
-        } //
+    this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
+    await this.eventManager.loadEventsForMap(mapName);
 
-        // ⭐ NUEVO: Inicializamos el sistema de eventos
-        this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
-
-        // Reproducimos música de fondo
-        this.audioManager.playMusic('background');
-        // ⭐ CORRECCIÓN: Forzamos la aparición de la pantalla de inicio/pausa
-        // Esto permite al usuario hacer click para bloquear el ratón y empezar a moverse.
-        // (isLocked = false, isGameOver = false) -> Muestra pantalla "Click para continuar"
-        UIManager.togglePauseScreen(false, false);
-        this.animate();
-    } //
+    this.audioManager.playMusic('background');
+    
+    UIManager.togglePauseScreen(false, false);
+    this.animate();
+} //
 
     animate() {
         requestAnimationFrame(() => this.animate());

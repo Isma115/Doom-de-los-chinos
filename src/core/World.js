@@ -312,6 +312,10 @@ export class World {
                     entry.position.z
                 );
 
+                const rotationDegrees = entry.rotation || 0;
+                const rotationRadians = (rotationDegrees * Math.PI) / 180;
+                finalObject.rotation.y = rotationRadians;
+
                 this.scene.add(finalObject);
 
                 const colliderWidth = 5;
@@ -386,11 +390,14 @@ export class World {
             });
         }
 
-        this.mapData.doorPositions.forEach(pos => {
+        this.mapData.doorPositions.forEach(doorData => {
             const doorMesh = new THREE.Mesh(doorGeometry, doorMaterial);
 
-            doorMesh.position.set(pos.x, doorHeight / 2, pos.z);
-            doorMesh.rotation.y = 0;
+            doorMesh.position.set(doorData.position.x, doorHeight / 2, doorData.position.z);
+
+            const rotationDegrees = doorData.rotation || 0;
+            const rotationRadians = (rotationDegrees * Math.PI) / 180;
+            doorMesh.rotation.y = rotationRadians;
 
             doorMesh.userData = {
                 closedY: doorHeight / 2,
@@ -404,39 +411,101 @@ export class World {
         });
     }
 
+    getPlayerRotation() {
+        return this.mapData ? this.mapData.playerRotation : 0;
+    }
+
     createWallsFromMap() {
-        const wallHeight = CONFIG.BLOCK_SIZE;
-        this.walls = []; this.sharedGeometries.wall = new THREE.BoxGeometry(
-            CONFIG.BLOCK_SIZE,
-            wallHeight,
-            CONFIG.BLOCK_SIZE
-        ); const textureLoader = new THREE.TextureLoader();
-        let wallTexture = null; try {
-            wallTexture = textureLoader.load(
-                'assets/textures/wall.png',
-                () => { },
-                () => { },
-                () => { wallTexture = null; }
-            );
-        } catch (err) {
-            wallTexture = null;
-        } if (wallTexture) {
-            wallTexture.wrapS = THREE.RepeatWrapping;
-            wallTexture.wrapT = THREE.RepeatWrapping;
-            wallTexture.repeat.set(1, 1);
-            this.sharedMaterials.wall = new THREE.MeshLambertMaterial({ map: wallTexture });
-        } else {
-            this.sharedMaterials.wall = new THREE.MeshLambertMaterial({ color: 0x888888 });
-        } this.mapData.walls.forEach(wallData => {
-            const wall = new THREE.Mesh(this.sharedGeometries.wall, this.sharedMaterials.wall); wall.position.set(
-                wallData.position.x,
-                wallHeight / 2,
-                wallData.position.z
-            ); wall.geometry.computeBoundingBox(); const box = new THREE.Box3().setFromObject(wall);
-            wall.userData.boundingBox = box; wall.updateMatrixWorld(true); this.walls.push(wall);
-            this.scene.add(wall);
+        this.walls = [];
+
+        const blockTypes = [
+            {
+                key: 'wall',
+                data: this.mapData.walls,
+                width: CONFIG.BLOCK_SIZE,
+                height: CONFIG.BLOCK_SIZE,
+                texturePath: 'assets/textures/wall.png',
+                fallbackColor: 0x888888
+            },
+            {
+                key: 'bush',
+                data: this.mapData.bushes,
+                width: CONFIG.BLOCK_SIZE,
+                height: CONFIG.BLOCK_SIZE * 0.5,
+                texturePath: 'assets/textures/arbusto.avif',
+                fallbackColor: 0x336633
+            },
+            {
+                key: 'brick',
+                data: this.mapData.bricks,
+                width: CONFIG.BLOCK_SIZE * 0.7,
+                height: CONFIG.BLOCK_SIZE * 0.6,
+                texturePath: 'assets/textures/brick.png',
+                fallbackColor: 0xAA4444
+            }
+        ];
+
+        const textureLoader = new THREE.TextureLoader();
+
+        blockTypes.forEach(config => {
+            if (!config.data || config.data.length === 0) return;
+
+            if (!this.sharedGeometries[config.key]) {
+                this.sharedGeometries[config.key] = new THREE.BoxGeometry(
+                    config.width,
+                    config.height,
+                    config.width
+                );
+            }
+
+            if (!this.sharedMaterials[config.key]) {
+                let texture = null;
+                try {
+                    texture = textureLoader.load(
+                        config.texturePath,
+                        () => { },
+                        () => { },
+                        () => { texture = null; }
+                    );
+                } catch (err) {
+                    texture = null;
+                }
+
+                if (texture) {
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    texture.repeat.set(1, 1);
+                    this.sharedMaterials[config.key] = new THREE.MeshLambertMaterial({ map: texture });
+                } else {
+                    this.sharedMaterials[config.key] = new THREE.MeshLambertMaterial({ color: config.fallbackColor });
+                }
+            }
+
+            config.data.forEach(itemData => {
+                const mesh = new THREE.Mesh(this.sharedGeometries[config.key], this.sharedMaterials[config.key]);
+
+                mesh.position.set(
+                    itemData.position.x,
+                    config.height / 2,
+                    itemData.position.z
+                );
+
+                const rotationDegrees = itemData.rotation || 0;
+                const rotationRadians = (rotationDegrees * Math.PI) / 180;
+                mesh.rotation.y = rotationRadians;
+
+                mesh.geometry.computeBoundingBox();
+                const box = new THREE.Box3().setFromObject(mesh);
+                mesh.userData.boundingBox = box;
+
+                mesh.updateMatrixWorld(true);
+                this.walls.push(mesh);
+                this.scene.add(mesh);
+            });
         });
-    } dispose() {
+    }
+
+    dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
         this.walls = [];

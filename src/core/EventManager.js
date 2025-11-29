@@ -1,4 +1,4 @@
-/* sección [GESTOR DE EVENTOS] Gestión de eventos dentro del juego */
+/*sección [GESTOR DE EVENTOS] Gestión de eventos dentro del juego*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { UIManager } from '../UI.js';
 import { CONFIG } from '../Constants.js';
@@ -9,17 +9,31 @@ export class EventManager {
         this.enemyManager = enemyManager;
         this.audioManager = audioManager;
         this.world = world;
-        
+
         this.events = [];
         this.processedEvents = new Set();
         this.timeElapsed = 0;
-        
+
         // Contenedor para efectos visuales temporales
         this.postProcessingEnabled = false;
-        
+
         // Inicializamos algunos eventos de ejemplo (esto podría cargarse desde el mapa en el futuro)
         this.initDefaultEvents();
     }
+
+    async loadEventsForMap(mapName) {
+        try {
+            const res = await fetch(`eventos/${mapName}_events.json`);
+            const data = await res.json();
+
+            data.forEach(ev => this.addEvent(ev));
+
+            console.log(`Eventos cargados para el mapa: ${mapName}`);
+        } catch (err) {
+            console.warn(`No hay archivo de eventos para este mapa (${mapName})`);
+        }
+    }
+
 
     initDefaultEvents() {
         // EVENTO 1: Emboscada por proximidad
@@ -109,12 +123,12 @@ export class EventManager {
                                 1,
                                 playerPos.z + Math.sin(angle) * offset
                             );
-                            
+
                             // Buscar tipo de enemigo o aleatorio
-                            const enemyType = action.enemyType ? 
+                            const enemyType = action.enemyType ?
                                 { id: action.enemyType } : null; // EnemyManager resolverá el objeto completo si es null o buscará por ID si implementamos la lógica, 
-                                                                 // por ahora pasamos null para aleatorio o modificamos EnemyManager para aceptar IDs.
-                            
+                            // por ahora pasamos null para aleatorio o modificamos EnemyManager para aceptar IDs.
+
                             // Nota: EnemyManager.spawn espera un objeto tipo o null. 
                             // Para ser robustos, llamamos spawn con null (aleatorio) si no tenemos el objeto tipo a mano,
                             // o modificamos EnemyManager para buscar por string.
@@ -137,4 +151,4 @@ export class EventManager {
         });
     }
 }
-/* [Fin de sección] */
+/*[Fin de sección]*/
