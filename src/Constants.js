@@ -17,7 +17,7 @@ export const CONFIG = {
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
     { id: 'mapa1', name: 'La Fortaleza' },
-    { id: 'mapa2', name: 'Arena de Sangre' } 
+    { id: 'mapa2', name: 'Arena de Sangre' }
 ];
 
 export const AUDIO_CONFIG = {
@@ -43,8 +43,8 @@ export const WEAPONS_DATA = [
     },
     {
         name: "AMETRALLADORA",
-  
-      color: 0xff0000,
+
+        color: 0xff0000,
         damage: 10,
         delay: 100,
         ammo: 600,
@@ -62,12 +62,13 @@ export const ENEMY_TYPES = [
         damage: 5,
         hp: 150,
         texture: 'assets/enemies/pablo.png',
+        textureWalk: 'assets/enemies/pablo_walk.png',
         spawnWeight: 3,
         width: 5,
         height: 7,
         projectileSize: 0.3,
-        sounds: ['grunt1', 'grunt2', 
-'growl1']
+        sounds: ['grunt1', 'grunt2',
+            'growl1']
     },
     {
         id: 'pera',
@@ -75,12 +76,13 @@ export const ENEMY_TYPES = [
         damage: 6,
         hp: 160,
         texture: 'assets/enemies/pera.png',
+        textureWalk: 'assets/enemies/pera_walk.png',
         spawnWeight: 3,
         width: 2.5,
         height: 3.25,
         projectileSize: 0.25,
-        sounds: ['grunt1', 'hiss1', 
-'growl2']
+        sounds: ['grunt1', 'hiss1',
+            'growl2']
     },
 
     {
@@ -89,13 +91,15 @@ export const ENEMY_TYPES = [
         damage: 10,
         hp: 120,
         texture: 'assets/enemies/patica.png',
+        textureWalk: 'assets/enemies/patica_walk.png',
+        textureShoot: 'assets/enemies/patica_shoot.png',
         spawnWeight: 2,
         width: 6,
         height: 7.5,
         isShooter: true,
         shootRate: 2000,
-  
-      projectileSpeed: 15.0,
+
+        projectileSpeed: 15.0,
 
         projectileOffsetX: 0,
         projectileOffsetY: -0.9,
@@ -110,8 +114,9 @@ export const ENEMY_TYPES = [
         speed: 1.8,
         damage: 4,
         hp: 140,
-  
-      texture: 'assets/enemies/slow_low3.png',
+
+        texture: 'assets/enemies/slow_low3.png',
+        textureWalk: 'assets/enemies/slow_low3_walk.png',
         spawnWeight: 3,
         projectileSize: 0.3,
         sounds: ['grunt2', 'growl2', 'hiss1']
@@ -122,9 +127,10 @@ export const ENEMY_TYPES = [
         damage: 15,
         hp: 200,
         texture: 'assets/enemies/medium_med.png',
+        textureWalk: 'assets/enemies/medium_med_walk.png',
         spawnWeight: 2,
-  
-      projectileSize: 0.35,
+
+        projectileSize: 0.35,
         sounds: ['roar1', 'growl1', 'grunt1']
     },
     {
@@ -133,10 +139,11 @@ export const ENEMY_TYPES = [
         damage: 16,
         hp: 210,
         texture: 'assets/enemies/medium_med2.png',
+        textureWalk: 'assets/enemies/medium_med2_walk.png',
         spawnWeight: 2,
         projectileSize: 0.35,
-        sounds: ['roar1', 'growl2', 
-'grunt2']
+        sounds: ['roar1', 'growl2',
+            'grunt2']
     },
 ];
 

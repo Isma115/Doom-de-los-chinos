@@ -1,5 +1,4 @@
-/* sección [INICIALIZACIÓN Y CONFIGURACIÓN] Configuración inicial del gestor de enemigos, texturas, geometrías compartidas y sistema de pooling */
-
+/*sección [INICIALIZACIÓN Y CONFIGURACIÓN] Configuración inicial del gestor de enemigos, texturas, geometrías compartidas y sistema de pooling*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, ENEMY_TYPES, AUDIO_CONFIG } from '../Constants.js';
 
@@ -16,9 +15,22 @@ export class EnemyManager {
 
         const textureLoader = new THREE.TextureLoader();
         this.enemyTextures = {};
+        this.enemyWalkTextures = {};
+        this.enemyShootTextures = {};
+        
         ENEMY_TYPES.forEach(enemyType => {
             this.enemyTextures[enemyType.id] = textureLoader.load(enemyType.texture);
             this.enemyTextures[enemyType.id].colorSpace = THREE.SRGBColorSpace;
+            
+            if (enemyType.textureWalk) {
+                this.enemyWalkTextures[enemyType.id] = textureLoader.load(enemyType.textureWalk);
+                this.enemyWalkTextures[enemyType.id].colorSpace = THREE.SRGBColorSpace;
+            }
+            
+            if (enemyType.textureShoot) {
+                this.enemyShootTextures[enemyType.id] = textureLoader.load(enemyType.textureShoot);
+                this.enemyShootTextures[enemyType.id].colorSpace = THREE.SRGBColorSpace;
+            }
         });
         this.sharedMaterial = null;
 
@@ -41,7 +53,7 @@ export class EnemyManager {
         this.projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     }
 
-    /* [Fin de sección] */
+/*[Fin de sección]*/
 
     /* sección [SISTEMA DE PARTÍCULAS DE SANGRE] Creación, actualización y gestión de partículas de sangre con física y efectos visuales */
 
@@ -183,9 +195,8 @@ export class EnemyManager {
 
     /* [Fin de sección] */
 
-    /* sección [GESTIÓN DE ENEMIGOS Y PROYECTILES] Sistema de pooling de enemigos, spawn, actualización con IA, disparos y detección de colisiones */
-
-    getRandomEnemyType() {
+    /*sección [GESTIÓN DE ENEMIGOS Y PROYECTILES] Sistema de pooling de enemigos, spawn, actualización con IA, disparos y detección de colisiones*/
+getRandomEnemyType() {
         const weightedTypes = [];
         ENEMY_TYPES.forEach(enemyType => {
             for (let i = 0; i < enemyType.spawnWeight; i++) {
@@ -196,20 +207,76 @@ export class EnemyManager {
     }
 
     getEnemyFromPool(enemyType = null) {
-    const type = enemyType ||
-    this.getRandomEnemyType();
+        const type = enemyType ||
+            this.getRandomEnemyType();
 
-    const width = type.width || 2.0;
-    const height = type.height || 2.0;
+        const width = type.width || 2.0;
+        const height = type.height || 2.0;
 
-    const isShooter = type.isShooter || false;
-    const shootRate = type.shootRate || 2000;
-    const projSpeed = type.projectileSpeed || 15.0;
-    const projSize = type.projectileSize || 0.3;
+        const isShooter = type.isShooter || false;
+        const shootRate = type.shootRate || 2000;
+        const projSpeed = type.projectileSpeed || 15.0;
+        const projSize = type.projectileSize || 0.3;
 
-    if (this.enemyPool.length > 0) {
-        const enemy = this.enemyPool.pop();
-        enemy.visible = true;
+        if (this.enemyPool.length > 0) {
+            const enemy = this.enemyPool.pop();
+            enemy.visible = true;
+            enemy.userData.hp = type.hp;
+            enemy.userData.maxHp = type.hp;
+            enemy.userData.speed = type.speed;
+            enemy.userData.damage = type.damage;
+            enemy.userData.enemyType = type.id;
+            enemy.userData.bloodTime = 0;
+            enemy.userData.velocity = new THREE.Vector3();
+            enemy.userData.canJump = false;
+
+            enemy.userData.lastSoundTime = performance.now();
+
+            enemy.userData.isShooter = isShooter;
+            enemy.userData.shootRate = shootRate;
+            enemy.userData.projectileSpeed = projSpeed;
+            enemy.userData.projectileSize = projSize;
+            enemy.userData.lastShootTime = performance.now();
+            
+            enemy.userData.walkAnimTimer = 0;
+            enemy.userData.walkAnimState = false;
+            enemy.userData.isShooting = false;
+
+            enemy.scale.set(width / 2.0, height / 2.0, 1.0);
+            enemy.material = new THREE.MeshBasicMaterial({
+                map: this.enemyTextures[type.id],
+                transparent: true,
+                alphaTest: 0.01
+            });
+            this.clearBloodParticles(enemy);
+
+            if (!this.enemyCollisionHelpers.has(enemy)) {
+                const box = new THREE.Box3();
+                const helper = new THREE.Box3Helper(box, 0xff0000);
+                helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+                this.scene.add(helper);
+                this.enemyCollisionHelpers.set(enemy, helper);
+            } else {
+                this.enemyCollisionHelpers.get(enemy).visible = CONFIG.DEBUG_SHOW_HITBOXES;
+            }
+
+            enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
+            return enemy;
+        }
+
+        const textureLoader = new THREE.TextureLoader();
+        const enemyTexture = textureLoader.load(type.texture);
+        enemyTexture.colorSpace = THREE.SRGBColorSpace;
+        const enemyMaterial = new THREE.MeshBasicMaterial({
+            map: enemyTexture,
+            transparent: true,
+            depthWrite: false,
+            alphaTest: 0.01
+        });
+        const enemy = new THREE.Mesh(this.sharedGeometry, enemyMaterial);
+        enemy.scale.set(width / 2.0, height / 2.0, 1.0);
+
+        enemy.matrixAutoUpdate = true;
         enemy.userData.hp = type.hp;
         enemy.userData.maxHp = type.hp;
         enemy.userData.speed = type.speed;
@@ -218,7 +285,7 @@ export class EnemyManager {
         enemy.userData.bloodTime = 0;
         enemy.userData.velocity = new THREE.Vector3();
         enemy.userData.canJump = false;
-        
+
         enemy.userData.lastSoundTime = performance.now();
 
         enemy.userData.isShooter = isShooter;
@@ -227,91 +294,46 @@ export class EnemyManager {
         enemy.userData.projectileSize = projSize;
         enemy.userData.lastShootTime = performance.now();
 
-        enemy.scale.set(width / 2.0, height / 2.0, 1.0);
-        enemy.material = new THREE.MeshBasicMaterial({
-            map: this.enemyTextures[type.id],
-            transparent: true,
-            alphaTest: 0.01
-        });
-        this.clearBloodParticles(enemy);
+        enemy.userData.projectileOffsetX = type.projectileOffsetX || 0;
+        enemy.userData.projectileOffsetY = type.projectileOffsetY || 0;
+        enemy.userData.projectileOffsetZ = type.projectileOffsetZ || 0;
+        
+        enemy.userData.walkAnimTimer = 0;
+        enemy.userData.walkAnimState = false;
+        enemy.userData.isShooting = false;
 
-        if (!this.enemyCollisionHelpers.has(enemy)) {
-            const box = new THREE.Box3();
-            const helper = new THREE.Box3Helper(box, 0xff0000);
-            helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
-            this.scene.add(helper);
-            this.enemyCollisionHelpers.set(enemy, helper);
-        } else {
-            this.enemyCollisionHelpers.get(enemy).visible = CONFIG.DEBUG_SHOW_HITBOXES;
-        }
+        enemy.userData.drawBlood = (hitPosition = null) => {
+            const actualHitPosition = enemy.position.clone();
+            actualHitPosition.y = height / 2.0;
 
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(enemy.quaternion);
+            forward.multiplyScalar(0.5);
+
+            actualHitPosition.add(forward);
+            const particles = this.createBloodParticles(enemy, actualHitPosition);
+            this.bloodParticles.set(enemy, particles);
+        };
+
+        enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
         enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
+
+        const helperBox = new THREE.Box3();
+        const helper = new THREE.Box3Helper(helperBox, 0xff0000);
+        helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+        this.scene.add(helper);
+        this.enemyCollisionHelpers.set(enemy, helper);
+
         return enemy;
-    }
-
-    const textureLoader = new THREE.TextureLoader();
-    const enemyTexture = textureLoader.load(type.texture);
-    enemyTexture.colorSpace = THREE.SRGBColorSpace;
-    const enemyMaterial = new THREE.MeshBasicMaterial({
-        map: enemyTexture,
-        transparent: true,
-        depthWrite: false,
-        alphaTest: 0.01
-    });
-    const enemy = new THREE.Mesh(this.sharedGeometry, enemyMaterial);
-    enemy.scale.set(width / 2.0, height / 2.0, 1.0);
-
-    enemy.matrixAutoUpdate = true;
-    enemy.userData.hp = type.hp;
-    enemy.userData.maxHp = type.hp;
-    enemy.userData.speed = type.speed;
-    enemy.userData.damage = type.damage;
-    enemy.userData.enemyType = type.id;
-    enemy.userData.bloodTime = 0;
-    enemy.userData.velocity = new THREE.Vector3();
-    enemy.userData.canJump = false;
-    
-    enemy.userData.lastSoundTime = performance.now();
-
-    enemy.userData.isShooter = isShooter;
-    enemy.userData.shootRate = shootRate;
-    enemy.userData.projectileSpeed = projSpeed;
-    enemy.userData.projectileSize = projSize;
-    enemy.userData.lastShootTime = performance.now();
-
-    enemy.userData.projectileOffsetX = type.projectileOffsetX || 0;
-    enemy.userData.projectileOffsetY = type.projectileOffsetY || 0;
-    enemy.userData.projectileOffsetZ = type.projectileOffsetZ || 0;
-
-    enemy.userData.drawBlood = (hitPosition = null) => {
-        const actualHitPosition = enemy.position.clone();
-        actualHitPosition.y = height / 2.0;
-
-        const forward = new THREE.Vector3(0, 0, 1);
-        forward.applyQuaternion(enemy.quaternion);
-        forward.multiplyScalar(0.5);
-
-        actualHitPosition.add(forward);
-        const particles = this.createBloodParticles(enemy, actualHitPosition);
-        this.bloodParticles.set(enemy, particles);
-    };
-
-    enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
-    enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
-
-    const helperBox = new THREE.Box3();
-    const helper = new THREE.Box3Helper(helperBox, 0xff0000);
-    helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
-    this.scene.add(helper);
-    this.enemyCollisionHelpers.set(enemy, helper);
-
-    return enemy;
     }
 
     returnEnemyToPool(enemy) {
         enemy.visible = false;
         enemy.userData.hp = 200;
         enemy.userData.velocity.set(0, 0, 0);
+        enemy.userData.walkAnimTimer = 0;
+        enemy.userData.walkAnimState = false;
+        enemy.userData.isShooting = false;
 
         this.clearBloodParticles(enemy);
 
@@ -330,7 +352,7 @@ export class EnemyManager {
     spawn(time, specificType = null, specificPosition = null) {
         if (specificPosition || time - this.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
             const enemyType = specificType ||
-            this.getRandomEnemyType();
+                this.getRandomEnemyType();
 
             const enemy = this.getEnemyFromPool(enemyType);
 
@@ -378,166 +400,201 @@ export class EnemyManager {
     }
 
     shootProjectile(enemy, targetPos) {
-    const size = enemy.userData.projectileSize ||
-    0.3;
+        const size = enemy.userData.projectileSize ||
+            0.3;
 
-    const projectileGeo = new THREE.SphereGeometry(size, 8, 8);
-    const projectile = new THREE.Mesh(projectileGeo, this.projectileMaterial);
-    const spawnPos = new THREE.Vector3(
-        enemy.position.x + enemy.userData.projectileOffsetX,
-        enemy.position.y + enemy.userData.projectileOffsetY,
-        enemy.position.z + enemy.userData.projectileOffsetZ
-    );
-    projectile.position.copy(spawnPos);
-
-    const direction = new THREE.Vector3().subVectors(targetPos, spawnPos).normalize();
-
-    projectile.userData = {
-        velocity: direction.multiplyScalar(enemy.userData.projectileSpeed),
-        damage: enemy.userData.damage,
-        radius: size
-    };
-    this.scene.add(projectile);
-    this.projectiles.push(projectile);
-}
-
-    update(delta, playerPos, onHitPlayer) {
-    const tempEnemyBox = new THREE.Box3();
-    const now = performance.now();
-
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
-        const enemy = this.enemies[i];
-        if (!enemy.visible) continue;
-
-        if (enemy.userData.hp < enemy.userData.maxHp) {
-            if (this.audioManager) {
-                this.audioManager.playSound('enemyHit', 0.5);
-            }
-            enemy.userData.maxHp = enemy.userData.hp;
-        }
-
-        // ⭐ SONIDOS 3D ALEATORIOS
-        if (this.audioManager && Math.random() < AUDIO_CONFIG.ENEMY_SOUND_CHANCE) {
-            if (now - enemy.userData.lastSoundTime > AUDIO_CONFIG.ENEMY_SOUND_COOLDOWN) {
-                const typeInfo = ENEMY_TYPES.find(t => t.id === enemy.userData.enemyType);
-                if (typeInfo && typeInfo.sounds && typeInfo.sounds.length > 0) {
-                    const randomSound = typeInfo.sounds[Math.floor(Math.random() * typeInfo.sounds.length)];
-                    const vol = 0.3 + Math.random() * 0.3;
-
-                    // ⭐ REPRODUCCIÓN 3D
-                    this.audioManager.play3DSound(
-                        randomSound,
-                        playerPos,
-                        enemy.position,
-                        60,
-                        vol
-                    );
-
-                    enemy.userData.lastSoundTime = now;
-                }
-            }
-        }
-
-        enemy.userData.velocity.x -= enemy.userData.velocity.x * 10.0 * delta;
-        enemy.userData.velocity.z -= enemy.userData.velocity.z * 10.0 * delta;
-        enemy.userData.velocity.y -= CONFIG.GRAVITY * delta;
-
-        enemy.lookAt(playerPos.x, enemy.position.y, playerPos.z);
-
-        if (enemy.userData.isShooter) {
-            if (now - enemy.userData.lastShootTime > enemy.userData.shootRate) {
-                const target = playerPos.clone();
-                target.y -= 0.5;
-                this.shootProjectile(enemy, target);
-                enemy.userData.lastShootTime = now;
-            }
-        }
-
-        const direction = new THREE.Vector3();
-        direction.subVectors(playerPos, enemy.position).normalize();
-        const moveDist = enemy.userData.speed * delta;
-        const tentativePos = enemy.position.clone().addScaledVector(direction, moveDist);
-
-        tentativePos.y += enemy.userData.velocity.y * delta;
-        const s = enemy.userData.collisionSize;
-        tempEnemyBox.min.set(
-            tentativePos.x - s.x,
-            tentativePos.y - s.y * 0.5,
-            tentativePos.z - s.z
+        const projectileGeo = new THREE.SphereGeometry(size, 8, 8);
+        const projectile = new THREE.Mesh(projectileGeo, this.projectileMaterial);
+        const spawnPos = new THREE.Vector3(
+            enemy.position.x + enemy.userData.projectileOffsetX,
+            enemy.position.y + enemy.userData.projectileOffsetY,
+            enemy.position.z + enemy.userData.projectileOffsetZ
         );
-        tempEnemyBox.max.set(
-            tentativePos.x + s.x,
-            tentativePos.y + s.y * 0.5,
-            tentativePos.z + s.z
-        );
-        if (this.enemyCollisionHelpers.has(enemy)) {
-            const helper = this.enemyCollisionHelpers.get(enemy);
-            helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
-            helper.box.copy(tempEnemyBox);
-            helper.updateMatrixWorld(true);
-        }
+        projectile.position.copy(spawnPos);
 
-        let blocked = false;
-        for (const wall of this.walls) {
-            if (!wall.userData.boundingBox) continue;
-            if (tempEnemyBox.intersectsBox(wall.userData.boundingBox)) {
-                blocked = true;
-                break;
+        const direction = new THREE.Vector3().subVectors(targetPos, spawnPos).normalize();
+
+        projectile.userData = {
+            velocity: direction.multiplyScalar(enemy.userData.projectileSpeed),
+            damage: enemy.userData.damage,
+            radius: size
+        };
+        this.scene.add(projectile);
+        this.projectiles.push(projectile);
+        
+        enemy.userData.isShooting = true;
+        if (this.enemyShootTextures[enemy.userData.enemyType]) {
+            enemy.material.map = this.enemyShootTextures[enemy.userData.enemyType];
+            enemy.material.needsUpdate = true;
+        }
+        
+        setTimeout(() => {
+            enemy.userData.isShooting = false;
+            const currentTexture = enemy.userData.walkAnimState 
+                ? this.enemyWalkTextures[enemy.userData.enemyType] 
+                : this.enemyTextures[enemy.userData.enemyType];
+            if (currentTexture) {
+                enemy.material.map = currentTexture;
+                enemy.material.needsUpdate = true;
             }
-        }
-
-        if (!blocked) {
-            enemy.position.copy(tentativePos);
-        }
-
-        const floorHeight = s.y / 2.0;
-        if (enemy.position.y <= floorHeight) {
-            enemy.userData.velocity.y = 0;
-            enemy.position.y = floorHeight;
-            enemy.userData.canJump = true;
-        }
-
-        if (enemy.position.distanceTo(playerPos) < 2.5) {
-            onHitPlayer(enemy.userData.damage);
-        }
+        }, 700);
     }
 
-    const projBox = new THREE.Box3();
-    const playerHitBox = new THREE.Box3().setFromCenterAndSize(playerPos, new THREE.Vector3(1, 2, 1));
+    update(delta, playerPos, onHitPlayer) {
+        const tempEnemyBox = new THREE.Box3();
+        const now = performance.now();
 
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
-        const proj = this.projectiles[i];
-        proj.position.addScaledVector(proj.userData.velocity, delta);
-        const r = proj.userData.radius;
-        projBox.min.set(proj.position.x - r, proj.position.y - r, proj.position.z - r);
-        projBox.max.set(proj.position.x + r, proj.position.y + r, proj.position.z + r);
-        let destroyed = false;
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            const enemy = this.enemies[i];
+            if (!enemy.visible) continue;
 
-        if (projBox.intersectsBox(playerHitBox)) {
-            onHitPlayer(proj.userData.damage);
-            destroyed = true;
-        }
+            if (enemy.userData.hp < enemy.userData.maxHp) {
+                if (this.audioManager) {
+                    this.audioManager.playSound('enemyHit', 0.5);
+                }
+                enemy.userData.maxHp = enemy.userData.hp;
+            }
 
-        if (!destroyed) {
+            // ★ SONIDOS 3D ALEATORIOS
+            if (this.audioManager && Math.random() < AUDIO_CONFIG.ENEMY_SOUND_CHANCE) {
+                if (now - enemy.userData.lastSoundTime > AUDIO_CONFIG.ENEMY_SOUND_COOLDOWN) {
+                    const typeInfo = ENEMY_TYPES.find(t => t.id === enemy.userData.enemyType);
+                    if (typeInfo && typeInfo.sounds && typeInfo.sounds.length > 0) {
+                        const randomSound = typeInfo.sounds[Math.floor(Math.random() * typeInfo.sounds.length)];
+                        const vol = 0.3 + Math.random() * 0.3;
+
+                        // ★ REPRODUCCIÓN 3D
+                        this.audioManager.play3DSound(
+                            randomSound,
+                            playerPos,
+                            enemy.position,
+                            60,
+                            vol
+                        );
+
+                        enemy.userData.lastSoundTime = now;
+                    }
+                }
+            }
+
+            enemy.userData.velocity.x -= enemy.userData.velocity.x * 10.0 * delta;
+            enemy.userData.velocity.z -= enemy.userData.velocity.z * 10.0 * delta;
+            enemy.userData.velocity.y -= CONFIG.GRAVITY * delta;
+
+            enemy.lookAt(playerPos.x, enemy.position.y, playerPos.z);
+
+            if (enemy.userData.isShooter) {
+                if (now - enemy.userData.lastShootTime > enemy.userData.shootRate) {
+                    const target = playerPos.clone();
+                    target.y -= 0.5;
+                    this.shootProjectile(enemy, target);
+                    enemy.userData.lastShootTime = now;
+                }
+            }
+
+            const direction = new THREE.Vector3();
+            direction.subVectors(playerPos, enemy.position).normalize();
+            const moveDist = enemy.userData.speed * delta;
+            const tentativePos = enemy.position.clone().addScaledVector(direction, moveDist);
+
+            tentativePos.y += enemy.userData.velocity.y * delta;
+            const s = enemy.userData.collisionSize;
+            tempEnemyBox.min.set(
+                tentativePos.x - s.x,
+                tentativePos.y - s.y * 0.5,
+                tentativePos.z - s.z
+            );
+            tempEnemyBox.max.set(
+                tentativePos.x + s.x,
+                tentativePos.y + s.y * 0.5,
+                tentativePos.z + s.z
+            );
+            if (this.enemyCollisionHelpers.has(enemy)) {
+                const helper = this.enemyCollisionHelpers.get(enemy);
+                helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+                helper.box.copy(tempEnemyBox);
+                helper.updateMatrixWorld(true);
+            }
+
+            let blocked = false;
             for (const wall of this.walls) {
-                if (wall.userData.boundingBox && projBox.intersectsBox(wall.userData.boundingBox)) {
-                    destroyed = true;
+                if (!wall.userData.boundingBox) continue;
+                if (tempEnemyBox.intersectsBox(wall.userData.boundingBox)) {
+                    blocked = true;
                     break;
                 }
             }
+
+            if (!blocked) {
+                enemy.position.copy(tentativePos);
+                
+                if (!enemy.userData.isShooting && this.enemyWalkTextures[enemy.userData.enemyType]) {
+                    enemy.userData.walkAnimTimer += delta;
+                    
+                    if (enemy.userData.walkAnimTimer >= 0.7) {
+                        enemy.userData.walkAnimTimer = 0;
+                        enemy.userData.walkAnimState = !enemy.userData.walkAnimState;
+                        
+                        const newTexture = enemy.userData.walkAnimState 
+                            ? this.enemyWalkTextures[enemy.userData.enemyType] 
+                            : this.enemyTextures[enemy.userData.enemyType];
+                        
+                        if (enemy.material.map !== newTexture) {
+                            enemy.material.map = newTexture;
+                            enemy.material.needsUpdate = true;
+                        }
+                    }
+                }
+            }
+
+            const floorHeight = s.y / 2.0;
+            if (enemy.position.y <= floorHeight) {
+                enemy.userData.velocity.y = 0;
+                enemy.position.y = floorHeight;
+                enemy.userData.canJump = true;
+            }
+
+            if (enemy.position.distanceTo(playerPos) < 2.5) {
+                onHitPlayer(enemy.userData.damage);
+            }
         }
 
-        if (destroyed || proj.position.y < -10 || proj.position.length() > 500) {
-            this.scene.remove(proj);
-            this.projectiles.splice(i, 1);
+        const projBox = new THREE.Box3();
+        const playerHitBox = new THREE.Box3().setFromCenterAndSize(playerPos, new THREE.Vector3(1, 2, 1));
+
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const proj = this.projectiles[i];
+            proj.position.addScaledVector(proj.userData.velocity, delta);
+            const r = proj.userData.radius;
+            projBox.min.set(proj.position.x - r, proj.position.y - r, proj.position.z - r);
+            projBox.max.set(proj.position.x + r, proj.position.y + r, proj.position.z + r);
+            let destroyed = false;
+
+            if (projBox.intersectsBox(playerHitBox)) {
+                onHitPlayer(proj.userData.damage);
+                destroyed = true;
+            }
+
+            if (!destroyed) {
+                for (const wall of this.walls) {
+                    if (wall.userData.boundingBox && projBox.intersectsBox(wall.userData.boundingBox)) {
+                        destroyed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (destroyed || proj.position.y < -10 || proj.position.length() > 500) {
+                this.scene.remove(proj);
+                this.projectiles.splice(i, 1);
+            }
+        }
+
+        const allBloodKeys = Array.from(this.bloodParticles.keys());
+        for (const enemy of allBloodKeys) {
+            this.updateBloodParticles(enemy, delta);
         }
     }
-
-    const allBloodKeys = Array.from(this.bloodParticles.keys());
-    for (const enemy of allBloodKeys) {
-        this.updateBloodParticles(enemy, delta);
-    }
-}
 
     removeEnemy(enemy) {
         this.clearBloodParticles(enemy);
@@ -581,4 +638,4 @@ export class EnemyManager {
     }
 }
 
-/* [Fin de sección] */
+/*[Fin de sección]*/
