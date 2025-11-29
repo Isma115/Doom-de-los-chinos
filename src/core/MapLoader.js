@@ -11,11 +11,11 @@ export class MapLoader {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
             const response = await fetch(`mapas/${mapName}.txt`);
-            
+
             if (!response.ok) {
                 throw new Error(`Failed to load map: ${mapName}.txt (Status: ${response.status})`);
             }
-            
+
             const mapText = await response.text();
             return this.parseMap(mapText);
         } catch (error) {
@@ -27,103 +27,169 @@ export class MapLoader {
     parseMap(mapText) {
     const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
     const height = lines.length;
-    const width = lines.length > 0 ? lines[0].length : 0;
+
+    const countBlocks = (line) => {
+        let count = 0;
+        let i = 0;
+        while (i < line.length) {
+            if (line[i] === '(') {
+                const end = line.indexOf(')', i);
+                if (end !== -1) {
+                    count++;
+                    i = end + 1;
+                    continue;
+                }
+            }
+            i++;
+        }
+        return count;
+    };
+
+    const width = lines.length > 0 ? countBlocks(lines[0]) : 0;
 
     const walls = [];
+    const bushes = [];
+    const bricks = [];
     const enemySpawns = [];
-    const validFloors = []; 
+    const validFloors = [];
     const doorPositions = [];
     const foodItems = [];
-    
+    const ammoItems = [];
     const models3D = [];
+    const extraItems = [];
+
     let playerSpawn = null;
+    let playerRotation = 0;
 
     for (let y = 0; y < height; y++) {
         const line = lines[y];
-        for (let x = 0; x < line.length; x++) {
-            const char = line[x];
-            const position = this.gridToWorld(x, y, width, height);
+        let x = 0;
+        let blockIndex = 0;
 
-            switch (char) {
-                case '#': 
-                    walls.push({ position: position, type: 'wall' });
+        while (x < line.length) {
+
+            let char = line[x];
+            let rawToken = null;
+
+            if (char === '(') {
+                const end = line.indexOf(')', x);
+                if (end !== -1) {
+                    rawToken = line.substring(x + 1, end);
+                    x = end + 1;
+                } else {
+                    rawToken = "";
+                    x++;
+                }
+            } else {
+                x++;
+                continue;
+            }
+
+            let base = rawToken;
+            let rotation = 0;
+
+            const match = rawToken.match(/^(.+?)\[(\d+)\]$/);
+            if (match) {
+                base = match[1];
+                rotation = parseInt(match[2], 10);
+            }
+
+            const position = this.gridToWorld(blockIndex, y, width, height);
+            blockIndex++;
+
+            switch (base) {
+
+                case "#":
+                    walls.push({ position: position, type: "wall", rotation: rotation });
                     break;
 
-                // case 'E': 
-                //     enemySpawns.push({ 
-                //         position: new THREE.Vector3(position.x, 1, position.z),
-                //         type: 'random'
-                //         lastSpawnTime: 0
-                //   });
-                //     validFloors.push(position);
-                //     break;
-                case 'P': 
+                case "B":
+                    bushes.push({ position: position, type: "bush", rotation: rotation });
+                    break;
+
+                case "L":
+                    bricks.push({ position: position, type: "brick", rotation: rotation });
+                    break;
+
+                case "P":
                     playerSpawn = new THREE.Vector3(position.x, 1, position.z);
+                    playerRotation = rotation;
                     break;
 
-                case 'D':
-                    doorPositions.push(new THREE.Vector3(position.x, 0, position.z));
+                case "D":
+                    doorPositions.push({
+                        position: new THREE.Vector3(position.x, 0, position.z),
+                        rotation: rotation
+                    });
                     break;
 
-                case '+':
+                case "+":
                     foodItems.push(new THREE.Vector3(position.x, 0.5, position.z));
                     break;
 
-                case 'T': 
-                    console.log("AGREGANDO PALMERA");
+                case "MA":
+                    ammoItems.push({
+                        position: new THREE.Vector3(position.x, 0.5, position.z),
+                        type: 'machinegun',
+                        rotation: rotation
+                    });
+                    validFloors.push(position);
+                    break;
+
+                case "MP":
+                    ammoItems.push({
+                        position: new THREE.Vector3(position.x, 0.5, position.z),
+                        type: 'pistol',
+                        rotation: rotation
+                    });
+                    validFloors.push(position);
+                    break;
+
+                case "T":
                     models3D.push({
                         model: "assets/3D/10446_Palm_Tree_v1_max2010_iteration-2.obj",
-                        position: new THREE.Vector3(position.x, 0, position.z)
+                        position: new THREE.Vector3(position.x, 0, position.z),
+                        rotation: rotation
                     });
                     break;
 
-                // NUEVO: Tipos específicos de enemigos
-                case '1':
+                case "1":
+                case "2":
+                case "3":
+                case "4":
+                case "5":
+                case "6": {
+                    const mapTypes = {
+                        "1": "pablo",
+                        "2": "pera",
+                        "3": "slow_low3",
+                        "4": "medium_med",
+                        "5": "medium_med2",
+                        "6": "patica"
+                    };
+
                     enemySpawns.push({
                         position: new THREE.Vector3(position.x, 1, position.z),
-                        type: 'pablo',
-                        lastSpawnTime: 0
+                        type: mapTypes[base],
+                        lastSpawnTime: 0,
+                        rotation: rotation
                     });
+
                     validFloors.push(position);
-                    break;
-                case '2':
-                    enemySpawns.push({
-                        position: new THREE.Vector3(position.x, 1, position.z),
-                        type: 'pera',
-                        lastSpawnTime: 0
-                    });
+                }
+                break;
+
+                case ".":
+                case " ":
                     validFloors.push(position);
                     break;
 
-                case '3':
-                    enemySpawns.push({
-                        position: new THREE.Vector3(position.x, 1, position.z),
-                        type: 'slow_low3',
-                        lastSpawnTime: 0
+                default:
+                    extraItems.push({
+                        position: new THREE.Vector3(position.x, 0, position.z),
+                        code: base,
+                        rotation: rotation
                     });
-                    validFloors.push(position);
-                    break;
-
-                case '4':
-                    enemySpawns.push({
-                        position: new THREE.Vector3(position.x, 1, position.z),
-                        type: 'medium_med',
-                        lastSpawnTime: 0
-                    });
-                    validFloors.push(position);
-                    break;
-
-                case '5':
-                    enemySpawns.push({
-                        position: new THREE.Vector3(position.x, 1, position.z),
-                        type: 'medium_med2',
-                        lastSpawnTime: 0
-                    });
-                    validFloors.push(position);
-                    break;
-
-                case '.': 
-                case ' ': 
                     validFloors.push(position);
                     break;
             }
@@ -141,11 +207,16 @@ export class MapLoader {
 
     return {
         walls,
+        bushes,
+        bricks,
         enemySpawns,
         playerSpawn,
+        playerRotation,
         doorPositions,
         foodItems,
+        ammoItems,
         models3D,
+        extraItems,
         width,
         height,
         blockSize: this.blockSize
@@ -161,16 +232,21 @@ export class MapLoader {
             y: 0,
             z: (gridY * this.blockSize) - offsetZ + (this.blockSize / 2)
         };
-}
+    }
 
     getDefaultMap() {
     return {
         walls: [],
+        bushes: [],
+        bricks: [],
         enemySpawns: [],
         playerSpawn: new THREE.Vector3(0, 1, 0),
+        playerRotation: 0,
         doorPositions: [],
         foodItems: [],
+        ammoItems: [],
         models3D: [],
+        extraItems: [],
         width: 0,
         height: 0,
         blockSize: this.blockSize

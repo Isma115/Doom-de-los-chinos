@@ -19,6 +19,27 @@ export class UIManager {
         document.getElementById('ammo-display').innerText = "Munición: " + ammo;
     }
 
+    // ⭐ NUEVO: Mostrar mensaje de evento
+    static showEventMessage(text, duration = 3000) {
+        // Crear elemento si no existe (asumiendo que no está en el HTML base)
+        let msgEl = document.getElementById('event-message');
+        if (!msgEl) {
+            msgEl = document.createElement('div');
+            msgEl.id = 'event-message';
+            document.getElementById('ui-layer').appendChild(msgEl);
+        }
+
+        msgEl.innerText = text;
+        msgEl.style.opacity = '1';
+        
+        // Limpiar timeout anterior si existe
+        if (this.currentMsgTimeout) clearTimeout(this.currentMsgTimeout);
+
+        this.currentMsgTimeout = setTimeout(() => {
+            msgEl.style.opacity = '0';
+        }, duration);
+    }
+
     static showGameOver() {
         document.querySelector('#start-screen h1').innerText = "GAME OVER";
         document.querySelector('#start-screen p').innerText = "Recarga para reiniciar";

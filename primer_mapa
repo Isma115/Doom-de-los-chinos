@@ -1,0 +1,25 @@
+Nuevo a implementar:
+- Sistema de eventos
+- Espeficiar un número limitado de enemigos en un spawner
+- Escopeta
+- Evento de cambio de cámara (va a coger la cámara y va a cambiarla de posición durante un tiempo, y después devolverla a su posición original)
+- Botón de pausa (escape)
+- Oleada de enemigos puntual, (encierro), quizás hacerlo por número de enemigos
+- Evento de llave
+- Música global
+- Más sonidos para las armas
+- Condición de finalización de nivel
+- pantalla de estadísticas por pasarse un nivel
+- Más bloques y modelos 3D
+- Al cambiar el ángulo de la cámara para mostrar algo al jugador, se pausarán los enemigos y el jugador será inmortal durante el tiempo que dure el evento
+- Los enemigos tendrán movimiento de andar (invertir sprite)
+
+
+Enemigos a desplegar:
+    1 Pablo Motos de Boss
+    1 spawner de 4 peras
+    2 spawner de 1 Patica cada uno
+    1 Ametralladora para añadir al inventario
+    1 Escopeta para añadir al inventario
+    1 llave para abrir una habitación
+    varios sonidos para los enemigos
