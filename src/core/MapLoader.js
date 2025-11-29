@@ -1,4 +1,3 @@
-/*sección [CARGADOR DE MAPAS] Código de carga de mapas*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, ENEMY_TYPES } from '../Constants.js';
 
@@ -7,6 +6,7 @@ export class MapLoader {
         this.blockSize = CONFIG.BLOCK_SIZE || 10;
     }
 
+    /* sección [CARGA DE ARCHIVO DE MAPA] Carga y parseo del archivo de texto del mapa */
     async loadMapFile(mapName = 'default') {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
@@ -23,7 +23,9 @@ export class MapLoader {
             return this.getDefaultMap();
         }
     }
+    /* [Fin de sección] */
 
+    /* sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego */
     parseMap(mapText) {
     const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
     const height = lines.length;
@@ -222,7 +224,9 @@ export class MapLoader {
         blockSize: this.blockSize
     };
 }
+    /* [Fin de sección] */
 
+    /* sección [UTILIDADES DE CONVERSIÓN] Conversión de coordenadas de grid a coordenadas 3D del mundo y mapa por defecto */
     gridToWorld(gridX, gridY, mapWidth, mapHeight) {
         const offsetX = (mapWidth * this.blockSize) / 2;
         const offsetZ = (mapHeight * this.blockSize) / 2;
@@ -252,5 +256,5 @@ export class MapLoader {
         blockSize: this.blockSize
     };
 }
+    /* [Fin de sección] */
 }
-/*[Fin de sección]*/

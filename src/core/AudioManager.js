@@ -116,35 +116,37 @@ export class AudioManager {
     }
 
     playMusic(musicName, volume = 1.0) {
-        if (!this.initialized || !this.music[musicName]) {
-            return null;
-        }
-
-        try {
-            if (this.currentMusic) {
-                this.currentMusic.stop();
-            }
-
-            const source = this.audioContext.createBufferSource();
-            source.buffer = this.music[musicName];
-            source.loop = true;
-            
-            const gainNode = this.audioContext.createGain();
-            gainNode.gain.value = volume;
-            
-            source.connect(gainNode);
-            gainNode.connect(this.musicGain);
-            
-            source.start(0);
-            
-            this.currentMusic = source;
-            this.currentMusicGain = gainNode;
-            return source;
-        } catch (error) {
-            console.warn(`Error reproduciendo música ${musicName}:`, error);
-            return null;
-        }
+    if (!this.initialized || !this.music[musicName]) {
+        return null;
     }
+
+    try {
+        if (this.currentMusic) {
+            this.currentMusic.stop();
+        }
+
+        const source = this.audioContext.createBufferSource();
+        source.buffer = this.music[musicName];
+
+        // ⭐ FORZAR SIEMPRE LOOP GLOBAL
+        source.loop = true;
+
+        const gainNode = this.audioContext.createGain();
+        gainNode.gain.value = volume;
+
+        source.connect(gainNode);
+        gainNode.connect(this.musicGain);
+
+        source.start(0);
+
+        this.currentMusic = source;
+        this.currentMusicGain = gainNode;
+        return source;
+    } catch (error) {
+        console.warn(`Error reproduciendo música ${musicName}:`, error);
+        return null;
+    }
+}
 
     stopMusic() {
         if (this.currentMusic) {

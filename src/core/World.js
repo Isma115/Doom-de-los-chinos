@@ -1,4 +1,5 @@
-/*sección [GESTIÓN DEL MUNDO] Código de gestión del mundo*/
+/* sección [INICIALIZACIÓN Y CONFIGURACIÓN] Importaciones, constructor y configuración inicial del mundo */
+
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG } from '../Constants.js';
 import { MapLoader } from './MapLoader.js';
@@ -138,6 +139,10 @@ export class World {
     getAmmoMeshes() {
         return this.ammoMeshes;
     }
+
+/* [Fin de sección] */
+
+/* sección [CREACIÓN DE ELEMENTOS DEL MAPA] Métodos para crear items coleccionables, muros, puertas y modelos 3D */
 
     createAmmoItemsFromMap() {
         this.ammoMeshes = [];
@@ -505,6 +510,10 @@ export class World {
         });
     }
 
+/* [Fin de sección] */
+
+/* sección [LIMPIEZA DE RECURSOS] Método para liberar memoria y limpiar recursos del mundo */
+
     dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
@@ -514,4 +523,5 @@ export class World {
         this.ammoMeshes = [];
     }
 }
-/*[Fin de sección]*/
+
+/* [Fin de sección] */
