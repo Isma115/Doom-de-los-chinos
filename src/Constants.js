@@ -11,7 +11,7 @@ export const CONFIG = {
     DOOR_CLOSE_DISTANCE: 20,
     BLOCK_SIZE: 10,
 
-    DEBUG_SHOW_HITBOXES: false
+    DEBUG_SHOW_HITBOXES: true
 };
 // ★ NUEVO: Lista de mapas disponibles para el selector
 export const AVAILABLE_MAPS = [
@@ -58,7 +58,7 @@ export const WEAPONS_DATA = [
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
-        speed: 2.0,
+        speed: 6.0,
         damage: 5,
         hp: 150,
         texture: 'assets/enemies/pablo.png',
@@ -72,7 +72,7 @@ export const ENEMY_TYPES = [
     },
     {
         id: 'pera',
-        speed: 2.2,
+        speed: 6.6,
         damage: 6,
         hp: 160,
         texture: 'assets/enemies/pera.png',
@@ -87,7 +87,7 @@ export const ENEMY_TYPES = [
 
     {
         id: 'patica',
-        speed: 1.5,
+        speed: 4.5,
         damage: 10,
         hp: 120,
         texture: 'assets/enemies/patica.png',
@@ -111,7 +111,7 @@ export const ENEMY_TYPES = [
 
     {
         id: 'slow_low3',
-        speed: 1.8,
+        speed: 5.4,
         damage: 4,
         hp: 140,
 
@@ -123,7 +123,7 @@ export const ENEMY_TYPES = [
     },
     {
         id: 'medium_med',
-        speed: 4.0,
+        speed: 12.0,
         damage: 15,
         hp: 200,
         texture: 'assets/enemies/medium_med.png',
@@ -135,7 +135,7 @@ export const ENEMY_TYPES = [
     },
     {
         id: 'medium_med2',
-        speed: 4.2,
+        speed: 12.6,
         damage: 16,
         hp: 210,
         texture: 'assets/enemies/medium_med2.png',
@@ -163,7 +163,9 @@ export const MAP_BLOCKS = {
     '4': { type: 'enemy_medium_med', color: 0x44aa44, height: 0, solid: false },
     '5': { type: 'enemy_medium_med2', color: 0x44aa44, height: 0, solid: false },
     '6': { type: 'enemy_shooter', color: 0x44aa44, height: 0, solid: false },
+    'S': { type: 'generic_spawner', color: 0x44aa44, height: 0, solid: false },
     'MP': { type: 'MP', color: 0xffff00, height: 0, solid: false },
-    'MA': { type: 'MA', color: 0xff8800, height: 0, solid: false }
+    'MA': { type: 'MA', color: 0xff8800, height: 0, solid: false },
+    'SMuni': { type: 'ammo_spawner', color: 0x0000ff, height: 0, solid: false }
 };
 /*[Fin de sección]*/

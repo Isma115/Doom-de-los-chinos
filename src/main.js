@@ -71,62 +71,62 @@ class Game { //
     } //
 
     animate() {
-    requestAnimationFrame(() => this.animate());
-    const time = performance.now();
-    const delta = (time - this.prevTime) / 1000;
+        requestAnimationFrame(() => this.animate());
+        const time = performance.now();
+        const delta = (time - this.prevTime) / 1000;
 
-    if (this.player && !this.player.isGameOver) {
-        this.player.update(delta);
+        if (this.player && !this.player.isGameOver) {
+            this.player.update(delta);
 
-        if (this.eventManager) {
-            this.eventManager.update(delta, this.player.getPosition());
-        }
-
-        const enemySpawns = this.world.getEnemySpawns();
-        enemySpawns.forEach(spawn => {
-            if (!spawn.isActive) return;
-
-            if (spawn.spawnedCount >= spawn.maxSpawns) {
-                spawn.isActive = false;
-                return;
+            if (this.eventManager) {
+                this.eventManager.update(delta, this.player.getPosition());
             }
 
-            const currentSpawnRate = spawn.spawnRate || CONFIG.ENEMY_SPAWN_RATE;
-
-            if (time - spawn.lastSpawnTime > currentSpawnRate) {
-                spawn.lastSpawnTime = time;
-
-                const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
-
-                if (enemyType) {
-                    this.enemyManager.spawn(time, enemyType, spawn.position);
-                } else {
-                    this.enemyManager.spawn(time, null, spawn.position);
-                }
-
-                spawn.spawnedCount++;
+            const enemySpawns = this.world.getEnemySpawns();
+            enemySpawns.forEach(spawn => {
+                if (!spawn.isActive) return;
 
                 if (spawn.spawnedCount >= spawn.maxSpawns) {
                     spawn.isActive = false;
+                    return;
                 }
-            }
-        });
 
-        this.enemyManager.update(delta, this.player.getPosition(), (damage) => {
-            this.player.takeDamage(damage);
-        });
-        Door.updateAll(delta, this.player.getPosition());
+                const currentSpawnRate = spawn.spawnRate || CONFIG.ENEMY_SPAWN_RATE;
 
-        this.updateFoodItems(delta);
+                if (time - spawn.lastSpawnTime > currentSpawnRate) {
+                    spawn.lastSpawnTime = time;
 
-        this.performPeriodicCleanup(time);
-    }
+                    const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
 
-    this.prevTime = time;
-    this.renderer.render(this.scene, this.camera);
+                    if (enemyType) {
+                        this.enemyManager.spawn(time, enemyType, spawn.position);
+                    } else {
+                        this.enemyManager.spawn(time, null, spawn.position);
+                    }
 
-    this.frameCount++;
-} //
+                    spawn.spawnedCount++;
+
+                    if (spawn.spawnedCount >= spawn.maxSpawns) {
+                        spawn.isActive = false;
+                    }
+                }
+            });
+
+            this.enemyManager.update(delta, this.player.getPosition(), (damage) => {
+                this.player.takeDamage(damage);
+            });
+            Door.updateAll(delta, this.player.getPosition());
+
+            this.updateFoodItems(delta);
+
+            this.performPeriodicCleanup(time);
+        }
+
+        this.prevTime = time;
+        this.renderer.render(this.scene, this.camera);
+
+        this.frameCount++;
+    } //
 
     updateFoodItems(delta) {
         const foodMeshes = this.world.getFoodMeshes();

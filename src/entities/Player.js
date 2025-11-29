@@ -1,6 +1,6 @@
 /*sección [JUGADOR] Código de gestión del jugador*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
-import { CONFIG } from '../Constants.js';
+import { CONFIG, WEAPONS_DATA } from '../Constants.js';
 import { WeaponSystem } from './Weapon.js';
 import { UIManager } from '../UI.js';
 import { Door } from '../entities/Door.js';
@@ -231,6 +231,12 @@ export class Player {
             if (distance < 2.0) {
                 const ammoAmount = ammoMesh.userData.ammoAmount;
                 const weaponIndex = ammoMesh.userData.weaponIndex;
+
+                // Check if ammo is full
+                const weapon = WEAPONS_DATA[weaponIndex];
+                if (weapon && weapon.ammo >= weapon.maxAmmo) {
+                    return; // Don't collect if full
+                }
 
                 this.collectAmmo(ammoAmount, weaponIndex);
 

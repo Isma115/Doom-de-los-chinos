@@ -27,211 +27,240 @@ export class MapLoader {
 
     /* sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego */
     parseMap(mapText) {
-    const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
-    const height = lines.length;
+        const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
+        const height = lines.length;
 
-    const countBlocks = (line) => {
-        let count = 0;
-        let i = 0;
-        while (i < line.length) {
-            if (line[i] === '(') {
-                const end = line.indexOf(')', i);
-                if (end !== -1) {
-                    count++;
-                    i = end + 1;
+        const countBlocks = (line) => {
+            let count = 0;
+            let i = 0;
+            while (i < line.length) {
+                if (line[i] === '(') {
+                    const end = line.indexOf(')', i);
+                    if (end !== -1) {
+                        count++;
+                        i = end + 1;
+                        continue;
+                    }
+                }
+                i++;
+            }
+            return count;
+        };
+
+        const width = lines.length > 0 ? countBlocks(lines[0]) : 0;
+
+        const walls = [];
+        const bushes = [];
+        const bricks = [];
+        const enemySpawns = [];
+        const genericSpawners = [];
+        this.ammoSpawners = []; // Initialize here to be safe
+        const validFloors = [];
+        const doorPositions = [];
+        const foodItems = [];
+        const ammoItems = [];
+        const models3D = [];
+        const extraItems = [];
+
+        let playerSpawn = null;
+        let playerRotation = 0;
+
+        for (let y = 0; y < height; y++) {
+            const line = lines[y];
+            let x = 0;
+            let blockIndex = 0;
+
+            while (x < line.length) {
+
+                let char = line[x];
+                let rawToken = null;
+
+                if (char === '(') {
+                    const end = line.indexOf(')', x);
+                    if (end !== -1) {
+                        rawToken = line.substring(x + 1, end);
+                        x = end + 1;
+                    } else {
+                        rawToken = "";
+                        x++;
+                    }
+                } else {
+                    x++;
                     continue;
                 }
-            }
-            i++;
-        }
-        return count;
-    };
 
-    const width = lines.length > 0 ? countBlocks(lines[0]) : 0;
+                let base = rawToken;
+                let rotation = 0;
+                let maxSpawns = 5;
+                let spawnRate = 5000;
 
-    const walls = [];
-    const bushes = [];
-    const bricks = [];
-    const enemySpawns = [];
-    const validFloors = [];
-    const doorPositions = [];
-    const foodItems = [];
-    const ammoItems = [];
-    const models3D = [];
-    const extraItems = [];
-
-    let playerSpawn = null;
-    let playerRotation = 0;
-
-    for (let y = 0; y < height; y++) {
-        const line = lines[y];
-        let x = 0;
-        let blockIndex = 0;
-
-        while (x < line.length) {
-
-            let char = line[x];
-            let rawToken = null;
-
-            if (char === '(') {
-                const end = line.indexOf(')', x);
-                if (end !== -1) {
-                    rawToken = line.substring(x + 1, end);
-                    x = end + 1;
-                } else {
-                    rawToken = "";
-                    x++;
+                const fullMatch = rawToken.match(/^(.+?)(?:\[(\d+)\])?(?:\{(\d+)\})?(?:<(\d+)>)?$/);
+                if (fullMatch) {
+                    base = fullMatch[1];
+                    if (fullMatch[2]) rotation = parseInt(fullMatch[2], 10);
+                    if (fullMatch[3]) maxSpawns = parseInt(fullMatch[3], 10);
+                    if (fullMatch[4]) spawnRate = parseInt(fullMatch[4], 10);
                 }
+
+                const position = this.gridToWorld(blockIndex, y, width, height);
+                blockIndex++;
+
+                switch (base) {
+
+                    case "#":
+                        walls.push({ position: position, type: "wall", rotation: rotation });
+                        break;
+
+                    case "B":
+                        bushes.push({ position: position, type: "bush", rotation: rotation });
+                        break;
+
+                    case "L":
+                        bricks.push({ position: position, type: "brick", rotation: rotation });
+                        break;
+
+                    case "P":
+                        playerSpawn = new THREE.Vector3(position.x, 1, position.z);
+                        playerRotation = rotation;
+                        break;
+
+                    case "D":
+                        doorPositions.push({
+                            position: new THREE.Vector3(position.x, 0, position.z),
+                            rotation: rotation
+                        });
+                        break;
+
+                    case "+":
+                        foodItems.push(new THREE.Vector3(position.x, 0.5, position.z));
+                        break;
+
+                    case "MA":
+                        ammoItems.push({
+                            position: new THREE.Vector3(position.x, 0.5, position.z),
+                            type: 'machinegun',
+                            rotation: rotation
+                        });
+                        validFloors.push(position);
+                        break;
+
+                    case "MP":
+                        ammoItems.push({
+                            position: new THREE.Vector3(position.x, 0.5, position.z),
+                            type: 'pistol',
+                            rotation: rotation
+                        });
+                        validFloors.push(position);
+                        break;
+
+                    case "T":
+                        models3D.push({
+                            model: "assets/3D/10446_Palm_Tree_v1_max2010_iteration-2.obj",
+                            position: new THREE.Vector3(position.x, 0, position.z),
+                            rotation: rotation
+                        });
+                        break;
+
+                    case "1":
+                    case "2":
+                    case "3":
+                    case "4":
+                    case "5":
+                    case "6": {
+                        const mapTypes = {
+                            "1": "pablo",
+                            "2": "pera",
+                            "3": "slow_low3",
+                            "4": "medium_med",
+                            "5": "medium_med2",
+                            "6": "patica"
+                        };
+
+                        enemySpawns.push({
+                            position: new THREE.Vector3(position.x, 1, position.z),
+                            type: mapTypes[base],
+                            lastSpawnTime: 0,
+                            rotation: rotation,
+                            maxSpawns: maxSpawns,
+                            spawnedCount: 0,
+                            isActive: true,
+                            spawnRate: spawnRate
+                        });
+
+                        validFloors.push(position);
+                    }
+                        break;
+
+                    case ".":
+                    case " ":
+                        validFloors.push(position);
+                        break;
+
+                    default:
+                        // Check if it's a generic spawner (S followed by number, e.g., S1, S2, S3)
+                        if (base.match(/^S\d+$/)) {
+                            const spawnerId = base; // e.g., "S1", "S2"
+                            genericSpawners.push({
+                                id: spawnerId,
+                                position: new THREE.Vector3(position.x, 1, position.z),
+                                rotation: rotation
+                            });
+                            validFloors.push(position);
+                            break;
+                        }
+
+                        if (base === 'SMuni') {
+                            // Ammo Spawner
+                            // We'll store it in a new array in the map data
+                            if (!this.ammoSpawners) this.ammoSpawners = [];
+                            this.ammoSpawners.push({
+                                position: new THREE.Vector3(position.x, 0.5, position.z),
+                                rotation: rotation
+                            });
+                            validFloors.push(position);
+                            break;
+                        }
+
+                        // Default case for unknown blocks
+                        extraItems.push({
+                            position: new THREE.Vector3(position.x, 0, position.z),
+                            code: base,
+                            rotation: rotation
+                        });
+                        validFloors.push(position);
+                        break;
+                }
+            }
+        }
+
+        if (!playerSpawn) {
+            if (validFloors.length > 0) {
+                const safeSpot = validFloors[Math.floor(validFloors.length / 2)];
+                playerSpawn = new THREE.Vector3(safeSpot.x, 1, safeSpot.z);
             } else {
-                x++;
-                continue;
-            }
-
-            let base = rawToken;
-            let rotation = 0;
-            let maxSpawns = 5;
-            let spawnRate = 5000;
-
-            const fullMatch = rawToken.match(/^(.+?)(?:\[(\d+)\])?(?:\{(\d+)\})?(?:<(\d+)>)?$/);
-            if (fullMatch) {
-                base = fullMatch[1];
-                if (fullMatch[2]) rotation = parseInt(fullMatch[2], 10);
-                if (fullMatch[3]) maxSpawns = parseInt(fullMatch[3], 10);
-                if (fullMatch[4]) spawnRate = parseInt(fullMatch[4], 10);
-            }
-
-            const position = this.gridToWorld(blockIndex, y, width, height);
-            blockIndex++;
-
-            switch (base) {
-
-                case "#":
-                    walls.push({ position: position, type: "wall", rotation: rotation });
-                    break;
-
-                case "B":
-                    bushes.push({ position: position, type: "bush", rotation: rotation });
-                    break;
-
-                case "L":
-                    bricks.push({ position: position, type: "brick", rotation: rotation });
-                    break;
-
-                case "P":
-                    playerSpawn = new THREE.Vector3(position.x, 1, position.z);
-                    playerRotation = rotation;
-                    break;
-
-                case "D":
-                    doorPositions.push({
-                        position: new THREE.Vector3(position.x, 0, position.z),
-                        rotation: rotation
-                    });
-                    break;
-
-                case "+":
-                    foodItems.push(new THREE.Vector3(position.x, 0.5, position.z));
-                    break;
-
-                case "MA":
-                    ammoItems.push({
-                        position: new THREE.Vector3(position.x, 0.5, position.z),
-                        type: 'machinegun',
-                        rotation: rotation
-                    });
-                    validFloors.push(position);
-                    break;
-
-                case "MP":
-                    ammoItems.push({
-                        position: new THREE.Vector3(position.x, 0.5, position.z),
-                        type: 'pistol',
-                        rotation: rotation
-                    });
-                    validFloors.push(position);
-                    break;
-
-                case "T":
-                    models3D.push({
-                        model: "assets/3D/10446_Palm_Tree_v1_max2010_iteration-2.obj",
-                        position: new THREE.Vector3(position.x, 0, position.z),
-                        rotation: rotation
-                    });
-                    break;
-
-                case "1":
-                case "2":
-                case "3":
-                case "4":
-                case "5":
-                case "6": {
-                    const mapTypes = {
-                        "1": "pablo",
-                        "2": "pera",
-                        "3": "slow_low3",
-                        "4": "medium_med",
-                        "5": "medium_med2",
-                        "6": "patica"
-                    };
-
-                    enemySpawns.push({
-                        position: new THREE.Vector3(position.x, 1, position.z),
-                        type: mapTypes[base],
-                        lastSpawnTime: 0,
-                        rotation: rotation,
-                        maxSpawns: maxSpawns,
-                        spawnedCount: 0,
-                        isActive: true,
-                        spawnRate: spawnRate
-                    });
-
-                    validFloors.push(position);
-                }
-                break;
-
-                case ".":
-                case " ":
-                    validFloors.push(position);
-                    break;
-
-                default:
-                    extraItems.push({
-                        position: new THREE.Vector3(position.x, 0, position.z),
-                        code: base,
-                        rotation: rotation
-                    });
-                    validFloors.push(position);
-                    break;
+                playerSpawn = new THREE.Vector3(0, 30, 0);
             }
         }
-    }
 
-    if (!playerSpawn) {
-        if (validFloors.length > 0) {
-            const safeSpot = validFloors[Math.floor(validFloors.length / 2)];
-            playerSpawn = new THREE.Vector3(safeSpot.x, 1, safeSpot.z);
-        } else {
-            playerSpawn = new THREE.Vector3(0, 30, 0);
-        }
+        return {
+            walls,
+            bushes,
+            bricks,
+            enemySpawns,
+            genericSpawners,
+            ammoSpawners: this.ammoSpawners,
+            playerSpawn,
+            playerRotation,
+            doorPositions,
+            foodItems,
+            ammoItems,
+            models3D,
+            extraItems,
+            width,
+            height,
+            blockSize: this.blockSize
+        };
     }
-
-    return {
-        walls,
-        bushes,
-        bricks,
-        enemySpawns,
-        playerSpawn,
-        playerRotation,
-        doorPositions,
-        foodItems,
-        ammoItems,
-        models3D,
-        extraItems,
-        width,
-        height,
-        blockSize: this.blockSize
-    };
-}
     /* [Fin de sección] */
 
     /* sección [UTILIDADES DE CONVERSIÓN] Conversión de coordenadas de grid a coordenadas 3D del mundo y mapa por defecto */
@@ -252,6 +281,7 @@ export class MapLoader {
             bushes: [],
             bricks: [],
             enemySpawns: [],
+            genericSpawners: [],
             playerSpawn: new THREE.Vector3(0, 1, 0),
             playerRotation: 0,
             doorPositions: [],

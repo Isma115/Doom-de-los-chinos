@@ -17,16 +17,16 @@ export class EnemyManager {
         this.enemyTextures = {};
         this.enemyWalkTextures = {};
         this.enemyShootTextures = {};
-        
+
         ENEMY_TYPES.forEach(enemyType => {
             this.enemyTextures[enemyType.id] = textureLoader.load(enemyType.texture);
             this.enemyTextures[enemyType.id].colorSpace = THREE.SRGBColorSpace;
-            
+
             if (enemyType.textureWalk) {
                 this.enemyWalkTextures[enemyType.id] = textureLoader.load(enemyType.textureWalk);
                 this.enemyWalkTextures[enemyType.id].colorSpace = THREE.SRGBColorSpace;
             }
-            
+
             if (enemyType.textureShoot) {
                 this.enemyShootTextures[enemyType.id] = textureLoader.load(enemyType.textureShoot);
                 this.enemyShootTextures[enemyType.id].colorSpace = THREE.SRGBColorSpace;
@@ -53,7 +53,7 @@ export class EnemyManager {
         this.projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /* sección [SISTEMA DE PARTÍCULAS DE SANGRE] Creación, actualización y gestión de partículas de sangre con física y efectos visuales */
 
@@ -91,8 +91,8 @@ export class EnemyManager {
                 velocity: velocity,
                 rotationSpeed: {
                     x: (Math.random() - 0.5) * 10.0,
-                    y: (Math.random() 
-                    - 0.5) * 10.0
+                    y: (Math.random()
+                        - 0.5) * 10.0
                 },
                 isOnGround: false,
                 creationTime: performance.now(),
@@ -196,7 +196,7 @@ export class EnemyManager {
     /* [Fin de sección] */
 
     /*sección [GESTIÓN DE ENEMIGOS Y PROYECTILES] Sistema de pooling de enemigos, spawn, actualización con IA, disparos y detección de colisiones*/
-getRandomEnemyType() {
+    getRandomEnemyType() {
         const weightedTypes = [];
         ENEMY_TYPES.forEach(enemyType => {
             for (let i = 0; i < enemyType.spawnWeight; i++) {
@@ -229,6 +229,7 @@ getRandomEnemyType() {
             enemy.userData.bloodTime = 0;
             enemy.userData.velocity = new THREE.Vector3();
             enemy.userData.canJump = false;
+            enemy.userData.lastMeleeAttackTime = 0; // Initialize cooldown
 
             enemy.userData.lastSoundTime = performance.now();
 
@@ -237,7 +238,7 @@ getRandomEnemyType() {
             enemy.userData.projectileSpeed = projSpeed;
             enemy.userData.projectileSize = projSize;
             enemy.userData.lastShootTime = performance.now();
-            
+
             enemy.userData.walkAnimTimer = 0;
             enemy.userData.walkAnimState = false;
             enemy.userData.isShooting = false;
@@ -285,6 +286,7 @@ getRandomEnemyType() {
         enemy.userData.bloodTime = 0;
         enemy.userData.velocity = new THREE.Vector3();
         enemy.userData.canJump = false;
+        enemy.userData.lastMeleeAttackTime = 0; // Initialize cooldown
 
         enemy.userData.lastSoundTime = performance.now();
 
@@ -297,7 +299,7 @@ getRandomEnemyType() {
         enemy.userData.projectileOffsetX = type.projectileOffsetX || 0;
         enemy.userData.projectileOffsetY = type.projectileOffsetY || 0;
         enemy.userData.projectileOffsetZ = type.projectileOffsetZ || 0;
-        
+
         enemy.userData.walkAnimTimer = 0;
         enemy.userData.walkAnimState = false;
         enemy.userData.isShooting = false;
@@ -337,14 +339,21 @@ getRandomEnemyType() {
 
         this.clearBloodParticles(enemy);
 
+        // Hide the collision helper when returning to pool
         if (this.enemyCollisionHelpers.has(enemy)) {
             const helper = this.enemyCollisionHelpers.get(enemy);
-            helper.visible = CONFIG.DEBUG_SHOW_HITBOXES;
+            helper.visible = false; // Always hide when in pool
         }
 
         if (this.enemyPool.length < this.maxPoolSize) {
             this.enemyPool.push(enemy);
         } else {
+            // If pool is full, properly dispose of the enemy
+            if (this.enemyCollisionHelpers.has(enemy)) {
+                const helper = this.enemyCollisionHelpers.get(enemy);
+                this.scene.remove(helper);
+                this.enemyCollisionHelpers.delete(enemy);
+            }
             if (enemy.parent) this.scene.remove(enemy);
         }
     }
@@ -421,17 +430,17 @@ getRandomEnemyType() {
         };
         this.scene.add(projectile);
         this.projectiles.push(projectile);
-        
+
         enemy.userData.isShooting = true;
         if (this.enemyShootTextures[enemy.userData.enemyType]) {
             enemy.material.map = this.enemyShootTextures[enemy.userData.enemyType];
             enemy.material.needsUpdate = true;
         }
-        
+
         setTimeout(() => {
             enemy.userData.isShooting = false;
-            const currentTexture = enemy.userData.walkAnimState 
-                ? this.enemyWalkTextures[enemy.userData.enemyType] 
+            const currentTexture = enemy.userData.walkAnimState
+                ? this.enemyWalkTextures[enemy.userData.enemyType]
                 : this.enemyTextures[enemy.userData.enemyType];
             if (currentTexture) {
                 enemy.material.map = currentTexture;
@@ -527,18 +536,18 @@ getRandomEnemyType() {
 
             if (!blocked) {
                 enemy.position.copy(tentativePos);
-                
+
                 if (!enemy.userData.isShooting && this.enemyWalkTextures[enemy.userData.enemyType]) {
                     enemy.userData.walkAnimTimer += delta;
-                    
+
                     if (enemy.userData.walkAnimTimer >= 0.7) {
                         enemy.userData.walkAnimTimer = 0;
                         enemy.userData.walkAnimState = !enemy.userData.walkAnimState;
-                        
-                        const newTexture = enemy.userData.walkAnimState 
-                            ? this.enemyWalkTextures[enemy.userData.enemyType] 
+
+                        const newTexture = enemy.userData.walkAnimState
+                            ? this.enemyWalkTextures[enemy.userData.enemyType]
                             : this.enemyTextures[enemy.userData.enemyType];
-                        
+
                         if (enemy.material.map !== newTexture) {
                             enemy.material.map = newTexture;
                             enemy.material.needsUpdate = true;
@@ -555,7 +564,10 @@ getRandomEnemyType() {
             }
 
             if (enemy.position.distanceTo(playerPos) < 2.5) {
-                onHitPlayer(enemy.userData.damage);
+                if (now - enemy.userData.lastMeleeAttackTime > 500) { // 0.5s cooldown
+                    onHitPlayer(enemy.userData.damage);
+                    enemy.userData.lastMeleeAttackTime = now;
+                }
             }
         }
 

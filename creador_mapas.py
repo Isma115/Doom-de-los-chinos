@@ -39,6 +39,7 @@ class MapEditor:
             "4": {"name": "Enemigo Medium", "color": "#FF0088"},
             "5": {"name": "Enemigo Medium 2", "color": "#00FF88"},
             "6": {"name": "Enemigo Shooter", "color": "#880088"},
+            "S": {"name": "Spawner Genérico", "color": "#CCFF00"},
             "MP": {"name": "Munición Pistola", "color": "#FFFF00"},
             "MA": {"name": "Munición Ametralladora", "color": "#FF8800"},
             "T": {"name": "Árbol 3D", "color": "#228822"},
@@ -192,6 +193,11 @@ class MapEditor:
             max_spawns = 5
             spawn_rate = 5000
         
+        # Extract spawner ID if it's a generic spawner (S1, S2, etc.)
+        spawner_id = ""
+        if block_type.startswith('S'):
+            spawner_id = block_type[1:] if len(block_type) > 1 else ""
+        
         if block_type in [".", " "]:
             return
         
@@ -220,6 +226,27 @@ class MapEditor:
         rotation_entry.pack(side=tk.RIGHT)
         
         is_enemy_spawn = block_type in ["1", "2", "3", "4", "5", "6"]
+        is_generic_spawner = block_type.startswith('S')
+        
+        # Generic Spawner ID field
+        if is_generic_spawner:
+            spawner_id_frame = tk.Frame(main_frame)
+            spawner_id_frame.pack(fill=tk.X, pady=5)
+            tk.Label(spawner_id_frame, text="Spawner ID (número):", font=("Arial", 10)).pack(side=tk.LEFT)
+            self.spawner_id_var = tk.StringVar(value=spawner_id)
+            spawner_id_entry = tk.Entry(spawner_id_frame, textvariable=self.spawner_id_var, width=10)
+            spawner_id_entry.pack(side=tk.RIGHT)
+            
+            info_label = tk.Label(
+                main_frame,
+                text="ID del spawner para eventos (ej: 1, 2, 3)\nSe guardará como S1, S2, S3, etc.",
+                font=("Arial", 8),
+                fg="#666666",
+                justify=tk.LEFT
+            )
+            info_label.pack(pady=10)
+        else:
+            self.spawner_id_var = None
         
         if is_enemy_spawn:
             spawns_frame = tk.Frame(main_frame)
@@ -294,6 +321,19 @@ class MapEditor:
             block_type = cell_data[0]
         else:
             block_type = cell_data if isinstance(cell_data, str) else "."
+        
+        # Handle generic spawner ID
+        is_generic_spawner = block_type.startswith('S')
+        if is_generic_spawner and self.spawner_id_var:
+            spawner_id = self.spawner_id_var.get().strip()
+            if spawner_id:
+                # Validate spawner ID is numeric or alphanumeric
+                if not spawner_id.replace('_', '').isalnum():
+                    messagebox.showerror("Error", "El ID del spawner debe ser alfanumérico")
+                    return
+                block_type = f"S{spawner_id}"
+            else:
+                block_type = "S"
         
         new_cell = [block_type, rotation]
         

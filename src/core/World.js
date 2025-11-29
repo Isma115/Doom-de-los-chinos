@@ -14,6 +14,7 @@ export class World {
         this.sharedGeometries = {};
         this.mapData = null;
         this.enemySpawns = [];
+        this.genericSpawners = [];
         this.mapLoader = new MapLoader();
         this.walls = [];
         this.doorMeshes = [];
@@ -24,6 +25,8 @@ export class World {
     async init(mapName = 'default') {
         this.mapData = await this.mapLoader.loadMapFile(mapName);
         this.enemySpawns = this.mapData.enemySpawns;
+        this.genericSpawners = this.mapData.genericSpawners;
+        this.ammoSpawners = this.mapData.ammoSpawners || [];
 
         const textureLoader = new THREE.TextureLoader();
         let skyTexture = null;
@@ -138,6 +141,63 @@ export class World {
 
     getAmmoMeshes() {
         return this.ammoMeshes;
+    }
+
+    getGenericSpawners() {
+        return this.genericSpawners;
+    }
+
+    getAmmoSpawners() {
+        return this.ammoSpawners;
+    }
+
+    spawnAmmo(type, position) {
+        const textureLoader = new THREE.TextureLoader();
+        let texturePath = '';
+        let ammoAmount = 0;
+        let weaponIndex = 0;
+
+        if (type === 'pistol') {
+            texturePath = 'assets/textures/pistol_ammo.png';
+            ammoAmount = 30;
+            weaponIndex = 0;
+        } else {
+            texturePath = 'assets/textures/municion_ametra.png';
+            ammoAmount = 100;
+            weaponIndex = 1;
+        }
+
+        const texture = textureLoader.load(
+            texturePath,
+            () => { },
+            () => { },
+            () => { console.error(`No se pudo cargar la textura de munición: ${type}`); }
+        );
+
+        const spriteMaterial = new THREE.SpriteMaterial({
+            map: texture,
+            color: 0xffffff,
+            depthWrite: false,
+            transparent: true
+        });
+
+        const ammoSprite = new THREE.Sprite(spriteMaterial);
+
+        ammoSprite.scale.set(2, 2, 1);
+        ammoSprite.position.set(position.x, 2, position.z);
+
+        ammoSprite.userData = {
+            type: 'ammo',
+            ammoType: type,
+            ammoAmount: ammoAmount,
+            weaponIndex: weaponIndex,
+            collected: false,
+            rotationSpeed: 2.0
+        };
+
+        this.scene.add(ammoSprite);
+        this.ammoMeshes.push(ammoSprite);
+        return ammoSprite;
     }
 
     /* [Fin de sección] */
