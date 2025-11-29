@@ -140,9 +140,9 @@ export class World {
         return this.ammoMeshes;
     }
 
-/* [Fin de sección] */
+    /* [Fin de sección] */
 
-/* sección [CREACIÓN DE ELEMENTOS DEL MAPA] Métodos para crear items coleccionables, muros, puertas y modelos 3D */
+    /* sección [CREACIÓN DE ELEMENTOS DEL MAPA] Métodos para crear items coleccionables, muros, puertas y modelos 3D */
 
     createAmmoItemsFromMap() {
         this.ammoMeshes = [];
@@ -510,9 +510,9 @@ export class World {
         });
     }
 
-/* [Fin de sección] */
+    /* [Fin de sección] */
 
-/* sección [LIMPIEZA DE RECURSOS] Método para liberar memoria y limpiar recursos del mundo */
+    /* sección [LIMPIEZA DE RECURSOS] Método para liberar memoria y limpiar recursos del mundo */
 
     dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());

@@ -28,12 +28,12 @@ export class Player {
         this.radius = 2.0;
 
         camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
-
-        this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager);
+        this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this);
         this.isShooting = false;
 
         this.initEvents(domElement);
     }
+
 
     teleport(position, rotation = 0) {
         this.camera.position.copy(position);
@@ -162,6 +162,19 @@ export class Player {
         }
     }
 
+    /**
+     * Aplica retroceso al jugador en dirección opuesta a donde está mirando
+     * @param {number} strength - Fuerza del retroceso (valor recomendado: 0.5 - 1.5)
+     */
+    applyRecoil(strength = 0.5) {
+        if (this.isGameOver || !this.controls.isLocked) return;
+
+        // Aumentar velocity.z para retroceder hacia atrás
+        // moveForward(-velocity.z) se encarga automáticamente de aplicar
+        // el retroceso en la dirección correcta según el ángulo actual
+        this.velocity.z += strength;
+    }
+
 
     update(delta) {
         if (!this.controls.isLocked) return;
@@ -172,14 +185,16 @@ export class Player {
             });
         }
 
-        this.velocity.x -= this.velocity.x * 10.0 * delta;
-        this.velocity.z -= this.velocity.z * 10.0 * delta;
+        // Aplicar fricción (decaerá el retroceso y cualquier otro movimiento)
+        this.velocity.x -= this.velocity.x * 12.0 * delta;
+        this.velocity.z -= this.velocity.z * 12.0 * delta;
         this.velocity.y -= CONFIG.GRAVITY * delta;
 
         this.direction.z = Number(this.moveFlags.fwd) - Number(this.moveFlags.bwd);
         this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
         this.direction.normalize();
 
+        // Movimiento del jugador (input)
         if (this.moveFlags.fwd || this.moveFlags.bwd) this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta;
         if (this.moveFlags.left || this.moveFlags.right) this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta;
 
@@ -194,6 +209,12 @@ export class Player {
             this.camera.position.y = CONFIG.PLAYER_HEIGHT;
             this.canJump = true;
         }
+
+        // Mostrar siempre el ángulo de rotación del jugador (eje Y)
+        const angleRadians = this.camera.rotation.y;
+        let angleDegrees = (angleRadians * 180) / Math.PI;
+        if (angleDegrees < 0) angleDegrees += 360;
+        UIManager.updateAngle(angleDegrees);
 
         this.checkCollisions(oldPosition);
         this.checkAmmoItems();

@@ -46,20 +46,20 @@ export class AudioManager {
     async loadAllSounds() {
         const soundFiles = {
             pistol: 'assets/sound/weapons/pistol.mp3',
-            machinegun: 'assets/sounds/machinegun.mp3',
-            enemyDeath: 'assets/sounds/enemy_death.mp3',
-            enemyHit: 'assets/sounds/enemy_hit.mp3',
+            machinegun: 'assets/sound/weapons/ametra.mp3',
+            enemyDeath: 'assets/sound/enemy_death.mp3',
+            enemyHit: 'assets/sound/enemy_hit.mp3',
             playerScream: 'assets/sound/misc/gas.mp3',
-            playerHurt: 'assets/sounds/player_hurt.mp3',
-            grunt1: 'assets/sounds/enemy_grunt1.mp3',
-            grunt2: 'assets/sounds/enemy_grunt2.mp3',
-            growl1: 'assets/sounds/enemy_growl1.mp3',
-            growl2: 'assets/sounds/enemy_growl2.mp3',
-            hiss1: 'assets/sounds/enemy_hiss1.mp3',
-            roar1: 'assets/sounds/enemy_roar1.mp3',
-            doorOpen: 'assets/sounds/door_open.mp3',
-            collectItem: 'assets/sounds/collect.mp3',
-            background: 'assets/sounds/background_music.mp3'
+            playerHurt: 'assets/sound/player_hurt.mp3',
+            grunt1: 'assets/sound/enemy_grunt1.mp3',
+            grunt2: 'assets/sound/enemy_grunt2.mp3',
+            growl1: 'assets/sound/enemy_growl1.mp3',
+            growl2: 'assets/sound/enemy_growl2.mp3',
+            hiss1: 'assets/sound/enemy_hiss1.mp3',
+            roar1: 'assets/sound/enemy_roar1.mp3',
+            doorOpen: 'assets/sound/door_open.mp3',
+            collectItem: 'assets/sound/collect.mp3',
+            background: 'assets/sound/background_music.mp3'
         };
         const loadPromises = Object.entries(soundFiles).map(async ([key, path]) => {
             try {

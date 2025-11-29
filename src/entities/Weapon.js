@@ -3,10 +3,11 @@ import * as THREE from '../../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from '../Constants.js'; //
 import { UIManager } from '../UI.js';
 export class WeaponSystem { //
-    constructor(camera, enemyManager, audioManager) { // Se recibe audioManager
+     constructor(camera, enemyManager, audioManager, player) { // Se recibe player
         this.camera = camera;
         this.enemyManager = enemyManager;
         this.audioManager = audioManager; // Guardar referencia
+        this.player = player; // ⭐ NUEVO: Referencia al jugador para aplicar retroceso
         this.currentIndex = 0; //
         this.lastShotTime = 0;
         this.weaponMesh = null;
@@ -22,7 +23,6 @@ export class WeaponSystem { //
         });
         this.updateVisuals(); //
     }
-
     getCurrentWeapon() {
         return WEAPONS_DATA[this.currentIndex];
     } //
@@ -55,22 +55,41 @@ export class WeaponSystem { //
     }
 
     updateVisuals() {
-        if (this.weaponMesh) {
-            this.camera.remove(this.weaponMesh);
-            this.weaponMesh.geometry = null; //
-            this.weaponMesh.material = null;
-        }
+    if (this.weaponMesh) {
+        this.camera.remove(this.weaponMesh);
+        this.weaponMesh.material.map.dispose();
+        this.weaponMesh.material.dispose();
+    }
 
-        const data = this.getCurrentWeapon();
-        const material = this.weaponMaterials[this.currentIndex]; //
+    const loader = new THREE.TextureLoader();
+    // Precargar sprite del arma
+    this.weaponTexture = loader.load(
+        'assets/weapons/' + this.getCurrentWeapon().sprite,
+        () => {},
+        () => {},
+        () => { console.error("No se pudo cargar el sprite del arma"); }
+    );
 
-        this.weaponMesh = new THREE.Mesh(data.geo, material);
-        this.weaponMesh.position.set(0.5, -0.5, -1);
-        this.weaponMesh.matrixAutoUpdate = true;
-        this.camera.add(this.weaponMesh);
+    // Precargar sprite con destello
+    this.weaponFlashTexture = loader.load(
+        'assets/weapons/' + this.getCurrentWeapon().flash,
+        () => {},
+        () => {},
+        () => { console.error("No se pudo cargar el sprite de disparo"); }
+    );
 
-        UIManager.updateWeapon(data.name, data.ammo);
-    } //
+    const material = new THREE.SpriteMaterial({
+        map: this.weaponTexture,
+        transparent: true
+    });
+
+    this.weaponMesh = new THREE.Sprite(material);
+    this.weaponMesh.scale.set(1.2, 1.2, 1);
+    this.weaponMesh.position.set(0.5, -0.2, -1);
+
+    this.camera.add(this.weaponMesh);
+    UIManager.updateWeapon(this.getCurrentWeapon().name, this.getCurrentWeapon().ammo);
+} //
 
     // addAmmo(amount, weaponType = null) {
     // if (weaponType) {
@@ -94,26 +113,40 @@ export class WeaponSystem { //
     // } //
     // }
 
-    tryShoot(scoreCallback) {
-        const now = performance.now();
-        const weapon = this.getCurrentWeapon(); //
+                tryShoot(scoreCallback) {
+    const now = performance.now();
+    const weapon = this.getCurrentWeapon();
 
-        if (now - this.lastShotTime < weapon.delay) return;
+    if (now - this.lastShotTime < weapon.delay) return;
+    if (weapon.ammo <= 0) return;
 
-        if (weapon.ammo <= 0) return;
+    weapon.ammo--;
+    UIManager.updateAmmo(weapon.ammo);
+    this.lastShotTime = now;
 
-        weapon.ammo--;
-        UIManager.updateAmmo(weapon.ammo);
-        this.lastShotTime = now; //
-
-        // SONIDO DE DISPARO
-        if (this.audioManager && weapon.shootSound) {
-            this.audioManager.playSound(weapon.shootSound);
-        }
-
-        this.performRaycast(weapon, scoreCallback);
-        this.animateRecoil();
+    if (this.audioManager && weapon.shootSound) {
+        this.audioManager.playSound(weapon.shootSound);
     }
+
+    if (weapon.name === "AMETRALLADORA") {
+        this.player.applyRecoil(7);
+    }
+
+    if (this.weaponMesh && this.weaponFlashTexture) {
+        this.weaponMesh.material.map = this.weaponFlashTexture;
+        this.weaponMesh.material.needsUpdate = true;
+
+        setTimeout(() => {
+            if (this.weaponMesh && this.weaponTexture) {
+                this.weaponMesh.material.map = this.weaponTexture;
+                this.weaponMesh.material.needsUpdate = true;
+            }
+        }, 80);
+    }
+
+    this.performRaycast(weapon, scoreCallback);
+    this.animateRecoil();
+}
 
     performRaycast(weapon, scoreCallback) {
         this.raycaster.setFromCamera(this.rayOrigin, this.camera);
@@ -144,13 +177,16 @@ export class WeaponSystem { //
     }
 
     animateRecoil() {
-        this.weaponMesh.position.z += 0.2;
-        setTimeout(() => { //
-            if (this.weaponMesh) {
-                this.weaponMesh.position.z -= 0.2;
-            }
-        }, 50);
-    } //
+    if (!this.weaponMesh) return;
+
+    this.weaponMesh.position.z += 0.15;
+
+    setTimeout(() => {
+        if (this.weaponMesh) {
+            this.weaponMesh.position.z -= 0.15;
+        }
+    }, 50);
+} //
 
     dispose() {
         if (this.weaponMesh) {

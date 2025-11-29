@@ -35,87 +35,98 @@ class Game { //
         // Inicializamos el gestor de audio
         this.audioManager = new AudioManager();
         this.initGame(mapName);
-        
+
     }
 
     async initGame(mapName) {
-    await this.audioManager.init();
-    this.world = new World(this.scene);
-    await this.world.init(mapName);
+        await this.audioManager.init();
+        this.world = new World(this.scene);
+        await this.world.init(mapName);
 
-    Door.clearAll();
-    const doorMeshes = this.world.getDoorMeshes();
-    doorMeshes.forEach(mesh => {
-        new Door(mesh);
-    });
-    
-    this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
-    
-    this.enemyManager.spawnPoints = this.world.getEnemySpawns();
+        Door.clearAll();
+        const doorMeshes = this.world.getDoorMeshes();
+        doorMeshes.forEach(mesh => {
+            new Door(mesh);
+        });
 
-    this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
-    const playerSpawn = this.world.getPlayerSpawn();
-    const playerRotation = this.world.getPlayerRotation();
-    
-    if (playerSpawn) {
-        this.player.teleport(playerSpawn, playerRotation);
-    }
+        this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
 
-    this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
-    await this.eventManager.loadEventsForMap(mapName);
+        this.enemyManager.spawnPoints = this.world.getEnemySpawns();
 
-    this.audioManager.playMusic('background');
-    
-    UIManager.togglePauseScreen(false, false);
-    this.animate();
-} //
+        this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
+        const playerSpawn = this.world.getPlayerSpawn();
+        const playerRotation = this.world.getPlayerRotation();
 
-    animate() {
-        requestAnimationFrame(() => this.animate());
-        const time = performance.now();
-        const delta = (time - this.prevTime) / 1000;
-        //
-
-        if (this.player && !this.player.isGameOver) {
-            this.player.update(delta);
-
-            // ⭐ NUEVO: Actualizamos eventos
-            if (this.eventManager) {
-                this.eventManager.update(delta, this.player.getPosition());
-            }
-
-            const enemySpawns = this.world.getEnemySpawns(); //
-            enemySpawns.forEach(spawn => {
-                if (time - spawn.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
-                    spawn.lastSpawnTime = time;
-
-                    const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
-
-
-                    if (enemyType) {
-                        this.enemyManager.spawn(time, enemyType, spawn.position); //
-                    } else {
-                        this.enemyManager.spawn(time, null, spawn.position);
-
-
-                    }
-                } //
-            });
-            this.enemyManager.update(delta, this.player.getPosition(), (damage) => { //
-                this.player.takeDamage(damage);
-            });
-            Door.updateAll(delta, this.player.getPosition()); //
-
-            this.updateFoodItems(delta);
-
-            this.performPeriodicCleanup(time);
+        if (playerSpawn) {
+            this.player.teleport(playerSpawn, playerRotation);
         }
 
-        this.prevTime = time;
-        this.renderer.render(this.scene, this.camera);
+        this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
+        await this.eventManager.loadEventsForMap(mapName);
 
-        this.frameCount++;
+        this.audioManager.playMusic('background');
+
+        UIManager.togglePauseScreen(false, false);
+        this.animate();
     } //
+
+    animate() {
+    requestAnimationFrame(() => this.animate());
+    const time = performance.now();
+    const delta = (time - this.prevTime) / 1000;
+
+    if (this.player && !this.player.isGameOver) {
+        this.player.update(delta);
+
+        if (this.eventManager) {
+            this.eventManager.update(delta, this.player.getPosition());
+        }
+
+        const enemySpawns = this.world.getEnemySpawns();
+        enemySpawns.forEach(spawn => {
+            if (!spawn.isActive) return;
+
+            if (spawn.spawnedCount >= spawn.maxSpawns) {
+                spawn.isActive = false;
+                return;
+            }
+
+            const currentSpawnRate = spawn.spawnRate || CONFIG.ENEMY_SPAWN_RATE;
+
+            if (time - spawn.lastSpawnTime > currentSpawnRate) {
+                spawn.lastSpawnTime = time;
+
+                const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
+
+                if (enemyType) {
+                    this.enemyManager.spawn(time, enemyType, spawn.position);
+                } else {
+                    this.enemyManager.spawn(time, null, spawn.position);
+                }
+
+                spawn.spawnedCount++;
+
+                if (spawn.spawnedCount >= spawn.maxSpawns) {
+                    spawn.isActive = false;
+                }
+            }
+        });
+
+        this.enemyManager.update(delta, this.player.getPosition(), (damage) => {
+            this.player.takeDamage(damage);
+        });
+        Door.updateAll(delta, this.player.getPosition());
+
+        this.updateFoodItems(delta);
+
+        this.performPeriodicCleanup(time);
+    }
+
+    this.prevTime = time;
+    this.renderer.render(this.scene, this.camera);
+
+    this.frameCount++;
+} //
 
     updateFoodItems(delta) {
         const foodMeshes = this.world.getFoodMeshes();

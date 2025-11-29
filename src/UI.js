@@ -19,6 +19,27 @@ export class UIManager {
         document.getElementById('ammo-display').innerText = "Munición: " + ammo;
     }
 
+
+        static updateAngle(angleDegrees) {
+        let el = document.getElementById('angle-display');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'angle-display';
+            el.style.position = 'absolute';
+            el.style.top = '10px';
+            el.style.right = '10px';
+            el.style.background = 'rgba(0,0,0,0.5)';
+            el.style.color = 'white';
+            el.style.padding = '5px 10px';
+            el.style.borderRadius = '4px';
+            el.style.fontFamily = 'Arial, sans-serif';
+            el.style.fontSize = '14px';
+            el.style.zIndex = '1000';
+            document.getElementById('ui-layer').appendChild(el);
+        }
+        el.innerText = `Ángulo: ${angleDegrees.toFixed(0)}°`;
+    }
+
     // ⭐ NUEVO: Mostrar mensaje de evento
     static showEventMessage(text, duration = 3000) {
         // Crear elemento si no existe (asumiendo que no está en el HTML base)

@@ -6,7 +6,7 @@ export const CONFIG = {
     PLAYER_HEIGHT: 2.0,
     PLAYER_SPEED: 400.0,
     ARENA_SIZE: 200,
-    ENEMY_SPAWN_RATE: 2000,
+    ENEMY_SPAWN_RATE: 5000,
     DOOR_OPEN_DURATION: 3000,
     DOOR_CLOSE_DISTANCE: 20,
     BLOCK_SIZE: 10,
@@ -37,7 +37,9 @@ export const WEAPONS_DATA = [
         ammo: 100,
         maxAmmo: 100,
         geo: pistolGeometry,
-        shootSound: 'pistol'
+        shootSound: 'pistol',
+        sprite: 'pistol.png',
+        flash: 'pistol_flash.png'
     },
     {
         name: "AMETRALLADORA",
@@ -48,7 +50,9 @@ export const WEAPONS_DATA = [
         ammo: 600,
         maxAmmo: 600,
         geo: machineGunGeometry,
-        shootSound: 'machinegun'
+        shootSound: 'machinegun',
+        sprite: 'ametralla.png',
+        flash: 'ametralla_flash.png'
     }
 ];
 export const ENEMY_TYPES = [
@@ -145,16 +149,14 @@ export const MAP_BLOCKS = {
     '.': { type: 'floor', color: 0x44aa44, height: 0, solid: false },
     'P': { type: 'player_spawn', color: 0x44aa44, height: 0, solid: false },
     'E': { type: 'enemy_spawn', color: 0x44aa44, height: 0, solid: false },
-    ' ': { 
-type: 'empty', color: 0x44aa44, height: 0, solid: false },
+    ' ': { type: 'empty', color: 0x44aa44, height: 0, solid: false },
     '1': { type: 'enemy_slow_low', color: 0x44aa44, height: 0, solid: false },
     '2': { type: 'enemy_slow_low2', color: 0x44aa44, height: 0, solid: false },
     '3': { type: 'enemy_slow_low3', color: 0x44aa44, height: 0, solid: false },
     '4': { type: 'enemy_medium_med', color: 0x44aa44, height: 0, solid: false },
     '5': { type: 'enemy_medium_med2', color: 0x44aa44, height: 0, solid: false },
     '6': { type: 'enemy_shooter', color: 0x44aa44, height: 0, solid: false },
-    'MP': { type: 'MP', 
-color: 0xffff00, height: 0, solid: false },
+    'MP': { type: 'MP', color: 0xffff00, height: 0, solid: false },
     'MA': { type: 'MA', color: 0xff8800, height: 0, solid: false }
 };
 /*[Fin de sección]*/

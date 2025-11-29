@@ -89,11 +89,15 @@ export class MapLoader {
 
             let base = rawToken;
             let rotation = 0;
+            let maxSpawns = 5;
+            let spawnRate = 5000;
 
-            const match = rawToken.match(/^(.+?)\[(\d+)\]$/);
-            if (match) {
-                base = match[1];
-                rotation = parseInt(match[2], 10);
+            const fullMatch = rawToken.match(/^(.+?)(?:\[(\d+)\])?(?:\{(\d+)\})?(?:<(\d+)>)?$/);
+            if (fullMatch) {
+                base = fullMatch[1];
+                if (fullMatch[2]) rotation = parseInt(fullMatch[2], 10);
+                if (fullMatch[3]) maxSpawns = parseInt(fullMatch[3], 10);
+                if (fullMatch[4]) spawnRate = parseInt(fullMatch[4], 10);
             }
 
             const position = this.gridToWorld(blockIndex, y, width, height);
@@ -174,7 +178,11 @@ export class MapLoader {
                         position: new THREE.Vector3(position.x, 1, position.z),
                         type: mapTypes[base],
                         lastSpawnTime: 0,
-                        rotation: rotation
+                        rotation: rotation,
+                        maxSpawns: maxSpawns,
+                        spawnedCount: 0,
+                        isActive: true,
+                        spawnRate: spawnRate
                     });
 
                     validFloors.push(position);
@@ -239,22 +247,22 @@ export class MapLoader {
     }
 
     getDefaultMap() {
-    return {
-        walls: [],
-        bushes: [],
-        bricks: [],
-        enemySpawns: [],
-        playerSpawn: new THREE.Vector3(0, 1, 0),
-        playerRotation: 0,
-        doorPositions: [],
-        foodItems: [],
-        ammoItems: [],
-        models3D: [],
-        extraItems: [],
-        width: 0,
-        height: 0,
-        blockSize: this.blockSize
-    };
-}
+        return {
+            walls: [],
+            bushes: [],
+            bricks: [],
+            enemySpawns: [],
+            playerSpawn: new THREE.Vector3(0, 1, 0),
+            playerRotation: 0,
+            doorPositions: [],
+            foodItems: [],
+            ammoItems: [],
+            models3D: [],
+            extraItems: [],
+            width: 0,
+            height: 0,
+            blockSize: this.blockSize
+        };
+    }
     /* [Fin de sección] */
 }
