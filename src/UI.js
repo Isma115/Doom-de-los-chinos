@@ -10,13 +10,14 @@ export class UIManager {
         document.getElementById('score-display').innerText = "Enemigos: " + score;
     }
 
-    static updateWeapon(name, ammo) {
+        static updateWeapon(name, ammo) {
         document.getElementById('weapon-name').innerText = "Arma: " + name;
         this.updateAmmo(ammo);
     }
 
-    static updateAmmo(ammo) {
-        document.getElementById('ammo-display').innerText = "Munición: " + ammo;
+        static updateAmmo(ammo) {
+        const ammoText = (ammo === Infinity || ammo === "∞") ? "∞" : ammo;
+        document.getElementById('ammo-display').innerText = "Munición: " + ammoText;
     }
 
 

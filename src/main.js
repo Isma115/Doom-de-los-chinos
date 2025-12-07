@@ -128,6 +128,15 @@ class Game { //
         this.frameCount++;
     } //
 
+    onMouseDown() {
+        if (this.controls.isLocked && !this.isGameOver) {
+            this.isShooting = true;
+            this.weaponSystem.tryAttack(() => {  // ← cambiado tryShoot → tryAttack
+                this.score++;
+                UIManager.updateScore(this.score);
+            });
+        }
+    }
     updateFoodItems(delta) {
         const foodMeshes = this.world.getFoodMeshes();
         const playerPos = this.player.getPosition(); //

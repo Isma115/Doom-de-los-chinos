@@ -28,6 +28,7 @@ export const AUDIO_CONFIG = {
 };
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);
+
 export const WEAPONS_DATA = [
     {
         name: "PISTOLA TÁCTICA",
@@ -39,11 +40,11 @@ export const WEAPONS_DATA = [
         geo: pistolGeometry,
         shootSound: 'pistol',
         sprite: 'pistol.png',
-        flash: 'pistol_flash.png'
+        flash: 'pistol_flash.png',
+        isMelee: false
     },
     {
         name: "AMETRALLADORA",
-
         color: 0xff0000,
         damage: 10,
         delay: 100,
@@ -52,7 +53,44 @@ export const WEAPONS_DATA = [
         geo: machineGunGeometry,
         shootSound: 'machinegun',
         sprite: 'ametralla.png',
-        flash: 'ametralla_flash.png'
+        flash: 'ametralla_flash.png',
+        isMelee: false
+    },
+    {
+        name: "CUCHILLO",
+        damage: 45,
+        delay: 600,               // cadencia media (más lento que pistola)
+        range: 5.6,               // rango duplicado
+        ammo: Infinity,
+        maxAmmo: Infinity,
+        shootSound: 'knife',
+        sprite: 'knife.png',
+        flash: 'knife.png',
+        isMelee: true
+    },
+    {
+        name: "ESPADA",
+        damage: 70,
+        delay: 800,               // más lenta pero más daño
+        range: 7.0,               // rango duplicado
+        ammo: Infinity,
+        maxAmmo: Infinity,
+        shootSound: 'sword_swing',
+        sprite: 'sword.png',
+        flash: 'sword_slash.png',
+        isMelee: true
+    },
+    {
+        name: "BATE",
+        damage: 55,
+        delay: 700,
+        range: 8.0,               // rango duplicado
+        ammo: Infinity,
+        maxAmmo: Infinity,
+        shootSound: 'bat_swing',
+        sprite: 'bat.png',
+        flash: 'bat_hit.png',
+        isMelee: true
     }
 ];
 export const ENEMY_TYPES = [
@@ -92,7 +130,7 @@ export const ENEMY_TYPES = [
         hp: 120,
         texture: 'assets/enemies/patica.png',
         textureWalk: 'assets/enemies/patica_walk.png',
-        textureShoot: 'assets/enemies/patica_shoot.png',
+        textureShoot: 'assets/enemies/patica.png',
         spawnWeight: 2,
         width: 6,
         height: 7.5,
