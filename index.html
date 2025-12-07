@@ -35,6 +35,34 @@
         <p>Click: Disparar | Scroll: Cambiar Arma</p>
     </div>
 
+    <!-- Menú de Ajustes -->
+    <div id="settings-menu" class="settings-overlay">
+        <div class="settings-panel">
+            <h2 class="settings-title">⚙️ AJUSTES</h2>
+            
+            <div class="settings-section">
+                <label class="settings-label">
+                    <span class="label-icon">🎵</span> Música
+                    <span id="music-volume-value" class="volume-value">30%</span>
+                </label>
+                <input type="range" id="music-volume" class="volume-slider" min="0" max="100" value="30">
+            </div>
+            
+            <div class="settings-section">
+                <label class="settings-label">
+                    <span class="label-icon">🔊</span> Efectos
+                    <span id="sfx-volume-value" class="volume-value">50%</span>
+                </label>
+                <input type="range" id="sfx-volume" class="volume-slider" min="0" max="100" value="50">
+            </div>
+            
+            <button id="settings-close-btn" class="settings-btn">CERRAR</button>
+        </div>
+    </div>
+
+    <!-- Botón de ajustes flotante -->
+    <button id="settings-toggle-btn" class="settings-toggle">⚙️</button>
+
     <script type="module" src="./src/main.js"></script>
 </body>
 

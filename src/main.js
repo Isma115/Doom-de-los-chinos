@@ -4,7 +4,7 @@ import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
 import { Door } from './entities/Door.js';
 // ⭐ NUEVO: Importamos UIManager para poder mostrar la pantalla de inicio
-import { UIManager } from './UI.js';
+import { UIManager, SettingsManager } from './UI.js';
 import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js'; //
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { AudioManager } from './core/AudioManager.js';
@@ -29,6 +29,7 @@ class Game { //
         this.prevTime = performance.now();
         this.frameCount = 0;
         this.lastCleanupTime = 0;
+        this.isPaused = false; // ⏸️ Estado de pausa
         window.addEventListener('resize', () => this.onWindowResize());
         //
 
@@ -61,8 +62,20 @@ class Game { //
             this.player.teleport(playerSpawn, playerRotation);
         }
 
+        // ⏸️ Conectar el estado de pausa con los controles del jugador
+        this.player.controls.addEventListener('lock', () => {
+            this.isPaused = false;
+            this.prevTime = performance.now(); // Resetear tiempo para evitar saltos de delta
+        });
+        this.player.controls.addEventListener('unlock', () => {
+            this.isPaused = true;
+        });
+
         this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
         await this.eventManager.loadEventsForMap(mapName);
+
+        // ⚙️ Inicializar el gestor de ajustes
+        this.settingsManager = new SettingsManager(this.audioManager);
 
         this.audioManager.playMusic('background');
 
@@ -72,6 +85,13 @@ class Game { //
 
     animate() {
         requestAnimationFrame(() => this.animate());
+
+        // ⏸️ Si está pausado, solo renderizar sin actualizar lógica
+        if (this.isPaused) {
+            this.renderer.render(this.scene, this.camera);
+            return;
+        }
+
         const time = performance.now();
         const delta = (time - this.prevTime) / 1000;
 
