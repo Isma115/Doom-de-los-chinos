@@ -59,8 +59,17 @@ export class EnemyManager {
 
     createBloodParticles(enemy, hitPosition) {
         const existingParticles = this.bloodParticles.get(enemy);
+
+        // Recycle old particles if too many
         if (existingParticles && existingParticles.length > 50) {
-            return existingParticles;
+            const particlesToRemove = existingParticles.length - 30; // Keep 30, make room for new ones
+            for (let i = 0; i < particlesToRemove; i++) {
+                const p = existingParticles.shift();
+                if (p) {
+                    if (p.material) p.material.dispose();
+                    this.scene.remove(p);
+                }
+            }
         }
 
         const particles = existingParticles || [];
@@ -73,6 +82,8 @@ export class EnemyManager {
 
         for (let i = 0; i < particleCount; i++) {
             const particle = new THREE.Mesh(this.bloodGeometry, this.bloodMaterial.clone());
+            particle.renderOrder = 999; // Render on top
+            particle.material.depthTest = false; // Disable depth test to avoid clipping
             particle.position.copy(spawnPos);
 
             particle.position.x += (Math.random() - 0.5) * 0.4;
@@ -97,7 +108,7 @@ export class EnemyManager {
                 isOnGround: false,
                 creationTime: performance.now(),
             };
-            const scale = 0.5 + Math.random() * 0.8;
+            const scale = (0.5 + Math.random() * 0.8) * 3; // 3x size
             particle.scale.set(scale, scale, scale);
 
             particles.push(particle);
