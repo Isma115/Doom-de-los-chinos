@@ -175,16 +175,45 @@ export class WeaponSystem { //
     animateRecoil() {
         if (!this.weaponMesh) return;
 
-        // Retroceso más suave y visible también en armas melee
-        this.weaponMesh.position.z += 0.2;
-        this.weaponMesh.position.y -= 0.05;
+        const weapon = this.getCurrentWeapon();
 
-        setTimeout(() => {
-            if (this.weaponMesh) {
-                this.weaponMesh.position.z -= 0.2;
-                this.weaponMesh.position.y += 0.05;
-            }
-        }, 80);
+        if (weapon.isMelee) {
+            // ⚔️ ARMAS MELEE: Barrido horizontal brusco y largo
+            const startX = this.weaponMesh.position.x;
+            const swingDistance = 1.8; // Distancia larga del barrido
+            const swingDuration = 100; // Milisegundos para el barrido (rápido)
+
+            // Movimiento inicial hacia la izquierda (preparación rápida)
+            this.weaponMesh.position.x = startX - 0.3;
+            this.weaponMesh.rotation.z = 0.2;
+
+            // Barrido brusco hacia la derecha
+            setTimeout(() => {
+                if (this.weaponMesh) {
+                    this.weaponMesh.position.x = startX + swingDistance;
+                    this.weaponMesh.rotation.z = -0.4;
+                }
+            }, 30);
+
+            // Volver a posición original
+            setTimeout(() => {
+                if (this.weaponMesh) {
+                    this.weaponMesh.position.x = startX;
+                    this.weaponMesh.rotation.z = 0;
+                }
+            }, swingDuration + 50);
+        } else {
+            // 🔫 ARMAS A DISTANCIA: Retroceso tradicional
+            this.weaponMesh.position.z += 0.2;
+            this.weaponMesh.position.y -= 0.05;
+
+            setTimeout(() => {
+                if (this.weaponMesh) {
+                    this.weaponMesh.position.z -= 0.2;
+                    this.weaponMesh.position.y += 0.05;
+                }
+            }, 80);
+        }
     }
 
     dispose() {

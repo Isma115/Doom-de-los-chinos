@@ -62,6 +62,34 @@ export class UIManager {
         }, duration);
     }
 
+    // ⏱️ Mostrar contador de cuenta regresiva
+    static showCountdown(seconds) {
+        let countdownEl = document.getElementById('wave-countdown');
+        if (!countdownEl) {
+            countdownEl = document.createElement('div');
+            countdownEl.id = 'wave-countdown';
+            document.getElementById('ui-layer').appendChild(countdownEl);
+        }
+
+        countdownEl.innerHTML = `
+            <div class="countdown-label">SIGUIENTE RONDA EN</div>
+            <div class="countdown-number">${seconds}</div>
+        `;
+        countdownEl.style.opacity = '1';
+        countdownEl.style.display = 'flex';
+    }
+
+    // ⏱️ Ocultar contador de cuenta regresiva
+    static hideCountdown() {
+        const countdownEl = document.getElementById('wave-countdown');
+        if (countdownEl) {
+            countdownEl.style.opacity = '0';
+            setTimeout(() => {
+                countdownEl.style.display = 'none';
+            }, 300);
+        }
+    }
+
     static showGameOver() {
         document.querySelector('#start-screen h1').innerText = "GAME OVER";
         document.querySelector('#start-screen p').innerText = "Recarga para reiniciar";
@@ -70,25 +98,22 @@ export class UIManager {
 
     static togglePauseScreen(isLocked, isGameOver) {
         const screen = document.getElementById('start-screen');
-        const settingsBtn = document.getElementById('settings-toggle-btn');
+        const pauseButtons = document.getElementById('pause-buttons');
+        const pauseSubtitle = screen.querySelector('.pause-subtitle');
 
         if (isLocked) {
             screen.style.display = 'none';
-            // Ocultar botón de ajustes cuando el juego está activo
-            if (settingsBtn) {
-                settingsBtn.classList.remove('visible');
-                // También cerrar el menú de ajustes si estaba abierto
-                const settingsMenu = document.getElementById('settings-menu');
-                if (settingsMenu) settingsMenu.classList.remove('active');
-            }
+            // Ocultar botones y cerrar menú de ajustes
+            if (pauseButtons) pauseButtons.classList.remove('visible');
+            const settingsMenu = document.getElementById('settings-menu');
+            if (settingsMenu) settingsMenu.classList.remove('active');
         } else {
+            screen.style.display = 'flex';
             if (!isGameOver) {
-                screen.style.display = 'flex';
-                screen.querySelector('p').innerText = "Pausa - Click para continuar";
-            }
-            // Mostrar botón de ajustes cuando el juego está pausado
-            if (settingsBtn) {
-                settingsBtn.classList.add('visible');
+                if (pauseSubtitle) pauseSubtitle.innerText = "Pausa - Click para continuar";
+                if (pauseButtons) pauseButtons.classList.add('visible');
+            } else {
+                if (pauseButtons) pauseButtons.classList.remove('visible');
             }
         }
     }
@@ -99,7 +124,8 @@ export class SettingsManager {
     constructor(audioManager) {
         this.audioManager = audioManager;
         this.settingsMenu = document.getElementById('settings-menu');
-        this.toggleBtn = document.getElementById('settings-toggle-btn');
+        this.settingsBtn = document.getElementById('settings-btn'); // Nuevo botón en menú de pausa
+        this.menuBtn = document.getElementById('menu-btn'); // Botón para volver al menú
         this.closeBtn = document.getElementById('settings-close-btn');
         this.musicSlider = document.getElementById('music-volume');
         this.sfxSlider = document.getElementById('sfx-volume');
@@ -133,11 +159,22 @@ export class SettingsManager {
     }
 
     setupEventListeners() {
-        // Botón para abrir/cerrar el menú
-        this.toggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.toggleMenu();
-        });
+        // Botón de ajustes en el menú de pausa
+        if (this.settingsBtn) {
+            this.settingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openMenu();
+            });
+        }
+
+        // Botón de menú para volver al selector de mapas
+        if (this.menuBtn) {
+            this.menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Recargar la página para volver al selector de mapas
+                window.location.reload();
+            });
+        }
 
         // Botón de cerrar
         this.closeBtn.addEventListener('click', () => {

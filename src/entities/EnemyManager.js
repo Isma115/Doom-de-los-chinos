@@ -82,13 +82,15 @@ export class EnemyManager {
 
         for (let i = 0; i < particleCount; i++) {
             const particle = new THREE.Mesh(this.bloodGeometry, this.bloodMaterial.clone());
-            particle.renderOrder = 999; // Render on top
-            particle.material.depthTest = false; // Disable depth test to avoid clipping
+            // Las partículas respetan la profundidad para no verse a través de muros
+            particle.material.depthTest = true;
+            particle.material.depthWrite = true;
             particle.position.copy(spawnPos);
 
-            particle.position.x += (Math.random() - 0.5) * 0.4;
-            particle.position.y += (Math.random() - 0.5) * 0.4;
-            particle.position.z += (Math.random() - 0.5) * 0.4;
+            // Desplazamiento aleatorio más amplio alrededor del sprite
+            particle.position.x += (Math.random() - 0.5) * 1.8;
+            particle.position.y += (Math.random() - 0.5) * 1.5;
+            particle.position.z += (Math.random() - 0.5) * 1.8;
 
             particle.rotation.x = Math.random() * Math.PI;
             particle.rotation.y = Math.random() * Math.PI;

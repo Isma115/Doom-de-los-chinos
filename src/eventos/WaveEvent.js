@@ -174,15 +174,42 @@ export class WaveEvent {
         // Spawn ammo at the end of the round
         this.spawnAmmoAtSpawners(true);
 
-        // Start next wave after a delay
+        // Start next wave after countdown
         if (this.currentWave < this.waveConfig.length) {
-            setTimeout(() => this.startWave(), 4000);
+            // ⏱️ Countdown de 5 segundos antes de la siguiente ronda
+            this.startCountdown(5, () => this.startWave());
         } else {
             // All waves completed
             setTimeout(() => {
                 UIManager.showEventMessage('¡TODAS LAS RONDAS COMPLETADAS! ¡VICTORIA!', 5000);
             }, 3000);
         }
+    }
+
+    /**
+     * Start a countdown timer with UI display
+     * @param {number} seconds - Countdown duration in seconds
+     * @param {Function} callback - Function to call when countdown finishes
+     */
+    startCountdown(seconds, callback) {
+        let remaining = seconds;
+
+        // Mostrar mensaje inicial después de un pequeño delay para que se vea el mensaje de ronda completada
+        setTimeout(() => {
+            UIManager.showCountdown(remaining);
+
+            const countdownInterval = setInterval(() => {
+                remaining--;
+
+                if (remaining > 0) {
+                    UIManager.showCountdown(remaining);
+                } else {
+                    UIManager.hideCountdown();
+                    clearInterval(countdownInterval);
+                    if (callback) callback();
+                }
+            }, 1000);
+        }, 2000); // Esperar 2 segundos después de mostrar "RONDA COMPLETADA"
     }
 
     /**

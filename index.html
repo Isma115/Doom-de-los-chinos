@@ -30,16 +30,22 @@
 
     <div id="start-screen">
         <h1>ARENA SHOOTER</h1>
-        <p>Haz click para jugar</p>
-        <p>WASD: Moverse | ESPACIO: Saltar</p>
-        <p>Click: Disparar | Scroll: Cambiar Arma</p>
+        <p class="pause-subtitle">Haz click para jugar</p>
+        <p class="controls-info">WASD: Moverse | ESPACIO: Saltar</p>
+        <p class="controls-info">Click: Disparar | Scroll: Cambiar Arma</p>
+
+        <!-- Botones del menú de pausa -->
+        <div id="pause-buttons">
+            <button id="menu-btn" class="pause-menu-btn">🏠 MENÚ</button>
+            <button id="settings-btn" class="pause-menu-btn">⚙️ AJUSTES</button>
+        </div>
     </div>
 
     <!-- Menú de Ajustes -->
     <div id="settings-menu" class="settings-overlay">
         <div class="settings-panel">
             <h2 class="settings-title">⚙️ AJUSTES</h2>
-            
+
             <div class="settings-section">
                 <label class="settings-label">
                     <span class="label-icon">🎵</span> Música
@@ -47,7 +53,7 @@
                 </label>
                 <input type="range" id="music-volume" class="volume-slider" min="0" max="100" value="30">
             </div>
-            
+
             <div class="settings-section">
                 <label class="settings-label">
                     <span class="label-icon">🔊</span> Efectos
@@ -55,13 +61,12 @@
                 </label>
                 <input type="range" id="sfx-volume" class="volume-slider" min="0" max="100" value="50">
             </div>
-            
+
             <button id="settings-close-btn" class="settings-btn">CERRAR</button>
         </div>
     </div>
 
-    <!-- Botón de ajustes flotante -->
-    <button id="settings-toggle-btn" class="settings-toggle">⚙️</button>
+
 
     <script type="module" src="./src/main.js"></script>
 </body>
