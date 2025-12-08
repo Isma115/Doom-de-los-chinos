@@ -1,4 +1,4 @@
-/*sección [GESTOR DE EVENTOS] Gestión de eventos dentro del juego*/
+/*sección [CONSTRUCTOR Y CONFIGURACIÓN] Inicialización del gestor de eventos y carga desde archivo*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { UIManager } from '../UI.js';
 import { CONFIG } from '../Constants.js';
@@ -43,8 +43,10 @@ export class EventManager {
         }
     }
 
+/*[Fin de sección]*/
 
-    initDefaultEvents() {
+    /*sección [EVENTOS POR DEFECTO] Plantillas de eventos predefinidos*/
+initDefaultEvents() {
         // // EVENTO 1: Emboscada por proximidad
         // this.addEvent({
         //     id: 'ambush_01',
@@ -79,7 +81,10 @@ export class EventManager {
         this.events.push(eventData);
     }
 
-    update(delta, playerPosition) {
+/*[Fin de sección]*/
+
+    /*sección [ACTUALIZACIÓN Y EJECUCIÓN] Detección de triggers y ejecución de acciones*/
+update(delta, playerPosition) {
         this.timeElapsed += delta;
 
         // Update wave event if active

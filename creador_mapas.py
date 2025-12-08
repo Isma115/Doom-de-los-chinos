@@ -1,4 +1,4 @@
-# sección [CREADOR DE MAPAS] Creador de mapas para el juego
+# sección [IMPORTACIONES Y CONSTRUCTOR] Configuración inicial del editor de mapas
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import json
@@ -39,6 +39,7 @@ class MapEditor:
             "4": {"name": "Enemigo Medium", "color": "#FF0088"},
             "5": {"name": "Enemigo Medium 2", "color": "#00FF88"},
             "6": {"name": "Enemigo Shooter", "color": "#880088"},
+            "7": {"name": "Enemigo Charo (Cuerpo a Cuerpo)", "color": "#FF5500"},  # ⭐ NUEVO: Enemigo Charo
             "S": {"name": "Spawner Genérico", "color": "#CCFF00"},
             "MP": {"name": "Munición Pistola", "color": "#FFFF00"},
             "MA": {"name": "Munición Ametralladora", "color": "#FF8800"},
@@ -47,12 +48,17 @@ class MapEditor:
             "L": {"name": "Ladrillo", "color": "#AA4444"},
             " ": {"name": "Vacío", "color": "#222222"}
         }
+        }
         
         # Inicializar grid del mapa
         self.map_grid = [["." for _ in range(self.grid_width)] for _ in range(self.grid_height)]
         
         # Crear interfaz
         self.create_ui()
+
+# [Fin de sección]
+
+# sección [INTERFAZ DE USUARIO] Creación de la UI principal, canvas y controles
         
     def create_ui(self):
         # Frame principal
@@ -169,6 +175,9 @@ class MapEditor:
         self.root.bind("<Control-x>", lambda e: self.redo())
         self.root.bind("<Control-X>", lambda e: self.redo())
         
+# [Fin de sección]
+
+# sección [DIÁLOGO DE PROPIEDADES] Edición de propiedades de bloques (rotación, spawns, etc.)
 
     def open_properties_dialog(self, event):
         canvas_x = self.canvas.canvasx(event.x)
@@ -367,6 +376,11 @@ class MapEditor:
         self.editing_cell = None
         
         messagebox.showinfo("Éxito", "Propiedades actualizadas correctamente")
+
+# [Fin de sección]
+
+# sección [LEYENDA Y BÚSQUEDA] Panel de selección de bloques con filtrado
+
     def create_legend(self, parent):
         # Frame para el buscador
         search_frame = tk.Frame(parent, bg="#333333")
@@ -506,6 +520,10 @@ class MapEditor:
     def select_block(self, block_type):
         self.selected_block = block_type
         self.selected_label.config(text=f"Seleccionado: {self.block_types[block_type]['name']}")
+
+# [Fin de sección]
+
+# sección [HISTORIAL] Sistema de deshacer/rehacer acciones
         
     def add_to_history(self):
         """Agrega el estado actual al historial"""
@@ -538,6 +556,10 @@ class MapEditor:
             self.history_index += 1
             self.map_grid = [row[:] for row in self.history[self.history_index]]
             self.draw_grid()
+
+# [Fin de sección]
+
+# sección [DIBUJADO Y PINTADO] Renderizado del grid y pintado de celdas
     
     def draw_grid(self):
         self.canvas.delete("all")
@@ -646,6 +668,10 @@ class MapEditor:
                         fill="white" if self.selected_block == "#" else "black",
                         tags=f"cell_{grid_x}_{grid_y}"
                     )
+
+# [Fin de sección]
+
+# sección [GUARDAR Y CARGAR] Persistencia de mapas en archivos
     
     def save_map(self):
         filename = filedialog.asksaveasfilename(
@@ -751,6 +777,9 @@ class MapEditor:
             self.draw_grid()
             messagebox.showinfo("Éxito", "Mapa limpiado correctamente")
 
+# [Fin de sección]
+
+# sección [REDIMENSIONADO] Cambio de tamaño del mapa
 
     def resize_map(self):
         """Redimensiona el mapa al tamaño especificado"""

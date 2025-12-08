@@ -1,4 +1,4 @@
-/*sección [CÓDIGO PRINCIPAL] Código principal*/
+/*sección [IMPORTACIONES Y CONSTRUCTOR] Imports y configuración inicial del juego*/
 import { World } from './core/World.js';
 import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
@@ -39,51 +39,57 @@ class Game { //
 
     }
 
-    async initGame(mapName) {
-    await this.audioManager.init();
-    this.world = new World(this.scene);
-    await this.world.init(mapName);
+/*[Fin de sección]*/
 
-    Door.clearAll();
-    const doorMeshes = this.world.getDoorMeshes();
-    doorMeshes.forEach(mesh => {
-        new Door(mesh);
-    });
+    /*sección [INICIALIZACIÓN DEL JUEGO] Carga de mapa, jugador, enemigos y eventos*/
+async initGame(mapName) {
+        await this.audioManager.init();
+        this.world = new World(this.scene);
+        await this.world.init(mapName);
 
-    this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
+        Door.clearAll();
+        const doorMeshes = this.world.getDoorMeshes();
+        doorMeshes.forEach(mesh => {
+            new Door(mesh);
+        });
 
-    this.enemyManager.spawnPoints = this.world.getEnemySpawns();
+        this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
 
-    this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
-    const playerSpawn = this.world.getPlayerSpawn();
-    const playerRotation = this.world.getPlayerRotation();
+        this.enemyManager.spawnPoints = this.world.getEnemySpawns();
 
-    if (playerSpawn) {
-        this.player.teleport(playerSpawn, playerRotation);
-    }
+        this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
+        const playerSpawn = this.world.getPlayerSpawn();
+        const playerRotation = this.world.getPlayerRotation();
 
-    this.player.controls.addEventListener('lock', () => {
-        this.isPaused = false;
-        this.prevTime = performance.now();
-    });
-    this.player.controls.addEventListener('unlock', () => {
-        this.isPaused = true;
-    });
+        if (playerSpawn) {
+            this.player.teleport(playerSpawn, playerRotation);
+        }
 
-    this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
-    await this.eventManager.loadEventsForMap(mapName);
+        this.player.controls.addEventListener('lock', () => {
+            this.isPaused = false;
+            this.prevTime = performance.now();
+        });
+        this.player.controls.addEventListener('unlock', () => {
+            this.isPaused = true;
+        });
 
-    this.settingsManager = new SettingsManager(this.audioManager);
-    
-    this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
+        this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
+        await this.eventManager.loadEventsForMap(mapName);
 
-    this.audioManager.playMusic('background');
+        this.settingsManager = new SettingsManager(this.audioManager);
 
-    UIManager.togglePauseScreen(false, false);
-    this.animate();
-} //
+        this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
 
-    animate() {
+        this.audioManager.playMusic('background');
+
+        UIManager.togglePauseScreen(false, false);
+        this.animate();
+    } //
+
+/*[Fin de sección]*/
+
+    /*sección [BUCLE DE ANIMACIÓN Y ACTUALIZACIÓN] Renderizado, spawns y actualización de entidades*/
+animate() {
         requestAnimationFrame(() => this.animate());
 
         // ⏸️ Si está pausado, solo renderizar sin actualizar lógica
@@ -195,6 +201,9 @@ class Game { //
     }
 }
 
+/*[Fin de sección]*/
+
+/*sección [SELECTOR DE MAPAS] Interfaz de selección de mapas al inicio*/
 // Lógica del selector de mapas
 function createMapSelector() {
     const selectorDiv = document.createElement('div');

@@ -93,6 +93,7 @@ export const WEAPONS_DATA = [
         isMelee: true
     }
 ];
+
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
@@ -199,6 +200,36 @@ export const ENEMY_TYPES = [
         projectileSize: 0.35,
         sounds: ['roar1', 'growl2', 'grunt2']
     },
+    // ★ NUEVO ENEMIGO: Charo 1
+    {
+        id: 'charo',
+        speed: 8.0,   // Velocidad media (entre pera [7.5] y medium_med [9.0])
+        damage: 9,    // Daño moderado (más que pera [6], menos que amego [14])
+        hp: 135,      // Salud equilibrada
+        texture: 'assets/enemies/charo1.png',
+        textureWalk: 'assets/enemies/charo1.png', // Misma textura para caminar
+        spawnWeight: 2,
+        width: 3.5,   // Tamaño medio
+        height: 4.5,
+        projectileSize: 0.25,
+        sounds: ['grunt2', 'hiss1', 'growl1'],
+        isMelee: true  // Especificar que es cuerpo a cuerpo
+    },
+    // ★ NUEVO ENEMIGO: Charo 2 (igual que charo1 pero con textura diferente)
+    {
+        id: 'charo2',
+        speed: 8.0,   // Velocidad media (igual que charo1)
+        damage: 9,    // Daño moderado (igual que charo1)
+        hp: 135,      // Salud equilibrada (igual que charo1)
+        texture: 'assets/enemies/charo2.png',
+        textureWalk: 'assets/enemies/charo2.png', // Misma textura para caminar
+        spawnWeight: 2,
+        width: 3.5,   // Tamaño medio (igual que charo1)
+        height: 4.5,
+        projectileSize: 0.25,
+        sounds: ['grunt2', 'hiss1', 'growl1'],
+        isMelee: true  // Es cuerpo a cuerpo como charo1
+    }
 ];
 
 export const MAP_BLOCKS = {

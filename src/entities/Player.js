@@ -1,4 +1,4 @@
-/*sección [JUGADOR] Código de gestión del jugador*/
+/*sección [IMPORTACIONES Y CONSTRUCTOR] Imports y configuración inicial del jugador*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, WEAPONS_DATA } from '../Constants.js';
 import { WeaponSystem } from './Weapon.js';
@@ -8,42 +8,44 @@ import { PointerLockControls } from '../../node_modules/three/examples/jsm/contr
 export class Player {
 
     constructor(scene, camera, domElement, enemyManager, world, audioManager) {
-    this.controls = new PointerLockControls(camera, domElement);
-    this.camera = camera;
-    this.audioManager = audioManager;
-    this.enemyManager = enemyManager;
+        this.controls = new PointerLockControls(camera, domElement);
+        this.camera = camera;
+        this.audioManager = audioManager;
+        this.enemyManager = enemyManager;
 
-    scene.add(camera);
+        scene.add(camera);
 
-    this.world = world;
-    this.velocity = new THREE.Vector3();
-    this.direction = new THREE.Vector3();
-    this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
-    this.canJump = false;
+        this.world = world;
+        this.velocity = new THREE.Vector3();
+        this.direction = new THREE.Vector3();
+        this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
+        this.canJump = false;
 
-    this.health = 100;
-    this.score = 0;
-    this.isGameOver = false;
+        this.health = 100;
+        this.score = 0;
+        this.isGameOver = false;
 
-    this.radius = 2.0;
+        this.radius = 2.0;
 
-    camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
-    this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this);
-    this.isShooting = false;
+        camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
+        this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this);
+        this.isShooting = false;
 
-    this.debugState = {
-        godMode: false,
-        infiniteAmmo: false,
-        flyMode: false,
-        noClip: false,
-        speedMultiplier: 1.0
-    };
+        this.debugState = {
+            godMode: false,
+            infiniteAmmo: false,
+            flyMode: false,
+            noClip: false,
+            speedMultiplier: 1.0
+        };
 
-    this.initEvents(domElement);
-}
+        this.initEvents(domElement);
+    }
 
+/*[Fin de sección]*/
 
-    teleport(position, rotation = 0) {
+    /*sección [TELETRANSPORTE] Método de teletransporte del jugador*/
+teleport(position, rotation = 0) {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
         this.velocity.set(0, 0, 0);
@@ -54,7 +56,10 @@ export class Player {
         this.camera.updateMatrixWorld(true);
     }
 
-    initEvents(domElement) {
+/*[Fin de sección]*/
+
+    /*sección [SISTEMA DE EVENTOS E INPUT] Gestión de eventos de teclado, ratón y controles*/
+initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
             // ⭐ NUEVO: Reanudamos el audio tras el clic del usuario (User Gesture)
@@ -81,56 +86,56 @@ export class Player {
     }
 
     onKey(event, isDown) {
-    switch (event.code) {
-        case 'ArrowUp': 
-        case 'KeyW': 
-            this.moveFlags.fwd = isDown;
-            break;
-        case 'ArrowLeft': 
-        case 'KeyA': 
-            this.moveFlags.left = isDown; 
-            break;
-        case 'ArrowDown': 
-        case 'KeyS': 
-            this.moveFlags.bwd = isDown; 
-            break;
-        case 'ArrowRight': 
-        case 'KeyD': 
-            this.moveFlags.right = isDown; 
-            break;
-        case 'Space':
-            if (isDown) {
-                if (this.debugState.flyMode) {
-                    this.velocity.y = CONFIG.JUMP_FORCE * 1.5;
-                } else if (this.canJump) {
-                    this.velocity.y += CONFIG.JUMP_FORCE;
-                    this.canJump = false;
-                }
-            }
-            break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-            if (isDown && this.debugState.flyMode) {
-                this.velocity.y = -CONFIG.JUMP_FORCE * 1.5;
-            }
-            break;
-        case 'KeyE':
-            if (isDown) {
-                if (Door.tryOpenNearest(this.getPosition())) {
-                    console.log("PUERTA ABIERTA");
-                    if (this.audioManager) {
-                        this.audioManager.playSound('doorOpen', 0.5);
+        switch (event.code) {
+            case 'ArrowUp':
+            case 'KeyW':
+                this.moveFlags.fwd = isDown;
+                break;
+            case 'ArrowLeft':
+            case 'KeyA':
+                this.moveFlags.left = isDown;
+                break;
+            case 'ArrowDown':
+            case 'KeyS':
+                this.moveFlags.bwd = isDown;
+                break;
+            case 'ArrowRight':
+            case 'KeyD':
+                this.moveFlags.right = isDown;
+                break;
+            case 'Space':
+                if (isDown) {
+                    if (this.debugState.flyMode) {
+                        this.velocity.y = CONFIG.JUMP_FORCE * 1.5;
+                    } else if (this.canJump) {
+                        this.velocity.y += CONFIG.JUMP_FORCE;
+                        this.canJump = false;
                     }
                 }
-            }
-            break;
-        case 'KeyV':
-            if (isDown) {
-                this.scream();
-            }
-            break;
+                break;
+            case 'ShiftLeft':
+            case 'ShiftRight':
+                if (isDown && this.debugState.flyMode) {
+                    this.velocity.y = -CONFIG.JUMP_FORCE * 1.5;
+                }
+                break;
+            case 'KeyE':
+                if (isDown) {
+                    if (Door.tryOpenNearest(this.getPosition())) {
+                        console.log("PUERTA ABIERTA");
+                        if (this.audioManager) {
+                            this.audioManager.playSound('doorOpen', 0.5);
+                        }
+                    }
+                }
+                break;
+            case 'KeyV':
+                if (isDown) {
+                    this.scream();
+                }
+                break;
+        }
     }
-}
 
     scream() {
         if (this.audioManager && this.controls.isLocked && !this.isGameOver) {
@@ -139,7 +144,10 @@ export class Player {
         }
     }
 
-    onMouseDown() {
+/*[Fin de sección]*/
+
+    /*sección [COMBATE Y DAÑO] Sistema de disparo, daño, recolección y retroceso*/
+onMouseDown() {
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
             this.weaponSystem.tryShoot(() => {
@@ -154,29 +162,29 @@ export class Player {
     }
 
     takeDamage(damageAmount = 1) {
-    if (this.isGameOver) return;
-    
-    if (this.debugState.godMode) {
-        console.log('Daño bloqueado por God Mode');
-        return;
-    }
-    
-    this.health -= damageAmount;
-    UIManager.updateHealth(this.health);
+        if (this.isGameOver) return;
 
-    if (this.audioManager) {
-        this.audioManager.playSound('playerHurt', 0.6, false, 0.9 + Math.random() * 0.2);
-    }
+        if (this.debugState.godMode) {
+            console.log('Daño bloqueado por God Mode');
+            return;
+        }
 
-    if (this.health <= 0) {
-        this.isGameOver = true;
-        this.controls.unlock();
-        UIManager.showGameOver();
+        this.health -= damageAmount;
+        UIManager.updateHealth(this.health);
+
         if (this.audioManager) {
-            this.audioManager.stopMusic();
+            this.audioManager.playSound('playerHurt', 0.6, false, 0.9 + Math.random() * 0.2);
+        }
+
+        if (this.health <= 0) {
+            this.isGameOver = true;
+            this.controls.unlock();
+            UIManager.showGameOver();
+            if (this.audioManager) {
+                this.audioManager.stopMusic();
+            }
         }
     }
-}
 
     collectFood(amount) {
         if (this.isGameOver) return;
@@ -210,63 +218,65 @@ export class Player {
         this.velocity.z += strength;
     }
 
+/*[Fin de sección]*/
 
-    update(delta) {
-    if (!this.controls.isLocked) return;
-    if (this.isShooting) {
-        this.weaponSystem.tryShoot(() => {
-            this.score++;
-            UIManager.updateScore(this.score);
-        });
-    }
-
-    const speedMultiplier = this.debugState.speedMultiplier || 1.0;
-
-    this.velocity.x -= this.velocity.x * 12.0 * delta;
-    this.velocity.z -= this.velocity.z * 12.0 * delta;
-    
-    if (!this.debugState.flyMode) {
-        this.velocity.y -= CONFIG.GRAVITY * delta;
-    } else {
-        this.velocity.y -= this.velocity.y * 12.0 * delta;
-    }
-
-    this.direction.z = Number(this.moveFlags.fwd) - Number(this.moveFlags.bwd);
-    this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
-    this.direction.normalize();
-
-    if (this.moveFlags.fwd || this.moveFlags.bwd) {
-        this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
-    }
-    if (this.moveFlags.left || this.moveFlags.right) {
-        this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
-    }
-
-    const oldPosition = this.camera.position.clone();
-
-    this.controls.moveRight(-this.velocity.x * delta);
-    this.controls.moveForward(-this.velocity.z * delta);
-    this.camera.position.y += (this.velocity.y * delta);
-
-    if (!this.debugState.flyMode) {
-        if (this.camera.position.y < CONFIG.PLAYER_HEIGHT) {
-            this.velocity.y = 0;
-            this.camera.position.y = CONFIG.PLAYER_HEIGHT;
-            this.canJump = true;
+    /*sección [BUCLE DE ACTUALIZACIÓN] Actualización del estado del jugador cada frame*/
+update(delta) {
+        if (!this.controls.isLocked) return;
+        if (this.isShooting) {
+            this.weaponSystem.tryShoot(() => {
+                this.score++;
+                UIManager.updateScore(this.score);
+            });
         }
-    }
 
-    const angleRadians = this.camera.rotation.y;
-    let angleDegrees = (angleRadians * 180) / Math.PI;
-    if (angleDegrees < 0) angleDegrees += 360;
-    UIManager.updateAngle(angleDegrees);
+        const speedMultiplier = this.debugState.speedMultiplier || 1.0;
 
-    if (!this.debugState.noClip) {
-        this.checkCollisions(oldPosition);
+        this.velocity.x -= this.velocity.x * 12.0 * delta;
+        this.velocity.z -= this.velocity.z * 12.0 * delta;
+
+        if (!this.debugState.flyMode) {
+            this.velocity.y -= CONFIG.GRAVITY * delta;
+        } else {
+            this.velocity.y -= this.velocity.y * 12.0 * delta;
+        }
+
+        this.direction.z = Number(this.moveFlags.fwd) - Number(this.moveFlags.bwd);
+        this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
+        this.direction.normalize();
+
+        if (this.moveFlags.fwd || this.moveFlags.bwd) {
+            this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+        }
+        if (this.moveFlags.left || this.moveFlags.right) {
+            this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+        }
+
+        const oldPosition = this.camera.position.clone();
+
+        this.controls.moveRight(-this.velocity.x * delta);
+        this.controls.moveForward(-this.velocity.z * delta);
+        this.camera.position.y += (this.velocity.y * delta);
+
+        if (!this.debugState.flyMode) {
+            if (this.camera.position.y < CONFIG.PLAYER_HEIGHT) {
+                this.velocity.y = 0;
+                this.camera.position.y = CONFIG.PLAYER_HEIGHT;
+                this.canJump = true;
+            }
+        }
+
+        const angleRadians = this.camera.rotation.y;
+        let angleDegrees = (angleRadians * 180) / Math.PI;
+        if (angleDegrees < 0) angleDegrees += 360;
+        UIManager.updateAngle(angleDegrees);
+
+        if (!this.debugState.noClip) {
+            this.checkCollisions(oldPosition);
+        }
+
+        this.checkAmmoItems();
     }
-    
-    this.checkAmmoItems();
-}
 
     checkAmmoItems() {
         const ammoItems = this.world.getAmmoMeshes();
@@ -294,7 +304,10 @@ export class Player {
         });
     }
 
-    checkCollisions(oldPosition) {
+/*[Fin de sección]*/
+
+    /*sección [SISTEMA DE COLISIONES] Detección de colisiones con muros y puertas*/
+checkCollisions(oldPosition) {
         const playerPos = this.camera.position;
         const offset = 1.0;
 

@@ -1,4 +1,4 @@
-/*sección [GESTIÓN DE RONDAS] Sistema de rondas con spawners genéricos*/
+/*sección [CONSTRUCTOR Y CONFIGURACIÓN DE OLEADAS] Inicialización y definición de datos de cada ronda*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { ENEMY_TYPES } from '../Constants.js';
 import { UIManager } from '../UI.js';
@@ -42,26 +42,30 @@ export class WaveEvent {
                     { type: 'pera', count: 7 },
                 ]
             },
-            // Ronda 2: Aparece trancas_barrancas (rápido)
+            // Ronda 2: Aparece trancas_barrancas (rápido), CHARO y CHARO2 (nuevos enemigos cuerpo a cuerpo)
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
                     { type: 'pablo', count: 8 },
                     { type: 'pera', count: 8 },
-                    { type: 'trancas_barrancas', count: 3 }
+                    { type: 'trancas_barrancas', count: 3 },
+                    { type: 'charo', count: 2 },   // ★ NUEVO: Charo 1 aparece en ronda 2
+                    { type: 'charo2', count: 2 }   // ★ NUEVO: Charo 2 aparece en ronda 2
                 ]
             },
-            // Ronda 3: Más trancas_barrancas y aparece amego
+            // Ronda 3: Más trancas_barrancas y aparece amego, más charos
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
                     { type: 'pablo', count: 10 },
                     { type: 'pera', count: 10 },
                     { type: 'trancas_barrancas', count: 5 },
-                    { type: 'amego', count: 2 }
+                    { type: 'amego', count: 2 },
+                    { type: 'charo', count: 3 },   // ★ NUEVO: Más charo1 en ronda 3
+                    { type: 'charo2', count: 3 }   // ★ NUEVO: Más charo2 en ronda 3
                 ]
             },
-            // Ronda 4: Aparece patica (tirador) y más amegos
+            // Ronda 4: Aparece patica (tirador) y más amegos, aún más charos
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
@@ -69,10 +73,12 @@ export class WaveEvent {
                     { type: 'pera', count: 8 },
                     { type: 'trancas_barrancas', count: 6 },
                     { type: 'amego', count: 3 },
-                    { type: 'patica', count: 4 }
+                    { type: 'patica', count: 4 },
+                    { type: 'charo', count: 4 },   // ★ NUEVO: Más charo1 en ronda 4
+                    { type: 'charo2', count: 4 }   // ★ NUEVO: Más charo2 en ronda 4
                 ]
             },
-            // Ronda 5: Todos los enemigos
+            // Ronda 5: Todos los enemigos, máxima cantidad de charos
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
@@ -81,12 +87,17 @@ export class WaveEvent {
                     { type: 'trancas_barrancas', count: 8 },
                     { type: 'amego', count: 5 },
                     { type: 'patica', count: 6 },
+                    { type: 'charo', count: 5 },   // ★ NUEVO: Máxima cantidad de charo1 en ronda 5
+                    { type: 'charo2', count: 5 }   // ★ NUEVO: Máxima cantidad de charo2 en ronda 5
                 ]
             }
         ];
     }
 
-    /**
+/*[Fin de sección]*/
+
+    /*sección [GESTIÓN DE OLEADAS] Inicio y spawn de enemigos por ronda*/
+/**
      * Start a new wave
      */
     startWave() {
@@ -153,7 +164,10 @@ export class WaveEvent {
         console.log(`Spawneados ${this.enemiesSpawned} enemigos para la ronda ${this.currentWave + 1}`);
     }
 
-    /**
+/*[Fin de sección]*/
+
+    /*sección [FINALIZACIÓN Y COUNTDOWN] Detección de finalización de ronda y cuenta regresiva*/
+/**
      * Check if the current wave is complete
      */
     checkWaveCompletion() {
@@ -220,7 +234,10 @@ export class WaveEvent {
         }, 2000); // Esperar 2 segundos después de mostrar "RONDA COMPLETADA"
     }
 
-    /**
+/*[Fin de sección]*/
+
+    /*sección [ACTUALIZACIÓN Y SPAWNERS] Bucle de actualización y spawn de munición/comida*/
+/**
      * Update method called from EventManager
      */
     update(delta) {

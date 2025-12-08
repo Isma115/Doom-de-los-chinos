@@ -6,8 +6,8 @@ export class MapLoader {
         this.blockSize = CONFIG.BLOCK_SIZE || 10;
     }
 
-    /* sección [CARGA DE ARCHIVO DE MAPA] Carga y parseo del archivo de texto del mapa */
-    async loadMapFile(mapName = 'default') {
+    /*sección [CARGA DE ARCHIVO DE MAPA] Carga y parseo del archivo de texto del mapa*/
+async loadMapFile(mapName = 'default') {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
             const response = await fetch(`mapas/${mapName}.txt`);
@@ -23,10 +23,10 @@ export class MapLoader {
             return this.getDefaultMap();
         }
     }
-    /* [Fin de sección] */
+/*[Fin de sección]*/
 
-    /* sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego */
-    parseMap(mapText) {
+    /*sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego*/
+parseMap(mapText) {
         const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
         const height = lines.length;
 
@@ -167,14 +167,15 @@ export class MapLoader {
                     case "3":
                     case "4":
                     case "5":
-                    case "6": {
+                    case "7": {  // ⭐ NUEVO: Agregar caso 7 para el enemigo charo
                         const mapTypes = {
                             "1": "pablo",
                             "2": "pera",
                             "3": "slow_low3",
                             "4": "medium_med",
                             "5": "medium_med2",
-                            "6": "patica"
+                            "6": "patica",
+                            "7": "charo"  // ⭐ NUEVO: El número 7 representará al enemigo charo
                         };
 
                         enemySpawns.push({
@@ -191,6 +192,7 @@ export class MapLoader {
                         validFloors.push(position);
                     }
                         break;
+
 
                     case ".":
                     case " ":
@@ -274,10 +276,10 @@ export class MapLoader {
             blockSize: this.blockSize
         };
     }
-    /* [Fin de sección] */
+/*[Fin de sección]*/
 
-    /* sección [UTILIDADES DE CONVERSIÓN] Conversión de coordenadas de grid a coordenadas 3D del mundo y mapa por defecto */
-    gridToWorld(gridX, gridY, mapWidth, mapHeight) {
+    /*sección [UTILIDADES DE CONVERSIÓN] Conversión de coordenadas de grid a coordenadas 3D del mundo y mapa por defecto*/
+gridToWorld(gridX, gridY, mapWidth, mapHeight) {
         const offsetX = (mapWidth * this.blockSize) / 2;
         const offsetZ = (mapHeight * this.blockSize) / 2;
 
@@ -307,5 +309,5 @@ export class MapLoader {
             blockSize: this.blockSize
         };
     }
-    /* [Fin de sección] */
+/*[Fin de sección]*/
 }

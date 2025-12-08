@@ -1,38 +1,40 @@
-/*sección [ARMAS] Gestión de armas del juego*/
+/*sección [CONSTRUCTOR Y ESTADO] Inicialización del sistema de armas*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from '../Constants.js'; //
 import { UIManager } from '../UI.js';
 export class WeaponSystem { //
     constructor(camera, enemyManager, audioManager, player) {
-    this.camera = camera;
-    this.enemyManager = enemyManager;
-    this.audioManager = audioManager;
-    this.player = player;
-    this.currentIndex = 0;
-    this.lastShotTime = 0;
-    this.weaponMesh = null;
+        this.camera = camera;
+        this.enemyManager = enemyManager;
+        this.audioManager = audioManager;
+        this.player = player;
+        this.currentIndex = 0;
+        this.lastShotTime = 0;
+        this.weaponMesh = null;
 
-    this.raycaster = new THREE.Raycaster();
-    this.rayOrigin = new THREE.Vector2(0, 0);
+        this.raycaster = new THREE.Raycaster();
+        this.rayOrigin = new THREE.Vector2(0, 0);
 
-    this.debugState = {
-        infiniteAmmo: false
-    };
+        this.debugState = {
+            infiniteAmmo: false
+        };
 
-    this.weaponMaterials = [];
-    WEAPONS_DATA.forEach(weapon => {
-        this.weaponMaterials.push(
-            new THREE.MeshBasicMaterial({ color: weapon.color })
-        );
-    });
-    this.updateVisuals();
-}
+        this.weaponMaterials = [];
+        WEAPONS_DATA.forEach(weapon => {
+            this.weaponMaterials.push(
+                new THREE.MeshBasicMaterial({ color: weapon.color })
+            );
+        });
+        this.updateVisuals();
+    }
     getCurrentWeapon() {
         return WEAPONS_DATA[this.currentIndex];
     } //
 
+/*[Fin de sección]*/
 
-    addAmmo(amount, weaponIndex = null) {
+    /*sección [GESTIÓN DE MUNICIÓN] Añadir munición y cambio de arma*/
+addAmmo(amount, weaponIndex = null) {
         if (weaponIndex !== null) {
             const weapon = WEAPONS_DATA[weaponIndex];
             weapon.ammo = Math.min(weapon.maxAmmo, weapon.ammo + amount);
@@ -56,7 +58,10 @@ export class WeaponSystem { //
         this.updateVisuals();
     }
 
-    updateVisuals() {
+/*[Fin de sección]*/
+
+    /*sección [VISUALES DEL ARMA] Actualización de sprites y texturas del arma equipada*/
+updateVisuals() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
             if (this.weaponMesh.material.map) this.weaponMesh.material.map.dispose();
@@ -94,51 +99,53 @@ export class WeaponSystem { //
         UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
     } //
 
+/*[Fin de sección]*/
 
-    tryShoot(scoreCallback) {
-    const now = performance.now();
-    const weapon = this.getCurrentWeapon();
+    /*sección [SISTEMA DE DISPARO Y ANIMACIÓN] Lógica de disparo, raycast, retroceso y limpieza*/
+tryShoot(scoreCallback) {
+        const now = performance.now();
+        const weapon = this.getCurrentWeapon();
 
-    if (now - this.lastShotTime < weapon.delay) return;
+        if (now - this.lastShotTime < weapon.delay) return;
 
-    if (!this.debugState.infiniteAmmo) {
-        if (weapon.ammo <= 0) return;
+        if (!this.debugState.infiniteAmmo) {
+            if (weapon.ammo <= 0) return;
 
-        if (!weapon.isMelee) {
-            weapon.ammo--;
-            UIManager.updateAmmo(weapon.ammo);
+            if (!weapon.isMelee) {
+                weapon.ammo--;
+                UIManager.updateAmmo(weapon.ammo);
+            } else {
+                UIManager.updateAmmo("∞");
+            }
         } else {
             UIManager.updateAmmo("∞");
         }
-    } else {
-        UIManager.updateAmmo("∞");
+
+        this.lastShotTime = now;
+
+        if (this.audioManager && weapon.shootSound) {
+            this.audioManager.playSound(weapon.shootSound);
+        }
+
+        if (weapon.name === "AMETRALLADORA") {
+            this.player.applyRecoil(7);
+        }
+
+        if (this.weaponMesh && this.weaponFlashTexture) {
+            this.weaponMesh.material.map = this.weaponFlashTexture;
+            this.weaponMesh.material.needsUpdate = true;
+
+            setTimeout(() => {
+                if (this.weaponMesh && this.weaponTexture) {
+                    this.weaponMesh.material.map = this.weaponTexture;
+                    this.weaponMesh.material.needsUpdate = true;
+                }
+            }, 80);
+        }
+
+        this.performRaycast(weapon, scoreCallback);
+        this.animateRecoil();
     }
-
-    this.lastShotTime = now;
-
-    if (this.audioManager && weapon.shootSound) {
-        this.audioManager.playSound(weapon.shootSound);
-    }
-
-    if (weapon.name === "AMETRALLADORA") {
-        this.player.applyRecoil(7);
-    }
-
-    if (this.weaponMesh && this.weaponFlashTexture) {
-        this.weaponMesh.material.map = this.weaponFlashTexture;
-        this.weaponMesh.material.needsUpdate = true;
-
-        setTimeout(() => {
-            if (this.weaponMesh && this.weaponTexture) {
-                this.weaponMesh.material.map = this.weaponTexture;
-                this.weaponMesh.material.needsUpdate = true;
-            }
-        }, 80);
-    }
-
-    this.performRaycast(weapon, scoreCallback);
-    this.animateRecoil();
-}
 
     performRaycast(weapon, scoreCallback) {
         this.raycaster.setFromCamera(this.rayOrigin, this.camera);

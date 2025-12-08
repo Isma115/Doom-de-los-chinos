@@ -1,4 +1,4 @@
-/*sección [GESTOR DE AUDIO] Código de gestión de audio*/
+/*sección [INICIALIZACIÓN Y CARGA] Constructor, inicialización del contexto de audio y carga de sonidos*/
 import { AUDIO_CONFIG } from '../Constants.js';
 export class AudioManager {
     constructor() {
@@ -66,8 +66,7 @@ export class AudioManager {
                 const buffer = await this.loadSound(path);
                 if (key === 'background') {
                     this.music[key] = buffer;
-                } else 
-                {
+                } else {
                     this.sounds[key] = buffer;
                 }
             } catch (error) {
@@ -89,7 +88,10 @@ export class AudioManager {
         }
     }
 
-    playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
+/*[Fin de sección]*/
+
+    /*sección [REPRODUCCIÓN DE SONIDOS] Métodos de reproducción de efectos, música y audio 3D*/
+playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
         if (!this.initialized || !this.sounds[soundName]) {
             return null;
         }
@@ -97,16 +99,16 @@ export class AudioManager {
         try {
             const source = this.audioContext.createBufferSource();
             source.buffer = this.sounds[soundName];
-            
+
             const gainNode = this.audioContext.createGain();
             gainNode.gain.value = volume;
-            
+
             source.playbackRate.value = pitch;
             source.loop = loop;
-            
+
             source.connect(gainNode);
             gainNode.connect(this.sfxGain);
-            
+
             source.start(0);
             return source;
         } catch (error) {
@@ -116,37 +118,37 @@ export class AudioManager {
     }
 
     playMusic(musicName, volume = 1.0) {
-    if (!this.initialized || !this.music[musicName]) {
-        return null;
-    }
-
-    try {
-        if (this.currentMusic) {
-            this.currentMusic.stop();
+        if (!this.initialized || !this.music[musicName]) {
+            return null;
         }
 
-        const source = this.audioContext.createBufferSource();
-        source.buffer = this.music[musicName];
+        try {
+            if (this.currentMusic) {
+                this.currentMusic.stop();
+            }
 
-        // ⭐ FORZAR SIEMPRE LOOP GLOBAL
-        source.loop = true;
+            const source = this.audioContext.createBufferSource();
+            source.buffer = this.music[musicName];
 
-        const gainNode = this.audioContext.createGain();
-        gainNode.gain.value = volume;
+            // ⭐ FORZAR SIEMPRE LOOP GLOBAL
+            source.loop = true;
 
-        source.connect(gainNode);
-        gainNode.connect(this.musicGain);
+            const gainNode = this.audioContext.createGain();
+            gainNode.gain.value = volume;
 
-        source.start(0);
+            source.connect(gainNode);
+            gainNode.connect(this.musicGain);
 
-        this.currentMusic = source;
-        this.currentMusicGain = gainNode;
-        return source;
-    } catch (error) {
-        console.warn(`Error reproduciendo música ${musicName}:`, error);
-        return null;
+            source.start(0);
+
+            this.currentMusic = source;
+            this.currentMusicGain = gainNode;
+            return source;
+        } catch (error) {
+            console.warn(`Error reproduciendo música ${musicName}:`, error);
+            return null;
+        }
     }
-}
 
     stopMusic() {
         if (this.currentMusic) {
@@ -176,7 +178,7 @@ export class AudioManager {
         const randomSound = enemyType.sounds[Math.floor(Math.random() * enemyType.sounds.length)];
         const randomPitch = 0.8 + Math.random() * 0.4;
         const randomVolume = 0.3 + Math.random() * 0.3;
-        
+
         this.playSound(randomSound, randomVolume, false, randomPitch);
     }
 
@@ -193,12 +195,15 @@ export class AudioManager {
         return this.playSound(soundName, finalVolume);
     }
 
-    dispose() {
+/*[Fin de sección]*/
+
+    /*sección [LIMPIEZA] Liberación de recursos de audio*/
+dispose() {
         this.stopMusic();
         if (this.audioContext) {
             this.audioContext.close();
         }
-        
+
         this.sounds = {};
         this.music = {};
         this.initialized = false;

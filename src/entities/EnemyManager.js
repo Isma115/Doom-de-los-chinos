@@ -53,11 +53,10 @@ export class EnemyManager {
         this.projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     }
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
-    /* sección [SISTEMA DE PARTÍCULAS DE SANGRE] Creación, actualización y gestión de partículas de sangre con física y efectos visuales */
-
-    createBloodParticles(enemy, hitPosition) {
+    /*sección [SISTEMA DE PARTÍCULAS DE SANGRE] Creación, actualización y gestión de partículas de sangre con física y efectos visuales*/
+createBloodParticles(enemy, hitPosition) {
         const existingParticles = this.bloodParticles.get(enemy);
 
         // Recycle old particles if too many
@@ -79,6 +78,71 @@ export class EnemyManager {
         if (!hitPosition) {
             spawnPos.y += 1.0;
         }
+
+        // ★ NUEVO: Selección aleatoria entre las dos texturas de splash
+        const textureLoader = new THREE.TextureLoader();
+        const splashTextures = [
+            'assets/textures/blood_splash.png',
+            'assets/textures/blood_splash2.png'
+        ];
+        const randomTexturePath = splashTextures[Math.floor(Math.random() * splashTextures.length)];
+        const bloodSplashTexture = textureLoader.load(randomTexturePath);
+        
+        const splashMaterial = new THREE.SpriteMaterial({
+            map: bloodSplashTexture,
+            transparent: true,
+            opacity: 1.0, // Más opaco
+            depthTest: false, // Siempre renderizar por encima
+            depthWrite: false
+        });
+        
+        const bloodSplash = new THREE.Sprite(splashMaterial);
+        
+        // Posición aleatoria alrededor del punto de impacto
+        const randomOffset = new THREE.Vector3(
+            (Math.random() - 0.5) * 1.5, // Menor desplazamiento
+            (Math.random() - 0.5) * 1.0,
+            (Math.random() - 0.5) * 1.5
+        );
+        
+        bloodSplash.position.copy(spawnPos).add(randomOffset);
+        
+        // Desplazar hacia adelante para que se vea por delante
+        const forwardDirection = new THREE.Vector3(0, 0, 1);
+        forwardDirection.applyQuaternion(enemy.quaternion);
+        bloodSplash.position.add(forwardDirection.multiplyScalar(0.5)); // 0.5 unidades hacia adelante
+        
+        // Tamaño más grande y variación
+        const scale = 2.0 + Math.random() * 1.0; // Entre 2x y 3x más grande
+        bloodSplash.scale.set(scale, scale, scale);
+        
+        // Rotación aleatoria
+        bloodSplash.rotation.z = Math.random() * Math.PI * 2;
+        
+        // Guardar referencia al splash en el enemigo para limpieza rápida
+        if (!enemy.userData.bloodSplashes) {
+            enemy.userData.bloodSplashes = [];
+        }
+        enemy.userData.bloodSplashes.push(bloodSplash);
+        
+        this.scene.add(bloodSplash);
+        
+        // Animar desvanecimiento
+        const fadeOut = () => {
+            if (bloodSplash.parent) { // Verificar que aún esté en la escena
+                bloodSplash.material.opacity -= 0.05; // Desvanecimiento más rápido
+                if (bloodSplash.material.opacity <= 0) {
+                    this.scene.remove(bloodSplash);
+                    bloodSplash.material.dispose();
+                    bloodSplashTexture.dispose();
+                } else {
+                    requestAnimationFrame(fadeOut);
+                }
+            }
+        };
+        
+        // Comenzar a desvanecer después de un breve delay
+        setTimeout(fadeOut, 300); // Durar un poco más
 
         for (let i = 0; i < particleCount; i++) {
             const particle = new THREE.Mesh(this.bloodGeometry, this.bloodMaterial.clone());
@@ -192,6 +256,22 @@ export class EnemyManager {
     }
 
     clearBloodParticles(enemy) {
+        // Limpiar splashes de sangre inmediatamente
+        if (enemy.userData.bloodSplashes && enemy.userData.bloodSplashes.length > 0) {
+            enemy.userData.bloodSplashes.forEach(splash => {
+                if (splash && splash.parent) {
+                    this.scene.remove(splash);
+                    if (splash.material && splash.material.map) {
+                        splash.material.map.dispose();
+                    }
+                    if (splash.material) {
+                        splash.material.dispose();
+                    }
+                }
+            });
+            enemy.userData.bloodSplashes = [];
+        }
+
         const particles = this.bloodParticles.get(enemy);
         if (!particles) return;
         particles.forEach(particle => {
@@ -206,10 +286,10 @@ export class EnemyManager {
         this.bloodParticles.delete(enemy);
     }
 
-    /* [Fin de sección] */
+/*[Fin de sección]*/
 
     /*sección [GESTIÓN DE ENEMIGOS Y PROYECTILES] Sistema de pooling de enemigos, spawn, actualización con IA, disparos y detección de colisiones*/
-    getRandomEnemyType() {
+getRandomEnemyType() {
         const weightedTypes = [];
         ENEMY_TYPES.forEach(enemyType => {
             for (let i = 0; i < enemyType.spawnWeight; i++) {
