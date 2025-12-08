@@ -178,7 +178,6 @@ class MapEditor:
 # [Fin de sección]
 
 # sección [DIÁLOGO DE PROPIEDADES] Edición de propiedades de bloques (rotación, spawns, etc.)
-
     def open_properties_dialog(self, event):
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
@@ -380,7 +379,6 @@ class MapEditor:
 # [Fin de sección]
 
 # sección [LEYENDA Y BÚSQUEDA] Panel de selección de bloques con filtrado
-
     def create_legend(self, parent):
         # Frame para el buscador
         search_frame = tk.Frame(parent, bg="#333333")
@@ -672,7 +670,6 @@ class MapEditor:
 # [Fin de sección]
 
 # sección [GUARDAR Y CARGAR] Persistencia de mapas en archivos
-    
     def save_map(self):
         filename = filedialog.asksaveasfilename(
             defaultextension=".txt",

@@ -37,8 +37,9 @@ export const AVAILABLE_MAPS = [
 export const AUDIO_CONFIG = {
     MUSIC_VOLUME: 0.3,
     SFX_VOLUME: 0.5,
-    ENEMY_SOUND_CHANCE: 0.02,
-    ENEMY_SOUND_COOLDOWN: 3000
+    ENEMY_SOUND_INTERVAL: 5000, // ★ NUEVO: Intervalo de 5 segundos
+    ENEMY_SOUND_DISTANCE: 60, // ★ NUEVO: Distancia máxima para escuchar enemigos
+    MAX_SIMULTANEOUS_ENEMY_SOUNDS: 10 // ★ NUEVO: Máximo 10 sonidos simultáneos
 };
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);

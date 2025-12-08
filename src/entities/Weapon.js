@@ -100,7 +100,7 @@ export class WeaponSystem { //
     /*[Fin de sección]*/
 
     /*sección [SISTEMA DE DISPARO Y ANIMACIÓN] Lógica de disparo, raycast, retroceso y limpieza*/
-    tryShoot(scoreCallback) {
+tryShoot(scoreCallback) {
         const now = performance.now();
         const weapon = this.getCurrentWeapon();
 

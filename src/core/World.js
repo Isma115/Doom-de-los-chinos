@@ -255,7 +255,7 @@ export class World {
         return ammoSprite;
     }
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [CREACIÓN DE ELEMENTOS DEL MAPA] Métodos para crear items coleccionables, muros, puertas y modelos 3D*/
     createAmmoItemsFromMap() {
@@ -606,7 +606,7 @@ export class World {
     /*[Fin de sección]*/
 
     /*sección [LIMPIEZA DE RECURSOS] Método para liberar memoria y limpiar recursos del mundo*/
-    dispose() {
+dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
 

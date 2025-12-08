@@ -39,10 +39,10 @@ class Game { //
 
     }
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [INICIALIZACIÓN DEL JUEGO] Carga de mapa, jugador, enemigos y eventos*/
-    async initGame(mapName) {
+async initGame(mapName) {
         await this.audioManager.init();
         this.world = new World(this.scene);
         await this.world.init(mapName);
@@ -86,10 +86,10 @@ class Game { //
         this.animate();
     } //
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [BUCLE DE ANIMACIÓN Y ACTUALIZACIÓN] Renderizado, spawns y actualización de entidades*/
-    animate() {
+animate() {
         requestAnimationFrame(() => this.animate());
 
         // ⏸️ Si está pausado, solo renderizar sin actualizar lógica

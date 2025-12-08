@@ -26,7 +26,7 @@ export class MapLoader {
     /*[Fin de sección]*/
 
     /*sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego*/
-    parseMap(mapText) {
+parseMap(mapText) {
         const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
         const height = lines.length;
 
@@ -273,7 +273,7 @@ export class MapLoader {
             blockSize: this.blockSize
         };
     }
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [UTILIDADES DE CONVERSIÓN] Conversión de coordenadas de grid a coordenadas 3D del mundo y mapa por defecto*/
     gridToWorld(gridX, gridY, mapWidth, mapHeight) {

@@ -356,10 +356,10 @@ export class DebugPanel {
         this.panel = panel;
     }
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [PANEL DEBUG - EVENTOS] Listeners de todos los controles del panel de debug*/
-    setupEventListeners() {
+setupEventListeners() {
         document.getElementById('debug-close-btn').addEventListener('click', () => {
             this.hide();
         });
@@ -441,10 +441,10 @@ export class DebugPanel {
         });
     }
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [PANEL DEBUG - VISIBILIDAD Y ACTUALIZACIÓN] Control de visibilidad e información en tiempo real*/
-    show() {
+show() {
         this.isVisible = true;
         this.panel.classList.add('active');
         this.startInfoUpdate();
