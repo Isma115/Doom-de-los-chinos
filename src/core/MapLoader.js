@@ -55,6 +55,7 @@ export class MapLoader {
         const enemySpawns = [];
         const genericSpawners = [];
         this.ammoSpawners = []; // Initialize here to be safe
+        this.foodSpawners = []; // Spawners de comida/salud
         const validFloors = [];
         const doorPositions = [];
         const foodItems = [];
@@ -221,6 +222,17 @@ export class MapLoader {
                             break;
                         }
 
+                        if (base === 'SComida') {
+                            // Food/Health Spawner
+                            if (!this.foodSpawners) this.foodSpawners = [];
+                            this.foodSpawners.push({
+                                position: new THREE.Vector3(position.x, 0.5, position.z),
+                                rotation: rotation
+                            });
+                            validFloors.push(position);
+                            break;
+                        }
+
                         // Default case for unknown blocks
                         extraItems.push({
                             position: new THREE.Vector3(position.x, 0, position.z),
@@ -249,6 +261,7 @@ export class MapLoader {
             enemySpawns,
             genericSpawners,
             ammoSpawners: this.ammoSpawners,
+            foodSpawners: this.foodSpawners,
             playerSpawn,
             playerRotation,
             doorPositions,

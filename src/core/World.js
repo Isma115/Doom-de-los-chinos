@@ -27,6 +27,7 @@ export class World {
         this.enemySpawns = this.mapData.enemySpawns;
         this.genericSpawners = this.mapData.genericSpawners;
         this.ammoSpawners = this.mapData.ammoSpawners || [];
+        this.foodSpawners = this.mapData.foodSpawners || [];
 
         const textureLoader = new THREE.TextureLoader();
         let skyTexture = null;
@@ -75,12 +76,16 @@ export class World {
         dirLight.position.set(50, 200, 100);
         dirLight.castShadow = false;
         this.scene.add(dirLight);
-
         const mapWidth = this.mapData.width * CONFIG.BLOCK_SIZE;
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
         const floorSize = Math.max(mapWidth, mapHeight, CONFIG.ARENA_SIZE);
 
-        this.sharedGeometries.floor = new THREE.PlaneGeometry(floorSize * 1.5, floorSize * 1.5);
+        // Crear tiles de suelo con rotación aleatoria para romper el patrón
+        const tileSize = 20; // Tamaño de cada tile
+        const tilesX = Math.ceil((floorSize * 1.5) / tileSize) + 2;
+        const tilesZ = Math.ceil((floorSize * 1.5) / tileSize) + 2;
+
+        const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
 
         let floorTexture = null;
 
@@ -95,21 +100,37 @@ export class World {
             floorTexture = null;
         }
 
+        let tileMaterial;
         if (floorTexture) {
             floorTexture.wrapS = THREE.RepeatWrapping;
             floorTexture.wrapT = THREE.RepeatWrapping;
-            const repeat = (floorSize * 1.5) / 10;
-            floorTexture.repeat.set(repeat, repeat);
-            this.sharedMaterials.floor = new THREE.MeshLambertMaterial({ map: floorTexture });
+            floorTexture.repeat.set(2, 2); // Repetición dentro de cada tile
+            tileMaterial = new THREE.MeshLambertMaterial({ map: floorTexture });
         } else {
-            this.sharedMaterials.floor = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
+            tileMaterial = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
         }
 
-        const floor = new THREE.Mesh(this.sharedGeometries.floor, this.sharedMaterials.floor);
-        floor.rotation.x = -Math.PI / 2;
-        floor.matrixAutoUpdate = false;
-        floor.updateMatrix();
-        this.scene.add(floor);
+        // Crear grupo para todos los tiles del suelo
+        const floorGroup = new THREE.Group();
+        const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5]; // 0°, 90°, 180°, 270°
+
+        const startX = -(tilesX * tileSize) / 2 + tileSize / 2;
+        const startZ = -(tilesZ * tileSize) / 2 + tileSize / 2;
+
+        for (let x = 0; x < tilesX; x++) {
+            for (let z = 0; z < tilesZ; z++) {
+                const tile = new THREE.Mesh(tileGeometry, tileMaterial);
+                tile.rotation.x = -Math.PI / 2;
+                // Rotación aleatoria en el eje Y (perpendicular al suelo)
+                tile.rotation.z = rotations[Math.floor(Math.random() * rotations.length)];
+                tile.position.set(startX + x * tileSize, 0, startZ + z * tileSize);
+                tile.matrixAutoUpdate = false;
+                tile.updateMatrix();
+                floorGroup.add(tile);
+            }
+        }
+
+        this.scene.add(floorGroup);
 
         this.createWallsFromMap();
         this.createDoorsFromMap();
@@ -149,6 +170,42 @@ export class World {
 
     getAmmoSpawners() {
         return this.ammoSpawners;
+    }
+
+    getFoodSpawners() {
+        return this.foodSpawners || [];
+    }
+
+    spawnFood(position) {
+        const textureLoader = new THREE.TextureLoader();
+        const foodTexture = textureLoader.load(
+            'assets/textures/kebab.png',
+            () => { },
+            () => { },
+            () => { console.error("No se pudo cargar la textura de comida"); }
+        );
+
+        const spriteMaterial = new THREE.SpriteMaterial({
+            map: foodTexture,
+            color: 0xffffff,
+            depthWrite: false,
+            transparent: true
+        });
+
+        const foodSprite = new THREE.Sprite(spriteMaterial);
+        foodSprite.scale.set(3, 3, 1);
+        foodSprite.position.set(position.x, 2, position.z);
+
+        foodSprite.userData = {
+            type: 'food',
+            healAmount: 25,
+            collected: false,
+            rotationSpeed: 2.0
+        };
+
+        this.scene.add(foodSprite);
+        this.foodMeshes.push(foodSprite);
+        return foodSprite;
     }
 
     spawnAmmo(type, position) {

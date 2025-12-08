@@ -9,10 +9,12 @@ export class WaveEvent {
         this.world = world;
         this.genericSpawners = world.getGenericSpawners();
         this.ammoSpawners = world.getAmmoSpawners();
+        this.foodSpawners = world.getFoodSpawners();
 
         this.lastAmmoSpawnTime = 0;
         this.ammoSpawnInterval = 300; // 300 seconds
         this.timeSinceLastAmmoSpawn = 0;
+        this.timeSinceLastFoodSpawn = 0;
 
         this.currentWave = 0;
         this.waveActive = false;
@@ -22,8 +24,9 @@ export class WaveEvent {
         // Start first wave automatically after a brief delay
         setTimeout(() => this.startWave(), 2000);
 
-        // Spawn initial ammo
-        this.spawnAmmoAtSpawners(true);
+        // Spawn initial ammo and food
+        this.spawnAmmoAtSpawners();
+        this.spawnFoodAtSpawners();
     }
 
     /**
@@ -31,7 +34,7 @@ export class WaveEvent {
      */
     configureWaveData() {
         return [
-            // Wave 1: 20 enemies total
+            // Ronda 1: Solo enemigos básicos
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
@@ -39,40 +42,45 @@ export class WaveEvent {
                     { type: 'pera', count: 7 },
                 ]
             },
-            // Wave 2: 30 enemies total
+            // Ronda 2: Aparece trancas_barrancas (rápido)
+            {
+                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+                enemies: [
+                    { type: 'pablo', count: 8 },
+                    { type: 'pera', count: 8 },
+                    { type: 'trancas_barrancas', count: 3 }
+                ]
+            },
+            // Ronda 3: Más trancas_barrancas y aparece amego
+            {
+                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+                enemies: [
+                    { type: 'pablo', count: 10 },
+                    { type: 'pera', count: 10 },
+                    { type: 'trancas_barrancas', count: 5 },
+                    { type: 'amego', count: 2 }
+                ]
+            },
+            // Ronda 4: Aparece patica (tirador) y más amegos
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
                     { type: 'pablo', count: 10 },
                     { type: 'pera', count: 8 },
-                    { type: 'patica', count: 5 }
+                    { type: 'trancas_barrancas', count: 6 },
+                    { type: 'amego', count: 3 },
+                    { type: 'patica', count: 4 }
                 ]
             },
-            // Wave 3: 40 enemies total
-            {
-                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-                enemies: [
-                    { type: 'pablo', count: 10 },
-                    { type: 'pera', count: 10 },
-                    { type: 'patica', count: 7 },
-                ]
-            },
-            // Wave 4: 50 enemies total
+            // Ronda 5: Todos los enemigos
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
                     { type: 'pablo', count: 12 },
                     { type: 'pera', count: 10 },
-                    { type: 'patica', count: 8 },
-                ]
-            },
-            // Wave 5: 60 enemies total
-            {
-                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-                enemies: [
-                    { type: 'pablo', count: 15 },
-                    { type: 'pera', count: 12 },
-                    { type: 'patica', count: 10 },
+                    { type: 'trancas_barrancas', count: 8 },
+                    { type: 'amego', count: 5 },
+                    { type: 'patica', count: 6 },
                 ]
             }
         ];
@@ -218,13 +226,20 @@ export class WaveEvent {
     update(delta) {
         this.checkWaveCompletion();
 
-        // Update ammo spawn timer
+        // Update ammo and food spawn timer (same interval)
         this.timeSinceLastAmmoSpawn += delta;
+        this.timeSinceLastFoodSpawn += delta;
+
         if (this.timeSinceLastAmmoSpawn >= this.ammoSpawnInterval) {
-            this.spawnAmmoAtSpawners(false);
             this.spawnAmmoAtSpawners();
             this.timeSinceLastAmmoSpawn = 0;
             UIManager.showEventMessage('¡SUMINISTROS DE MUNICIÓN HAN LLEGADO!', 3000);
+        }
+
+        if (this.timeSinceLastFoodSpawn >= this.ammoSpawnInterval) {
+            this.spawnFoodAtSpawners();
+            this.timeSinceLastFoodSpawn = 0;
+            // No mostrar mensaje para comida para no saturar
         }
     }
 
@@ -234,16 +249,26 @@ export class WaveEvent {
         console.log(`Spawning ammo at SMuni locations...`);
 
         this.ammoSpawners.forEach(spawner => {
-            // Clone position to avoid modifying the spawner's position reference
             const spawnPos = spawner.position.clone();
-
-            // Add small random offset
             spawnPos.x += (Math.random() - 0.5) * 2;
             spawnPos.z += (Math.random() - 0.5) * 2;
 
-            // Randomly choose one
             const type = Math.random() > 0.5 ? 'pistol' : 'machinegun';
             this.world.spawnAmmo(type, spawnPos);
+        });
+    }
+
+    spawnFoodAtSpawners() {
+        if (!this.foodSpawners || this.foodSpawners.length === 0) return;
+
+        console.log(`Spawning food at SComida locations...`);
+
+        this.foodSpawners.forEach(spawner => {
+            const spawnPos = spawner.position.clone();
+            spawnPos.x += (Math.random() - 0.5) * 2;
+            spawnPos.z += (Math.random() - 0.5) * 2;
+
+            this.world.spawnFood(spawnPos);
         });
     }
 }

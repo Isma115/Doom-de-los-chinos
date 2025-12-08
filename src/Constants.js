@@ -96,7 +96,7 @@ export const WEAPONS_DATA = [
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
-        speed: 6.0,
+        speed: 4.5,  // Lento - tanque
         damage: 5,
         hp: 150,
         texture: 'assets/enemies/pablo.png',
@@ -105,12 +105,11 @@ export const ENEMY_TYPES = [
         width: 5,
         height: 7,
         projectileSize: 0.3,
-        sounds: ['grunt1', 'grunt2',
-            'growl1']
+        sounds: ['grunt1', 'grunt2', 'growl1']
     },
     {
         id: 'pera',
-        speed: 6.6,
+        speed: 7.5,  // Velocidad media
         damage: 6,
         hp: 160,
         texture: 'assets/enemies/pera.png',
@@ -119,13 +118,11 @@ export const ENEMY_TYPES = [
         width: 2.5,
         height: 3.25,
         projectileSize: 0.25,
-        sounds: ['grunt1', 'hiss1',
-            'growl2']
+        sounds: ['grunt1', 'hiss1', 'growl2']
     },
-
     {
         id: 'patica',
-        speed: 4.5,
+        speed: 3.0,  // Muy lento - dispara
         damage: 10,
         hp: 120,
         texture: 'assets/enemies/patica.png',
@@ -136,23 +133,44 @@ export const ENEMY_TYPES = [
         height: 7.5,
         isShooter: true,
         shootRate: 2000,
-
         projectileSpeed: 15.0,
-
         projectileOffsetX: 0,
         projectileOffsetY: -0.9,
         projectileOffsetZ: 0,
-
         projectileSize: 0.6,
         sounds: ['roar1', 'growl1', 'hiss1']
     },
-
+    {
+        id: 'trancas_barrancas',
+        speed: 18.0,  // ¡MUY RÁPIDO! - El más veloz
+        damage: 12,
+        hp: 80,  // Poca vida para compensar velocidad
+        texture: 'assets/enemies/trancas-barrancas.png',
+        textureWalk: 'assets/enemies/trancas-barrancas.png',
+        spawnWeight: 1,  // Aparece menos frecuentemente
+        width: 3,
+        height: 4,
+        projectileSize: 0.25,
+        sounds: ['hiss1', 'growl2', 'grunt1']
+    },
+    {
+        id: 'amego',
+        speed: 15.0,  // Muy rápido, pero menos que trancas
+        damage: 14,
+        hp: 100,
+        texture: 'assets/enemies/amego.png',
+        textureWalk: 'assets/enemies/amego.png',
+        spawnWeight: 2,
+        width: 3.5,
+        height: 4.5,
+        projectileSize: 0.25,
+        sounds: ['grunt1', 'growl1', 'hiss1']
+    },
     {
         id: 'slow_low3',
-        speed: 5.4,
+        speed: 5.0,  // Lento
         damage: 4,
         hp: 140,
-
         texture: 'assets/enemies/slow_low3.png',
         textureWalk: 'assets/enemies/slow_low3_walk.png',
         spawnWeight: 3,
@@ -161,27 +179,25 @@ export const ENEMY_TYPES = [
     },
     {
         id: 'medium_med',
-        speed: 12.0,
+        speed: 9.0,  // Rápido
         damage: 15,
         hp: 200,
         texture: 'assets/enemies/medium_med.png',
         textureWalk: 'assets/enemies/medium_med_walk.png',
         spawnWeight: 2,
-
         projectileSize: 0.35,
         sounds: ['roar1', 'growl1', 'grunt1']
     },
     {
         id: 'medium_med2',
-        speed: 12.6,
+        speed: 11.0,  // Más rápido
         damage: 16,
         hp: 210,
         texture: 'assets/enemies/medium_med2.png',
         textureWalk: 'assets/enemies/medium_med2_walk.png',
         spawnWeight: 2,
         projectileSize: 0.35,
-        sounds: ['roar1', 'growl2',
-            'grunt2']
+        sounds: ['roar1', 'growl2', 'grunt2']
     },
 ];
 
@@ -204,6 +220,7 @@ export const MAP_BLOCKS = {
     'S': { type: 'generic_spawner', color: 0x44aa44, height: 0, solid: false },
     'MP': { type: 'MP', color: 0xffff00, height: 0, solid: false },
     'MA': { type: 'MA', color: 0xff8800, height: 0, solid: false },
-    'SMuni': { type: 'ammo_spawner', color: 0x0000ff, height: 0, solid: false }
+    'SMuni': { type: 'ammo_spawner', color: 0x0000ff, height: 0, solid: false },
+    'SComida': { type: 'food_spawner', color: 0x00ff00, height: 0, solid: false }
 };
 /*[Fin de sección]*/
