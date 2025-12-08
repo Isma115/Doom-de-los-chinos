@@ -7,11 +7,14 @@ import { Door } from '../entities/Door.js';
 import { PointerLockControls } from '../../node_modules/three/examples/jsm/controls/PointerLockControls.js';
 export class Player {
 
-    constructor(scene, camera, domElement, enemyManager, world, audioManager) {
+
+
+    constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
         this.controls = new PointerLockControls(camera, domElement);
         this.camera = camera;
         this.audioManager = audioManager;
         this.enemyManager = enemyManager;
+        this.gameInstance = gameInstance; // NUEVA referencia al Game para poder marcar isGameOver
 
         scene.add(camera);
 
@@ -41,7 +44,6 @@ export class Player {
 
         this.initEvents(domElement);
     }
-
 /*[Fin de sección]*/
 
     /*sección [TELETRANSPORTE] Método de teletransporte del jugador*/
@@ -276,6 +278,19 @@ update(delta) {
         }
 
         this.checkAmmoItems();
+}
+    
+    gameOver() {
+        if (this.isGameOver) return;
+        this.isGameOver = true;
+
+        // Notificamos al Game que estamos en Game Over
+        if (this.gameInstance) {
+            this.gameInstance.isGameOver = true;
+        }
+
+        UIManager.showGameOver();
+        this.controls.unlock();
     }
 
     checkAmmoItems() {

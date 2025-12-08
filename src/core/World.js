@@ -258,7 +258,7 @@ export class World {
 /*[Fin de sección]*/
 
     /*sección [CREACIÓN DE ELEMENTOS DEL MAPA] Métodos para crear items coleccionables, muros, puertas y modelos 3D*/
-    createAmmoItemsFromMap() {
+createAmmoItemsFromMap() {
         this.ammoMeshes = [];
 
         if (!this.mapData.ammoItems || this.mapData.ammoItems.length === 0) {
@@ -603,7 +603,7 @@ export class World {
         });
     }
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [LIMPIEZA DE RECURSOS] Método para liberar memoria y limpiar recursos del mundo*/
 dispose() {

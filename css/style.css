@@ -14,10 +14,11 @@ pointer-events: none;
     display: flex;
     justify-content: space-between;
     padding: 20px;
-font-size: 24px;
+    font-size: 24px;
     color: #ffffff;
     text-shadow: 2px 2px 2px #000;
 }
+
 #hud-bottom {
     padding: 20px;
     text-align: right;
@@ -67,6 +68,41 @@ color: #ffcc00;
     margin-bottom: 10px;
 }
 
+/* ★ NUEVA ESTRUCTURA: Barra de vida gráfica */
+#health-bar-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 260px;
+    height: 18px;                    /* aún más delgada */
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #880000;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 100;
+}
+
+#health-bar-bg {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #000000;
+    border-radius: 4px;
+}
+
+#health-bar-fill {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    width: 100%;
+    background: #ff0000;
+    border-radius: 4px;
+    transition: width 0.25s ease;
+    box-shadow: none;
+}
+
+#health-bar-text {
+    display: none;
+}
 .countdown-number {
     font-size: 120px;
     font-weight: 900;

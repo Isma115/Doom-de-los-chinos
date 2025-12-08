@@ -7,7 +7,7 @@ export class MapLoader {
     }
 
     /*sección [CARGA DE ARCHIVO DE MAPA] Carga y parseo del archivo de texto del mapa*/
-    async loadMapFile(mapName = 'default') {
+async loadMapFile(mapName = 'default') {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
             const response = await fetch(`mapas/${mapName}.txt`);
@@ -23,7 +23,7 @@ export class MapLoader {
             return this.getDefaultMap();
         }
     }
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego*/
 parseMap(mapText) {

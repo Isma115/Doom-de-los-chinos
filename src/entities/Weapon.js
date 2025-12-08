@@ -31,6 +31,49 @@ export class WeaponSystem { //
         return WEAPONS_DATA[this.currentIndex];
     } //
 
+
+    // ★ NUEVA FUNCIÓN: Para el flash del disparo también debe ignorar profundidad
+    showMuzzleFlash() {
+        if (!this.weaponFlashTexture) return;
+
+        if (this.flashMesh) {
+            this.camera.remove(this.flashMesh);
+            this.flashMesh.material.map.dispose();
+            this.flashMesh.material.dispose();
+        }
+
+        const flashMaterial = new THREE.SpriteMaterial({
+            map: this.weaponFlashTexture,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+            opacity: 1.0
+        });
+
+        this.flashMesh = new THREE.Sprite(flashMaterial);
+        this.flashMesh.scale.set(1.6, 1.6, 1);
+        this.flashMesh.position.set(0.5, -0.25, -1.1);
+
+        // También evitar frustum culling
+        this.flashMesh.frustumCulled = false;
+
+        this.camera.add(this.flashMesh);
+
+        // Animación de desaparición
+        const fadeOut = () => {
+            if (this.flashMesh && this.flashMesh.material) {
+                this.flashMesh.material.opacity -= 0.08;
+                if (this.flashMesh.material.opacity <= 0) {
+                    this.camera.remove(this.flashMesh);
+                    this.flashMesh.material.dispose();
+                    this.flashMesh = null;
+                } else {
+                    requestAnimationFrame(fadeOut);
+                }
+            }
+        };
+        setTimeout(fadeOut, 50);
+    }
     /*[Fin de sección]*/
 
     /*sección [GESTIÓN DE MUNICIÓN] Añadir munición y cambio de arma*/
@@ -59,7 +102,7 @@ export class WeaponSystem { //
     /*[Fin de sección]*/
 
     /*sección [VISUALES DEL ARMA] Actualización de sprites y texturas del arma equipada*/
-    updateVisuals() {
+updateVisuals() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
             if (this.weaponMesh.material.map) this.weaponMesh.material.map.dispose();
@@ -83,24 +126,33 @@ export class WeaponSystem { //
             () => { console.error("No se pudo cargar el sprite de ataque"); }
         );
 
+        // ★ CORRECCIÓN CLAVE: El arma NO debe escribirse en el depth buffer ni respetar profundidad de paredes
         const material = new THREE.SpriteMaterial({
             map: this.weaponTexture,
-            transparent: true
+            transparent: true,
+            depthTest: false,    // ← No comprobar profundidad (siempre visible)
+            depthWrite: false,   // ← No escribir en el buffer de profundidad
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
         });
 
         this.weaponMesh = new THREE.Sprite(material);
         this.weaponMesh.scale.set(1.4, 1.4, 1);
         this.weaponMesh.position.set(0.5, -0.25, -1.1);
 
+        // ★ NUEVA: Evitar que el arma sea afectada por frustum culling
+        this.weaponMesh.frustumCulled = false;
+
         this.camera.add(this.weaponMesh);
 
         UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
     } //
 
-    /*[Fin de sección]*/
+/*[Fin de sección]*/
 
     /*sección [SISTEMA DE DISPARO Y ANIMACIÓN] Lógica de disparo, raycast, retroceso y limpieza*/
-tryShoot(scoreCallback) {
+    tryShoot(scoreCallback) {
         const now = performance.now();
         const weapon = this.getCurrentWeapon();
 

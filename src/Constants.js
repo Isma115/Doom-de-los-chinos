@@ -25,7 +25,7 @@ export const CONFIG = {
     FLOOR_TILE_SIZE: 20,
     DEFAULT_SPAWN_HEIGHT: 1,
 
-    DEBUG_SHOW_HITBOXES: true
+    DEBUG_SHOW_HITBOXES: false
 };
 // ★ NUEVO: Lista de mapas disponibles para el selector
 export const AVAILABLE_MAPS = [

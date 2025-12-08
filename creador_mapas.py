@@ -59,7 +59,6 @@ class MapEditor:
 # [Fin de sección]
 
 # sección [INTERFAZ DE USUARIO] Creación de la UI principal, canvas y controles
-        
     def create_ui(self):
         # Frame principal
         main_frame = tk.Frame(self.root)
@@ -522,7 +521,6 @@ class MapEditor:
 # [Fin de sección]
 
 # sección [HISTORIAL] Sistema de deshacer/rehacer acciones
-        
     def add_to_history(self):
         """Agrega el estado actual al historial"""
         # Crear una copia profunda del grid actual
@@ -558,7 +556,6 @@ class MapEditor:
 # [Fin de sección]
 
 # sección [DIBUJADO Y PINTADO] Renderizado del grid y pintado de celdas
-    
     def draw_grid(self):
         self.canvas.delete("all")
         for y in range(self.grid_height):
@@ -777,7 +774,6 @@ class MapEditor:
 # [Fin de sección]
 
 # sección [REDIMENSIONADO] Cambio de tamaño del mapa
-
     def resize_map(self):
         """Redimensiona el mapa al tamaño especificado"""
         try:

@@ -14,14 +14,14 @@ import { EventManager } from './core/EventManager.js';
 class Game { //
     constructor(mapName) {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); //
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
             powerPreference: 'high-performance',
             stencil: false,
             depth: true
         });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); //
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = false;
         document.body.appendChild(this.renderer.domElement);
@@ -29,20 +29,62 @@ class Game { //
         this.prevTime = performance.now();
         this.frameCount = 0;
         this.lastCleanupTime = 0;
-        this.isPaused = false; // ⏸️ Estado de pausa
-        window.addEventListener('resize', () => this.onWindowResize());
-        //
+        this.isPaused = false;
+        this.isGameOver = false;
 
-        // Inicializamos el gestor de audio
+        window.addEventListener('resize', () => this.onWindowResize());
+
         this.audioManager = new AudioManager();
         this.initGame(mapName);
 
+        // ★ NUEVA ESTRUCTURA: Listener permanente para tecla R (funciona siempre, incluso en Game Over)
+        this.setupGlobalRestartListener();
+    }
+
+
+    restartGame() {
+        // Limpiar escena
+        while (this.scene.children.length > 0) {
+            this.scene.remove(this.scene.children[0]);
+        }
+
+        // Resetear estados
+        this.isGameOver = false;
+        this.isPaused = false;
+
+        // Detener música y sonidos
+        this.audioManager.stopAll();
+
+        // Reiniciar UI
+        document.getElementById('start-screen').style.display = 'none';
+
+        // Reinicializar todo (mismo mapa que estaba jugando)
+        const currentMap = this.world?.currentMapName || 'default';
+        this.initGame(currentMap);
+    }
+    setupGlobalRestartListener() {
+        const handleRestart = (e) => {
+            console.log("key: ", e.key);
+            if (this.isGameOver && (e.key === 'r' || e.key === 'R')) {
+                e.preventDefault();
+                //[MENSAJE PARA LA IA] aquí nunca llega al morir el jugador this.isGameOver nunca es true
+                // Reinicio limpio sin recargar toda la página
+                this.restartGame();
+            }
+        };
+
+        // Escuchamos en document (siempre activo) y también capturamos en ventana por seguridad
+        document.addEventListener('keydown', handleRestart);
+        window.addEventListener('keydown', handleRestart);
+
+        // Guardamos referencia para poder removerlo si fuera necesario (opcional)
+        this.restartListener = handleRestart;
     }
 
 /*[Fin de sección]*/
 
     /*sección [INICIALIZACIÓN DEL JUEGO] Carga de mapa, jugador, enemigos y eventos*/
-async initGame(mapName) {
+    async initGame(mapName) {
         await this.audioManager.init();
         this.world = new World(this.scene);
         await this.world.init(mapName);
@@ -54,21 +96,31 @@ async initGame(mapName) {
         });
 
         this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
-
         this.enemyManager.spawnPoints = this.world.getEnemySpawns();
 
-        this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
-        const playerSpawn = this.world.getPlayerSpawn();
+        this.player = new Player(
+            this.scene,
+            this.camera,
+            this.renderer.domElement,
+            this.enemyManager,
+            this.world,
+            this.audioManager,
+            this // NUEVA pasamos la instancia del Game al Player
+        ); const playerSpawn = this.world.getPlayerSpawn();
         const playerRotation = this.world.getPlayerRotation();
 
         if (playerSpawn) {
             this.player.teleport(playerSpawn, playerRotation);
         }
 
+        // ★ IMPORTANTE: Inicializar barra de vida antes de desbloquear controles
+        UIManager.updateHealth(this.player.health);
+
         this.player.controls.addEventListener('lock', () => {
             this.isPaused = false;
             this.prevTime = performance.now();
         });
+
         this.player.controls.addEventListener('unlock', () => {
             this.isPaused = true;
         });
@@ -77,7 +129,6 @@ async initGame(mapName) {
         await this.eventManager.loadEventsForMap(mapName);
 
         this.settingsManager = new SettingsManager(this.audioManager);
-
         this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
 
         this.audioManager.playMusic('background');
@@ -86,13 +137,12 @@ async initGame(mapName) {
         this.animate();
     } //
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [BUCLE DE ANIMACIÓN Y ACTUALIZACIÓN] Renderizado, spawns y actualización de entidades*/
-animate() {
+    animate() {
         requestAnimationFrame(() => this.animate());
 
-        // ⏸️ Si está pausado, solo renderizar sin actualizar lógica
         if (this.isPaused) {
             this.renderer.render(this.scene, this.camera);
             return;
@@ -151,7 +201,7 @@ animate() {
         this.prevTime = time;
         this.renderer.render(this.scene, this.camera);
 
-        this.frameCount++;
+        // ★ ELIMINADO: this.frameCount y cualquier posible UI de FPS
     } //
 
     updateFoodItems(delta) {

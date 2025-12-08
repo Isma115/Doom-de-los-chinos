@@ -33,66 +33,63 @@ export class WaveEvent {
      * Configure wave data: which spawners to use and which enemies to spawn
      */
     configureWaveData() {
-        return [
-            // Ronda 1: Solo enemigos básicos
-            {
-                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-                enemies: [
-                    { type: 'pablo', count: 8 },
-                    { type: 'pera', count: 7 },
-                ]
-            },
-            // Ronda 2: Aparece trancas_barrancas (rápido), CHARO y CHARO2 (nuevos enemigos cuerpo a cuerpo)
-            {
-                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-                enemies: [
-                    { type: 'pablo', count: 8 },
-                    { type: 'pera', count: 8 },
-                    { type: 'trancas_barrancas', count: 3 },
-                    { type: 'charo', count: 2 },   // ★ NUEVO: Charo 1 aparece en ronda 2
-                    { type: 'charo2', count: 2 }   // ★ NUEVO: Charo 2 aparece en ronda 2
-                ]
-            },
-            // Ronda 3: Más trancas_barrancas y aparece amego, más charos
-            {
-                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-                enemies: [
-                    { type: 'pablo', count: 10 },
-                    { type: 'pera', count: 10 },
-                    { type: 'trancas_barrancas', count: 5 },
-                    { type: 'amego', count: 2 },
-                    { type: 'charo', count: 3 },   // ★ NUEVO: Más charo1 en ronda 3
-                    { type: 'charo2', count: 3 }   // ★ NUEVO: Más charo2 en ronda 3
-                ]
-            },
-            // Ronda 4: Aparece patica (tirador) y más amegos, aún más charos
-            {
-                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-                enemies: [
-                    { type: 'pablo', count: 10 },
-                    { type: 'pera', count: 8 },
-                    { type: 'trancas_barrancas', count: 6 },
-                    { type: 'amego', count: 3 },
-                    { type: 'patica', count: 4 },
-                    { type: 'charo', count: 4 },   // ★ NUEVO: Más charo1 en ronda 4
-                    { type: 'charo2', count: 4 }   // ★ NUEVO: Más charo2 en ronda 4
-                ]
-            },
-            // Ronda 5: Todos los enemigos, máxima cantidad de charos
-            {
-                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-                enemies: [
-                    { type: 'pablo', count: 12 },
-                    { type: 'pera', count: 10 },
-                    { type: 'trancas_barrancas', count: 8 },
-                    { type: 'amego', count: 5 },
-                    { type: 'patica', count: 6 },
-                    { type: 'charo', count: 5 },   // ★ NUEVO: Máxima cantidad de charo1 en ronda 5
-                    { type: 'charo2', count: 5 }   // ★ NUEVO: Máxima cantidad de charo2 en ronda 5
-                ]
-            }
-        ];
-    }
+    return [
+        // Ronda 1: Solo enemigos básicos (sin pablo)
+        {
+            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+            enemies: [
+                { type: 'pera', count: 15 }
+            ]
+        },
+        // Ronda 2: Más variedad, pero todavía sin pablo
+        {
+            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+            enemies: [
+                { type: 'pera', count: 12 },
+                { type: 'trancas_barrancas', count: 4 },
+                { type: 'charo', count: 3 },
+                { type: 'charo2', count: 3 }
+            ]
+        },
+        // Ronda 3
+        {
+            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+            enemies: [
+                { type: 'pera', count: 14 },
+                { type: 'trancas_barrancas', count: 6 },
+                { type: 'amego', count: 4 },
+                { type: 'charo', count: 5 },
+                { type: 'charo2', count: 5 }
+            ]
+        },
+        // Ronda 4
+        {
+            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+            enemies: [
+                { type: 'pera', count: 12 },
+                { type: 'trancas_barrancas', count: 8 },
+                { type: 'amego', count: 6 },
+                { type: 'patica', count: 5 },
+                { type: 'charo', count: 6 },
+                { type: 'charo2', count: 6 }
+            ]
+        },
+        // Ronda 5: Aquí aparece Pablo por primera vez (y en mayor cantidad)
+        {
+            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+            enemies: [
+                { type: 'pablo', count: 12 },          // Pablo aparece SOLO a partir de aquí
+                { type: 'pera', count: 10 },
+                { type: 'trancas_barrancas', count: 8 },
+                { type: 'amego', count: 5 },
+                { type: 'patica', count: 6 },
+                { type: 'charo', count: 5 },
+                { type: 'charo2', count: 5 }
+            ]
+        }
+        // Si añades más rondas en el futuro, puedes seguir incluyendo a Pablo aquí
+    ];
+}
 
 /*[Fin de sección]*/
 

@@ -4,11 +4,45 @@ import { WEAPONS_DATA } from './Constants.js';
 /*sección [GESTIÓN DE UI] Código de gestión de interfaz*/
 export class UIManager {
     static updateHealth(amount) {
-        const el = document.getElementById('health-display');
-        el.innerText = "Salud: " + Math.floor(amount);
-        if (amount <= 30) el.style.color = "red";
-        else el.style.color = "white";
+    let container = document.getElementById('health-bar-container');
+    if (!container) {
+        // ★ NUEVA ESTRUCTURA: Crear la barra de vida la primera vez (arriba izquierda)
+        container = document.createElement('div');
+        container.id = 'health-bar-container';
+
+        const bg = document.createElement('div');
+        bg.id = 'health-bar-bg';
+        
+        const fill = document.createElement('div');
+        fill.id = 'health-bar-fill';
+        
+        const text = document.createElement('div');
+        text.id = 'health-bar-text';
+        text.innerText = '100 / 100';
+
+        container.appendChild(bg);
+        container.appendChild(fill);
+        container.appendChild(text);
+        
+        document.getElementById('ui-layer').appendChild(container);
     }
+
+    const fill = document.getElementById('health-bar-fill');
+    const text = document.getElementById('health-bar-text');
+
+    const percent = Math.max(0, Math.min(100, amount));
+    fill.style.width = percent + '%';
+    text.innerText = Math.floor(amount) + ' / 100';
+
+    // Cambios de color según nivel de salud
+    if (percent <= 30) {
+        fill.style.background = 'linear-gradient(90deg, #880000, #ff2222)';
+    } else if (percent <= 60) {
+        fill.style.background = 'linear-gradient(90deg, #cc4400, #ff8800)';
+    } else {
+        fill.style.background = 'linear-gradient(90deg, #ff0000, #ff4444)';
+    }
+}
 
     static updateScore(score) {
         document.getElementById('score-display').innerText = "Enemigos: " + score;
@@ -89,10 +123,10 @@ export class UIManager {
     }
 
     static showGameOver() {
-        document.querySelector('#start-screen h1').innerText = "GAME OVER";
-        document.querySelector('#start-screen p').innerText = "Recarga para reiniciar";
-        document.getElementById('start-screen').style.display = 'flex';
-    }
+    document.querySelector('#start-screen h1').innerText = "GAME OVER";
+    document.querySelector('#start-screen p').innerText = "Pulsa la tecla R para reiniciar";
+    document.getElementById('start-screen').style.display = 'flex';
+}
 
     static togglePauseScreen(isLocked, isGameOver) {
         const screen = document.getElementById('start-screen');
