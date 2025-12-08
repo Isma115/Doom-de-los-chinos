@@ -42,10 +42,10 @@ export class Player {
         this.initEvents(domElement);
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [TELETRANSPORTE] Método de teletransporte del jugador*/
-teleport(position, rotation = 0) {
+    teleport(position, rotation = 0) {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
         this.velocity.set(0, 0, 0);
@@ -56,10 +56,10 @@ teleport(position, rotation = 0) {
         this.camera.updateMatrixWorld(true);
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [SISTEMA DE EVENTOS E INPUT] Gestión de eventos de teclado, ratón y controles*/
-initEvents(domElement) {
+    initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
             // ⭐ NUEVO: Reanudamos el audio tras el clic del usuario (User Gesture)
@@ -144,10 +144,10 @@ initEvents(domElement) {
         }
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [COMBATE Y DAÑO] Sistema de disparo, daño, recolección y retroceso*/
-onMouseDown() {
+    onMouseDown() {
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
             this.weaponSystem.tryShoot(() => {
@@ -218,10 +218,10 @@ onMouseDown() {
         this.velocity.z += strength;
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [BUCLE DE ACTUALIZACIÓN] Actualización del estado del jugador cada frame*/
-update(delta) {
+    update(delta) {
         if (!this.controls.isLocked) return;
         if (this.isShooting) {
             this.weaponSystem.tryShoot(() => {
@@ -286,7 +286,7 @@ update(delta) {
             if (ammoMesh.userData.collected) return;
 
             const distance = playerPos.distanceTo(ammoMesh.position);
-            if (distance < 2.0) {
+            if (distance < CONFIG.PICKUP_DISTANCE) {
                 const ammoAmount = ammoMesh.userData.ammoAmount;
                 const weaponIndex = ammoMesh.userData.weaponIndex;
 
@@ -304,12 +304,12 @@ update(delta) {
         });
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [SISTEMA DE COLISIONES] Detección de colisiones con muros y puertas*/
-checkCollisions(oldPosition) {
+    checkCollisions(oldPosition) {
         const playerPos = this.camera.position;
-        const offset = 1.0;
+        const offset = CONFIG.PLAYER_COLLISION_OFFSET;
 
         const playerBox = new THREE.Box3();
         playerBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);

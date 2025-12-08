@@ -31,15 +31,13 @@ export class WeaponSystem { //
         return WEAPONS_DATA[this.currentIndex];
     } //
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [GESTIÓN DE MUNICIÓN] Añadir munición y cambio de arma*/
-addAmmo(amount, weaponIndex = null) {
+    addAmmo(amount, weaponIndex = null) {
         if (weaponIndex !== null) {
             const weapon = WEAPONS_DATA[weaponIndex];
             weapon.ammo = Math.min(weapon.maxAmmo, weapon.ammo + amount);
-            console.log(weaponIndex);
-            console.log(this.currentIndex);
             if (weaponIndex === this.currentIndex) {
                 UIManager.updateAmmo(weapon.ammo);
             }
@@ -58,10 +56,10 @@ addAmmo(amount, weaponIndex = null) {
         this.updateVisuals();
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [VISUALES DEL ARMA] Actualización de sprites y texturas del arma equipada*/
-updateVisuals() {
+    updateVisuals() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
             if (this.weaponMesh.material.map) this.weaponMesh.material.map.dispose();
@@ -99,10 +97,10 @@ updateVisuals() {
         UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
     } //
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [SISTEMA DE DISPARO Y ANIMACIÓN] Lógica de disparo, raycast, retroceso y limpieza*/
-tryShoot(scoreCallback) {
+    tryShoot(scoreCallback) {
         const now = performance.now();
         const weapon = this.getCurrentWeapon();
 

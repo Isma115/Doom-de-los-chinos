@@ -11,6 +11,20 @@ export const CONFIG = {
     DOOR_CLOSE_DISTANCE: 20,
     BLOCK_SIZE: 10,
 
+    // Colisiones
+    PLAYER_COLLISION_RADIUS: 2.0,
+    PLAYER_COLLISION_OFFSET: 1.0,
+
+    // Pickups
+    PICKUP_DISTANCE: 2.0,
+    FOOD_HEAL_AMOUNT: 25,
+    PISTOL_AMMO_AMOUNT: 30,
+    MACHINEGUN_AMMO_AMOUNT: 300,
+
+    // Spawns
+    FLOOR_TILE_SIZE: 20,
+    DEFAULT_SPAWN_HEIGHT: 1,
+
     DEBUG_SHOW_HITBOXES: true
 };
 // ★ NUEVO: Lista de mapas disponibles para el selector

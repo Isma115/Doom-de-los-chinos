@@ -7,7 +7,7 @@ export class MapLoader {
     }
 
     /*sección [CARGA DE ARCHIVO DE MAPA] Carga y parseo del archivo de texto del mapa*/
-async loadMapFile(mapName = 'default') {
+    async loadMapFile(mapName = 'default') {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
             const response = await fetch(`mapas/${mapName}.txt`);
@@ -23,10 +23,10 @@ async loadMapFile(mapName = 'default') {
             return this.getDefaultMap();
         }
     }
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego*/
-parseMap(mapText) {
+    parseMap(mapText) {
         const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
         const height = lines.length;
 
@@ -54,8 +54,8 @@ parseMap(mapText) {
         const bricks = [];
         const enemySpawns = [];
         const genericSpawners = [];
-        this.ammoSpawners = []; // Initialize here to be safe
-        this.foodSpawners = []; // Spawners de comida/salud
+        const ammoSpawners = [];
+        const foodSpawners = [];
         const validFloors = [];
         const doorPositions = [];
         const foodItems = [];
@@ -214,9 +214,7 @@ parseMap(mapText) {
 
                         if (base === 'SMuni') {
                             // Ammo Spawner
-                            // We'll store it in a new array in the map data
-                            if (!this.ammoSpawners) this.ammoSpawners = [];
-                            this.ammoSpawners.push({
+                            ammoSpawners.push({
                                 position: new THREE.Vector3(position.x, 0.5, position.z),
                                 rotation: rotation
                             });
@@ -226,8 +224,7 @@ parseMap(mapText) {
 
                         if (base === 'SComida') {
                             // Food/Health Spawner
-                            if (!this.foodSpawners) this.foodSpawners = [];
-                            this.foodSpawners.push({
+                            foodSpawners.push({
                                 position: new THREE.Vector3(position.x, 0.5, position.z),
                                 rotation: rotation
                             });
@@ -262,8 +259,8 @@ parseMap(mapText) {
             bricks,
             enemySpawns,
             genericSpawners,
-            ammoSpawners: this.ammoSpawners,
-            foodSpawners: this.foodSpawners,
+            ammoSpawners,
+            foodSpawners,
             playerSpawn,
             playerRotation,
             doorPositions,
@@ -276,10 +273,10 @@ parseMap(mapText) {
             blockSize: this.blockSize
         };
     }
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [UTILIDADES DE CONVERSIÓN] Conversión de coordenadas de grid a coordenadas 3D del mundo y mapa por defecto*/
-gridToWorld(gridX, gridY, mapWidth, mapHeight) {
+    gridToWorld(gridX, gridY, mapWidth, mapHeight) {
         const offsetX = (mapWidth * this.blockSize) / 2;
         const offsetZ = (mapHeight * this.blockSize) / 2;
 
@@ -309,5 +306,5 @@ gridToWorld(gridX, gridY, mapWidth, mapHeight) {
             blockSize: this.blockSize
         };
     }
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 }

@@ -39,10 +39,10 @@ class Game { //
 
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [INICIALIZACIÓN DEL JUEGO] Carga de mapa, jugador, enemigos y eventos*/
-async initGame(mapName) {
+    async initGame(mapName) {
         await this.audioManager.init();
         this.world = new World(this.scene);
         await this.world.init(mapName);
@@ -86,10 +86,10 @@ async initGame(mapName) {
         this.animate();
     } //
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [BUCLE DE ANIMACIÓN Y ACTUALIZACIÓN] Renderizado, spawns y actualización de entidades*/
-animate() {
+    animate() {
         requestAnimationFrame(() => this.animate());
 
         // ⏸️ Si está pausado, solo renderizar sin actualizar lógica
@@ -154,15 +154,6 @@ animate() {
         this.frameCount++;
     } //
 
-    onMouseDown() {
-        if (this.controls.isLocked && !this.isGameOver) {
-            this.isShooting = true;
-            this.weaponSystem.tryAttack(() => {  // ← cambiado tryShoot → tryAttack
-                this.score++;
-                UIManager.updateScore(this.score);
-            });
-        }
-    }
     updateFoodItems(delta) {
         const foodMeshes = this.world.getFoodMeshes();
         const playerPos = this.player.getPosition(); //
