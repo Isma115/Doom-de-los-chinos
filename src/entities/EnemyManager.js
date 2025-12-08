@@ -82,11 +82,12 @@ createBloodParticles(enemy, hitPosition) {
             spawnPos.y += 1.0;
         }
 
-        // ★ NUEVO: Selección aleatoria entre las dos texturas de splash
+        // ★ MODIFICACIÓN: Ahora incluye blood_splash3.png (3 texturas aleatorias)
         const textureLoader = new THREE.TextureLoader();
         const splashTextures = [
             'assets/textures/blood_splash.png',
-            'assets/textures/blood_splash2.png'
+            'assets/textures/blood_splash2.png',
+            'assets/textures/blood_splash3.png'
         ];
         const randomTexturePath = splashTextures[Math.floor(Math.random() * splashTextures.length)];
         const bloodSplashTexture = textureLoader.load(randomTexturePath);
@@ -171,8 +172,7 @@ createBloodParticles(enemy, hitPosition) {
                 velocity: velocity,
                 rotationSpeed: {
                     x: (Math.random() - 0.5) * 10.0,
-                    y: (Math.random()
-                        - 0.5) * 10.0
+                    y: (Math.random() - 0.5) * 10.0
                 },
                 isOnGround: false,
                 creationTime: performance.now(),
