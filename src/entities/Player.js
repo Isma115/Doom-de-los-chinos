@@ -8,31 +8,39 @@ import { PointerLockControls } from '../../node_modules/three/examples/jsm/contr
 export class Player {
 
     constructor(scene, camera, domElement, enemyManager, world, audioManager) {
+    this.controls = new PointerLockControls(camera, domElement);
+    this.camera = camera;
+    this.audioManager = audioManager;
+    this.enemyManager = enemyManager;
 
-        this.controls = new PointerLockControls(camera, domElement);
-        this.camera = camera;
-        this.audioManager = audioManager;
+    scene.add(camera);
 
-        scene.add(camera);
+    this.world = world;
+    this.velocity = new THREE.Vector3();
+    this.direction = new THREE.Vector3();
+    this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
+    this.canJump = false;
 
-        this.world = world;
-        this.velocity = new THREE.Vector3();
-        this.direction = new THREE.Vector3();
-        this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
-        this.canJump = false;
+    this.health = 100;
+    this.score = 0;
+    this.isGameOver = false;
 
-        this.health = 100;
-        this.score = 0;
-        this.isGameOver = false;
+    this.radius = 2.0;
 
-        this.radius = 2.0;
+    camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
+    this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this);
+    this.isShooting = false;
 
-        camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
-        this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this);
-        this.isShooting = false;
+    this.debugState = {
+        godMode: false,
+        infiniteAmmo: false,
+        flyMode: false,
+        noClip: false,
+        speedMultiplier: 1.0
+    };
 
-        this.initEvents(domElement);
-    }
+    this.initEvents(domElement);
+}
 
 
     teleport(position, rotation = 0) {
@@ -73,35 +81,56 @@ export class Player {
     }
 
     onKey(event, isDown) {
-        switch (event.code) {
-            case 'ArrowUp': case 'KeyW': this.moveFlags.fwd = isDown;
-                break;
-            case 'ArrowLeft': case 'KeyA': this.moveFlags.left = isDown; break;
-            case 'ArrowDown': case 'KeyS': this.moveFlags.bwd = isDown; break;
-            case 'ArrowRight': case 'KeyD': this.moveFlags.right = isDown; break;
-            case 'Space':
-                if (isDown && this.canJump) {
+    switch (event.code) {
+        case 'ArrowUp': 
+        case 'KeyW': 
+            this.moveFlags.fwd = isDown;
+            break;
+        case 'ArrowLeft': 
+        case 'KeyA': 
+            this.moveFlags.left = isDown; 
+            break;
+        case 'ArrowDown': 
+        case 'KeyS': 
+            this.moveFlags.bwd = isDown; 
+            break;
+        case 'ArrowRight': 
+        case 'KeyD': 
+            this.moveFlags.right = isDown; 
+            break;
+        case 'Space':
+            if (isDown) {
+                if (this.debugState.flyMode) {
+                    this.velocity.y = CONFIG.JUMP_FORCE * 1.5;
+                } else if (this.canJump) {
                     this.velocity.y += CONFIG.JUMP_FORCE;
                     this.canJump = false;
                 }
-                break;
-            case 'KeyE':
-                if (isDown) {
-                    if (Door.tryOpenNearest(this.getPosition())) {
-                        console.log("PUERTA ABIERTA");
-                        if (this.audioManager) {
-                            this.audioManager.playSound('doorOpen', 0.5);
-                        }
+            }
+            break;
+        case 'ShiftLeft':
+        case 'ShiftRight':
+            if (isDown && this.debugState.flyMode) {
+                this.velocity.y = -CONFIG.JUMP_FORCE * 1.5;
+            }
+            break;
+        case 'KeyE':
+            if (isDown) {
+                if (Door.tryOpenNearest(this.getPosition())) {
+                    console.log("PUERTA ABIERTA");
+                    if (this.audioManager) {
+                        this.audioManager.playSound('doorOpen', 0.5);
                     }
                 }
-                break;
-            case 'KeyV':
-                if (isDown) {
-                    this.scream();
-                }
-                break;
-        }
+            }
+            break;
+        case 'KeyV':
+            if (isDown) {
+                this.scream();
+            }
+            break;
     }
+}
 
     scream() {
         if (this.audioManager && this.controls.isLocked && !this.isGameOver) {
@@ -125,23 +154,29 @@ export class Player {
     }
 
     takeDamage(damageAmount = 1) {
-        if (this.isGameOver) return;
-        this.health -= damageAmount;
-        UIManager.updateHealth(this.health);
+    if (this.isGameOver) return;
+    
+    if (this.debugState.godMode) {
+        console.log('Daño bloqueado por God Mode');
+        return;
+    }
+    
+    this.health -= damageAmount;
+    UIManager.updateHealth(this.health);
 
+    if (this.audioManager) {
+        this.audioManager.playSound('playerHurt', 0.6, false, 0.9 + Math.random() * 0.2);
+    }
+
+    if (this.health <= 0) {
+        this.isGameOver = true;
+        this.controls.unlock();
+        UIManager.showGameOver();
         if (this.audioManager) {
-            this.audioManager.playSound('playerHurt', 0.6, false, 0.9 + Math.random() * 0.2);
-        }
-
-        if (this.health <= 0) {
-            this.isGameOver = true;
-            this.controls.unlock();
-            UIManager.showGameOver();
-            if (this.audioManager) {
-                this.audioManager.stopMusic();
-            }
+            this.audioManager.stopMusic();
         }
     }
+}
 
     collectFood(amount) {
         if (this.isGameOver) return;
@@ -177,48 +212,61 @@ export class Player {
 
 
     update(delta) {
-        if (!this.controls.isLocked) return;
-        if (this.isShooting) {
-            this.weaponSystem.tryShoot(() => {
-                this.score++;
-                UIManager.updateScore(this.score);
-            });
-        }
+    if (!this.controls.isLocked) return;
+    if (this.isShooting) {
+        this.weaponSystem.tryShoot(() => {
+            this.score++;
+            UIManager.updateScore(this.score);
+        });
+    }
 
-        // Aplicar fricción (decaerá el retroceso y cualquier otro movimiento)
-        this.velocity.x -= this.velocity.x * 12.0 * delta;
-        this.velocity.z -= this.velocity.z * 12.0 * delta;
+    const speedMultiplier = this.debugState.speedMultiplier || 1.0;
+
+    this.velocity.x -= this.velocity.x * 12.0 * delta;
+    this.velocity.z -= this.velocity.z * 12.0 * delta;
+    
+    if (!this.debugState.flyMode) {
         this.velocity.y -= CONFIG.GRAVITY * delta;
+    } else {
+        this.velocity.y -= this.velocity.y * 12.0 * delta;
+    }
 
-        this.direction.z = Number(this.moveFlags.fwd) - Number(this.moveFlags.bwd);
-        this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
-        this.direction.normalize();
+    this.direction.z = Number(this.moveFlags.fwd) - Number(this.moveFlags.bwd);
+    this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
+    this.direction.normalize();
 
-        // Movimiento del jugador (input)
-        if (this.moveFlags.fwd || this.moveFlags.bwd) this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta;
-        if (this.moveFlags.left || this.moveFlags.right) this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta;
+    if (this.moveFlags.fwd || this.moveFlags.bwd) {
+        this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+    }
+    if (this.moveFlags.left || this.moveFlags.right) {
+        this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+    }
 
-        const oldPosition = this.camera.position.clone();
+    const oldPosition = this.camera.position.clone();
 
-        this.controls.moveRight(-this.velocity.x * delta);
-        this.controls.moveForward(-this.velocity.z * delta);
-        this.camera.position.y += (this.velocity.y * delta);
+    this.controls.moveRight(-this.velocity.x * delta);
+    this.controls.moveForward(-this.velocity.z * delta);
+    this.camera.position.y += (this.velocity.y * delta);
 
+    if (!this.debugState.flyMode) {
         if (this.camera.position.y < CONFIG.PLAYER_HEIGHT) {
             this.velocity.y = 0;
             this.camera.position.y = CONFIG.PLAYER_HEIGHT;
             this.canJump = true;
         }
-
-        // Mostrar siempre el ángulo de rotación del jugador (eje Y)
-        const angleRadians = this.camera.rotation.y;
-        let angleDegrees = (angleRadians * 180) / Math.PI;
-        if (angleDegrees < 0) angleDegrees += 360;
-        UIManager.updateAngle(angleDegrees);
-
-        this.checkCollisions(oldPosition);
-        this.checkAmmoItems();
     }
+
+    const angleRadians = this.camera.rotation.y;
+    let angleDegrees = (angleRadians * 180) / Math.PI;
+    if (angleDegrees < 0) angleDegrees += 360;
+    UIManager.updateAngle(angleDegrees);
+
+    if (!this.debugState.noClip) {
+        this.checkCollisions(oldPosition);
+    }
+    
+    this.checkAmmoItems();
+}
 
     checkAmmoItems() {
         const ammoItems = this.world.getAmmoMeshes();

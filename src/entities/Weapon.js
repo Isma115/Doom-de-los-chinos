@@ -3,26 +3,30 @@ import * as THREE from '../../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from '../Constants.js'; //
 import { UIManager } from '../UI.js';
 export class WeaponSystem { //
-    constructor(camera, enemyManager, audioManager, player) { // Se recibe player
-        this.camera = camera;
-        this.enemyManager = enemyManager;
-        this.audioManager = audioManager; // Guardar referencia
-        this.player = player; // ⭐ NUEVO: Referencia al jugador para aplicar retroceso
-        this.currentIndex = 0; //
-        this.lastShotTime = 0;
-        this.weaponMesh = null;
+    constructor(camera, enemyManager, audioManager, player) {
+    this.camera = camera;
+    this.enemyManager = enemyManager;
+    this.audioManager = audioManager;
+    this.player = player;
+    this.currentIndex = 0;
+    this.lastShotTime = 0;
+    this.weaponMesh = null;
 
-        this.raycaster = new THREE.Raycaster();
-        this.rayOrigin = new THREE.Vector2(0, 0); //
+    this.raycaster = new THREE.Raycaster();
+    this.rayOrigin = new THREE.Vector2(0, 0);
 
-        this.weaponMaterials = [];
-        WEAPONS_DATA.forEach(weapon => {
-            this.weaponMaterials.push(
-                new THREE.MeshBasicMaterial({ color: weapon.color })
-            );
-        });
-        this.updateVisuals(); //
-    }
+    this.debugState = {
+        infiniteAmmo: false
+    };
+
+    this.weaponMaterials = [];
+    WEAPONS_DATA.forEach(weapon => {
+        this.weaponMaterials.push(
+            new THREE.MeshBasicMaterial({ color: weapon.color })
+        );
+    });
+    this.updateVisuals();
+}
     getCurrentWeapon() {
         return WEAPONS_DATA[this.currentIndex];
     } //
@@ -92,48 +96,49 @@ export class WeaponSystem { //
 
 
     tryShoot(scoreCallback) {
-        const now = performance.now();
-        const weapon = this.getCurrentWeapon();
+    const now = performance.now();
+    const weapon = this.getCurrentWeapon();
 
-        // Verificar delay
-        if (now - this.lastShotTime < weapon.delay) return;
+    if (now - this.lastShotTime < weapon.delay) return;
 
-        // Verificar munición (armas melee tienen Infinity, siempre pasan)
+    if (!this.debugState.infiniteAmmo) {
         if (weapon.ammo <= 0) return;
 
-        // Consumir munición solo si no es melee
         if (!weapon.isMelee) {
             weapon.ammo--;
             UIManager.updateAmmo(weapon.ammo);
         } else {
             UIManager.updateAmmo("∞");
         }
-
-        this.lastShotTime = now;
-
-        if (this.audioManager && weapon.shootSound) {
-            this.audioManager.playSound(weapon.shootSound);
-        }
-
-        if (weapon.name === "AMETRALLADORA") {
-            this.player.applyRecoil(7);
-        }
-
-        if (this.weaponMesh && this.weaponFlashTexture) {
-            this.weaponMesh.material.map = this.weaponFlashTexture;
-            this.weaponMesh.material.needsUpdate = true;
-
-            setTimeout(() => {
-                if (this.weaponMesh && this.weaponTexture) {
-                    this.weaponMesh.material.map = this.weaponTexture;
-                    this.weaponMesh.material.needsUpdate = true;
-                }
-            }, 80);
-        }
-
-        this.performRaycast(weapon, scoreCallback);
-        this.animateRecoil();
+    } else {
+        UIManager.updateAmmo("∞");
     }
+
+    this.lastShotTime = now;
+
+    if (this.audioManager && weapon.shootSound) {
+        this.audioManager.playSound(weapon.shootSound);
+    }
+
+    if (weapon.name === "AMETRALLADORA") {
+        this.player.applyRecoil(7);
+    }
+
+    if (this.weaponMesh && this.weaponFlashTexture) {
+        this.weaponMesh.material.map = this.weaponFlashTexture;
+        this.weaponMesh.material.needsUpdate = true;
+
+        setTimeout(() => {
+            if (this.weaponMesh && this.weaponTexture) {
+                this.weaponMesh.material.map = this.weaponTexture;
+                this.weaponMesh.material.needsUpdate = true;
+            }
+        }, 80);
+    }
+
+    this.performRaycast(weapon, scoreCallback);
+    this.animateRecoil();
+}
 
     performRaycast(weapon, scoreCallback) {
         this.raycaster.setFromCamera(this.rayOrigin, this.camera);

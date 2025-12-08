@@ -4,7 +4,7 @@ import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
 import { Door } from './entities/Door.js';
 // ⭐ NUEVO: Importamos UIManager para poder mostrar la pantalla de inicio
-import { UIManager, SettingsManager } from './UI.js';
+import { UIManager, SettingsManager, DebugPanel } from './UI.js';
 import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js'; //
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { AudioManager } from './core/AudioManager.js';
@@ -40,48 +40,48 @@ class Game { //
     }
 
     async initGame(mapName) {
-        await this.audioManager.init();
-        this.world = new World(this.scene);
-        await this.world.init(mapName);
+    await this.audioManager.init();
+    this.world = new World(this.scene);
+    await this.world.init(mapName);
 
-        Door.clearAll();
-        const doorMeshes = this.world.getDoorMeshes();
-        doorMeshes.forEach(mesh => {
-            new Door(mesh);
-        });
+    Door.clearAll();
+    const doorMeshes = this.world.getDoorMeshes();
+    doorMeshes.forEach(mesh => {
+        new Door(mesh);
+    });
 
-        this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
+    this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
 
-        this.enemyManager.spawnPoints = this.world.getEnemySpawns();
+    this.enemyManager.spawnPoints = this.world.getEnemySpawns();
 
-        this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
-        const playerSpawn = this.world.getPlayerSpawn();
-        const playerRotation = this.world.getPlayerRotation();
+    this.player = new Player(this.scene, this.camera, document.body, this.enemyManager, this.world, this.audioManager);
+    const playerSpawn = this.world.getPlayerSpawn();
+    const playerRotation = this.world.getPlayerRotation();
 
-        if (playerSpawn) {
-            this.player.teleport(playerSpawn, playerRotation);
-        }
+    if (playerSpawn) {
+        this.player.teleport(playerSpawn, playerRotation);
+    }
 
-        // ⏸️ Conectar el estado de pausa con los controles del jugador
-        this.player.controls.addEventListener('lock', () => {
-            this.isPaused = false;
-            this.prevTime = performance.now(); // Resetear tiempo para evitar saltos de delta
-        });
-        this.player.controls.addEventListener('unlock', () => {
-            this.isPaused = true;
-        });
+    this.player.controls.addEventListener('lock', () => {
+        this.isPaused = false;
+        this.prevTime = performance.now();
+    });
+    this.player.controls.addEventListener('unlock', () => {
+        this.isPaused = true;
+    });
 
-        this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
-        await this.eventManager.loadEventsForMap(mapName);
+    this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
+    await this.eventManager.loadEventsForMap(mapName);
 
-        // ⚙️ Inicializar el gestor de ajustes
-        this.settingsManager = new SettingsManager(this.audioManager);
+    this.settingsManager = new SettingsManager(this.audioManager);
+    
+    this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
 
-        this.audioManager.playMusic('background');
+    this.audioManager.playMusic('background');
 
-        UIManager.togglePauseScreen(false, false);
-        this.animate();
-    } //
+    UIManager.togglePauseScreen(false, false);
+    this.animate();
+} //
 
     animate() {
         requestAnimationFrame(() => this.animate());

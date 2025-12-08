@@ -349,5 +349,204 @@ p { font-size: 20px;
     box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
     transform: scale(1.02);
 }
-/*[Fin de sección]*/
+.debug-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #1a0000 0%, #0d0d0d 50%, #1a0000 100%);
+    border: 3px solid #660000;
+    border-radius: 15px;
+    padding: 0;
+    min-width: 500px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 0 40px rgba(255, 0, 0, 0.5);
+    z-index: 150;
+    display: none;
+    pointer-events: auto;
+}
+
+.debug-panel.active {
+    display: block;
+}
+
+.debug-header {
+    background: linear-gradient(90deg, #660000 0%, #330000 100%);
+    padding: 15px 20px;
+    border-bottom: 2px solid #ff0000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 12px 12px 0 0;
+}
+
+.debug-header h3 {
+    margin: 0;
+    color: #ff3333;
+    font-size: 20px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.debug-close-btn {
+    background: #ff0000;
+    border: none;
+    color: white;
+    font-size: 20px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.debug-close-btn:hover {
+    background: #ff3333;
+    transform: scale(1.1);
+}
+
+.debug-content {
+    padding: 20px;
+}
+
+.debug-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #440000;
+    border-radius: 8px;
+}
+
+.debug-section h4 {
+    margin: 0 0 10px 0;
+    color: #ff6666;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.debug-toggle {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.debug-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+    cursor: pointer;
+    accent-color: #ff0000;
+}
+
+.debug-toggle-label {
+    color: #ffcccc;
+    font-size: 14px;
+}
+
+.debug-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    background: linear-gradient(90deg, #660000 0%, #330000 100%);
+    border: 2px solid #880000;
+    color: #ff8888;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.debug-btn:hover {
+    background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
+    color: #fff;
+    border-color: #ff3333;
+    transform: scale(1.02);
+}
+
+.debug-btn-danger {
+    background: linear-gradient(90deg, #880000 0%, #440000 100%);
+}
+
+.debug-btn-danger:hover {
+    background: linear-gradient(90deg, #ff4444 0%, #cc0000 100%);
+}
+
+.debug-slider-container {
+    margin-top: 10px;
+}
+
+.debug-slider-container label {
+    display: block;
+    color: #ffcccc;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.debug-slider-container input[type="range"] {
+    width: 100%;
+    height: 8px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(90deg, #330000, #660000);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+
+.debug-slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    border: 2px solid #ff6666;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.debug-slider-container input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    border: 2px solid #ff6666;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.debug-input-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 2fr;
+    gap: 5px;
+}
+
+#debug-btn {
+    background: linear-gradient(90deg, #000033 0%, #000000 100%);
+    border: 2px solid #0044aa;
+    color: #8888ff;
+    font-size: 18px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    border-radius: 8px;
+    min-width: 150px;
+    padding: 15px 30px;
+}
+
+#debug-btn:hover {
+    background: linear-gradient(90deg, #4444ff 0%, #000088 100%);
+    color: #fff;
+    border-color: #6666ff;
+    box-shadow: 0 0 20px rgba(100, 100, 255, 0.6);
+    transform: scale(1.05);
+}
+
 /*[Fin de sección]*/
