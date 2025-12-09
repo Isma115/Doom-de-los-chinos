@@ -87,6 +87,14 @@ export class Player {
         }
     }
 
+    getWorldWalls() {
+        if (this.world && this.world.getWalls) {
+            return this.world.getWalls();
+        }
+        return [];
+    }
+
+
     onKey(event, isDown) {
         switch (event.code) {
             case 'ArrowUp':

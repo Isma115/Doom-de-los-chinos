@@ -109,6 +109,8 @@ export class World {
             tileMaterial = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
         }
 
+
+
         const floorGroup = new THREE.Group();
         const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
 
@@ -138,6 +140,28 @@ export class World {
         await this.load3DModelsFromJSON(mapName);
     }
 
+
+        getSolidObjects() {
+        const solidObjects = [];
+        
+        // Agregar muros
+        solidObjects.push(...this.walls);
+        
+        // Agregar modelos estáticos 3D
+        solidObjects.push(...this.staticModels);
+        
+        // Agregar puertas cerradas (si las tenemos referenciadas)
+        if (window.Door && Door.instances) {
+            Door.instances.forEach(door => {
+                if (!door.isOpen && door.mesh) {
+                    solidObjects.push(door.mesh);
+                }
+            });
+        }
+        
+        return solidObjects;
+    }
+
     getWalls() {
         return this.walls;
     }
@@ -153,6 +177,8 @@ export class World {
     getDoorMeshes() {
         return this.doorMeshes;
     }
+
+
 
     getFoodMeshes() {
         return this.foodMeshes;
@@ -601,6 +627,11 @@ export class World {
                 this.scene.add(mesh);
             });
         });
+    }
+
+
+    getStaticModels() {
+        return this.staticModels || [];
     }
 
     /*[Fin de sección]*/

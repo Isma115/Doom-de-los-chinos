@@ -32,7 +32,69 @@ export class WeaponSystem { //
     } //
 
 
+    createWallImpactEffect(position) {
+        // Crear un efecto visual temporal en el punto de impacto
+        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffcc00,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const impactSphere = new THREE.Mesh(geometry, material);
+        impactSphere.position.copy(position);
+        
+        if (this.camera && this.camera.parent) {
+            this.camera.parent.add(impactSphere);
+        }
+        
+        // Animar y eliminar el efecto
+        let scale = 0.5;
+        const animate = () => {
+            scale += 0.1;
+            impactSphere.scale.set(scale, scale, scale);
+            material.opacity -= 0.05;
+            
+            if (material.opacity > 0) {
+                requestAnimationFrame(animate);
+            } else {
+                if (impactSphere.parent) {
+                    impactSphere.parent.remove(impactSphere);
+                }
+                geometry.dispose();
+                material.dispose();
+            }
+        };
+        
+        setTimeout(animate, 0);
+    }
 
+    getSolidObjects() {
+        const solidObjects = [];
+        
+        // Obtener muros del mundo
+        if (this.player && this.player.world && this.player.world.getWalls) {
+            const walls = this.player.world.getWalls();
+            solidObjects.push(...walls);
+        }
+        
+        // Obtener puertas cerradas
+        if (window.Door && Door.instances) {
+            Door.instances.forEach(door => {
+                if (!door.isOpen && door.mesh) {
+                    solidObjects.push(door.mesh);
+                }
+            });
+        }
+        
+        // Obtener modelos estáticos 3D que sean sólidos
+        if (this.player && this.player.world && this.player.world.getStaticModels) {
+            const staticModels = this.player.world.getStaticModels();
+            solidObjects.push(...staticModels);
+        }
+        
+        return solidObjects;
+    }
     showMuzzleFlash() {
         if (!this.weaponFlashTexture) return;
 
@@ -197,7 +259,7 @@ export class WeaponSystem { //
         this.animateRecoil();
     }
 
-    performRaycast(weapon, scoreCallback) {
+        performRaycast(weapon, scoreCallback) {
         this.raycaster.setFromCamera(this.rayOrigin, this.camera);
 
         // Aplicar rango limitado para armas melee
@@ -208,28 +270,50 @@ export class WeaponSystem { //
         }
 
         const enemyMeshes = this.enemyManager.enemies.filter(e => e.visible);
-        const intersects = this.raycaster.intersectObjects(enemyMeshes, false);
+        
+        // Obtener todos los objetos sólidos (muros, puertas cerradas, etc.)
+        const solidObjects = this.getSolidObjects();
+        
+        // Combinar enemigos y objetos sólidos para la detección de colisiones
+        const allObjects = enemyMeshes.concat(solidObjects);
+        
+        const intersects = this.raycaster.intersectObjects(allObjects, false);
 
         if (intersects.length > 0) {
             const hitObj = intersects[0].object;
             const hitPoint = intersects[0].point;
-            hitObj.userData.hp -= weapon.damage;
+            
+            // Verificar si el objeto impactado es un enemigo
+            if (hitObj.userData && hitObj.userData.hp !== undefined) {
+                // Es un enemigo - aplicar daño
+                hitObj.userData.hp -= weapon.damage;
 
-            const impactTime = performance.now();
-            hitObj.userData.bloodTime = impactTime;
-            if (hitObj.userData.drawBlood) {
-                hitObj.userData.drawBlood(hitPoint);
-            }
-
-            hitObj.material.color.setHex(0xff3333);
-            setTimeout(() => {
-                if (hitObj.parent && hitObj.userData.hp > 0) {
-                    hitObj.material.color.setHex(0xffffff);
+                const impactTime = performance.now();
+                hitObj.userData.bloodTime = impactTime;
+                if (hitObj.userData.drawBlood) {
+                    hitObj.userData.drawBlood(hitPoint);
                 }
-            }, 80);
-            if (hitObj.userData.hp <= 0) {
-                this.enemyManager.removeEnemy(hitObj);
-                scoreCallback();
+
+                hitObj.material.color.setHex(0xff3333);
+                setTimeout(() => {
+                    if (hitObj.parent && hitObj.userData.hp > 0) {
+                        hitObj.material.color.setHex(0xffffff);
+                    }
+                }, 80);
+                if (hitObj.userData.hp <= 0) {
+                    this.enemyManager.removeEnemy(hitObj);
+                    scoreCallback();
+                }
+            } else {
+                // Es un objeto sólido (muro, puerta cerrada, etc.)
+                // El disparo se detiene aquí, no atraviesa
+                // Opcional: Podemos añadir efectos de impacto en la pared aquí
+                if (this.audioManager) {
+                    this.audioManager.playSound('enemyHit', 0.3); // Sonido de impacto en pared
+                }
+                
+                // Crear efecto visual de impacto en la pared
+                this.createWallImpactEffect(hitPoint);
             }
         }
     }
