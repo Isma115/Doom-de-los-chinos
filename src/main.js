@@ -3,12 +3,12 @@ import { World } from './core/World.js';
 import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
 import { Door } from './entities/Door.js';
-// ⭐ NUEVO: Importamos UIManager para poder mostrar la pantalla de inicio
+
 import { UIManager, SettingsManager, DebugPanel } from './UI.js';
 import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js'; //
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { AudioManager } from './core/AudioManager.js';
-// ⭐ NUEVO: Importamos el gestor de eventos
+
 import { EventManager } from './core/EventManager.js';
 
 class Game { //
@@ -37,7 +37,7 @@ class Game { //
         this.audioManager = new AudioManager();
         this.initGame(mapName);
 
-        // ★ NUEVA ESTRUCTURA: Listener permanente para tecla R (funciona siempre, incluso en Game Over)
+
         this.setupGlobalRestartListener();
     }
 
@@ -67,7 +67,7 @@ class Game { //
             console.log("key: ", e.key);
             if (this.isGameOver && (e.key === 'r' || e.key === 'R')) {
                 e.preventDefault();
-                //[MENSAJE PARA LA IA] aquí nunca llega al morir el jugador this.isGameOver nunca es true
+
                 // Reinicio limpio sin recargar toda la página
                 this.restartGame();
             }
@@ -81,7 +81,7 @@ class Game { //
         this.restartListener = handleRestart;
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [INICIALIZACIÓN DEL JUEGO] Carga de mapa, jugador, enemigos y eventos*/
     async initGame(mapName) {
@@ -105,7 +105,7 @@ class Game { //
             this.enemyManager,
             this.world,
             this.audioManager,
-            this // NUEVA pasamos la instancia del Game al Player
+            this // pasamos la instancia del Game al Player
         ); const playerSpawn = this.world.getPlayerSpawn();
         const playerRotation = this.world.getPlayerRotation();
 
@@ -113,7 +113,7 @@ class Game { //
             this.player.teleport(playerSpawn, playerRotation);
         }
 
-        // ★ IMPORTANTE: Inicializar barra de vida antes de desbloquear controles
+        // Inicializar barra de vida antes de desbloquear controles
         UIManager.updateHealth(this.player.health);
 
         this.player.controls.addEventListener('lock', () => {
@@ -201,7 +201,7 @@ class Game { //
         this.prevTime = time;
         this.renderer.render(this.scene, this.camera);
 
-        // ★ ELIMINADO: this.frameCount y cualquier posible UI de FPS
+
     } //
 
     updateFoodItems(delta) {

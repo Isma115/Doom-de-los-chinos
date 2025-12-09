@@ -27,7 +27,7 @@ export const CONFIG = {
 
     DEBUG_SHOW_HITBOXES: false
 };
-// ★ NUEVO: Lista de mapas disponibles para el selector
+// Lista de mapas disponibles para el selector
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
     { id: 'mapa1', name: 'La Fortaleza' },
@@ -217,7 +217,7 @@ export const ENEMY_TYPES = [
         projectileSize: 0.35,
         sounds: ['roar1', 'growl2', 'grunt2']
     },
-    // ★ NUEVO ENEMIGO: Charo 1
+    // Charo 1
     {
         id: 'charo',
         speed: 8.0,   // Velocidad media (entre pera [7.5] y medium_med [9.0])
@@ -232,7 +232,7 @@ export const ENEMY_TYPES = [
         sounds: ['grunt2', 'hiss1', 'growl1'],
         isMelee: true  // Especificar que es cuerpo a cuerpo
     },
-    // ★ NUEVO ENEMIGO: Charo 2 (igual que charo1 pero con textura diferente)
+    // Charo 2 (igual que charo1 pero con textura diferente)
     {
         id: 'charo2',
         speed: 8.0,   // Velocidad media (igual que charo1)

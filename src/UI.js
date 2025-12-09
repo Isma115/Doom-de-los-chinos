@@ -4,45 +4,45 @@ import { WEAPONS_DATA } from './Constants.js';
 /*sección [GESTIÓN DE UI] Código de gestión de interfaz*/
 export class UIManager {
     static updateHealth(amount) {
-    let container = document.getElementById('health-bar-container');
-    if (!container) {
-        // ★ NUEVA ESTRUCTURA: Crear la barra de vida la primera vez (arriba izquierda)
-        container = document.createElement('div');
-        container.id = 'health-bar-container';
+        let container = document.getElementById('health-bar-container');
+        if (!container) {
 
-        const bg = document.createElement('div');
-        bg.id = 'health-bar-bg';
-        
-        const fill = document.createElement('div');
-        fill.id = 'health-bar-fill';
-        
-        const text = document.createElement('div');
-        text.id = 'health-bar-text';
-        text.innerText = '100 / 100';
+            container = document.createElement('div');
+            container.id = 'health-bar-container';
 
-        container.appendChild(bg);
-        container.appendChild(fill);
-        container.appendChild(text);
-        
-        document.getElementById('ui-layer').appendChild(container);
+            const bg = document.createElement('div');
+            bg.id = 'health-bar-bg';
+
+            const fill = document.createElement('div');
+            fill.id = 'health-bar-fill';
+
+            const text = document.createElement('div');
+            text.id = 'health-bar-text';
+            text.innerText = '100 / 100';
+
+            container.appendChild(bg);
+            container.appendChild(fill);
+            container.appendChild(text);
+
+            document.getElementById('ui-layer').appendChild(container);
+        }
+
+        const fill = document.getElementById('health-bar-fill');
+        const text = document.getElementById('health-bar-text');
+
+        const percent = Math.max(0, Math.min(100, amount));
+        fill.style.width = percent + '%';
+        text.innerText = Math.floor(amount) + ' / 100';
+
+        // Cambios de color según nivel de salud
+        if (percent <= 30) {
+            fill.style.background = 'linear-gradient(90deg, #880000, #ff2222)';
+        } else if (percent <= 60) {
+            fill.style.background = 'linear-gradient(90deg, #cc4400, #ff8800)';
+        } else {
+            fill.style.background = 'linear-gradient(90deg, #ff0000, #ff4444)';
+        }
     }
-
-    const fill = document.getElementById('health-bar-fill');
-    const text = document.getElementById('health-bar-text');
-
-    const percent = Math.max(0, Math.min(100, amount));
-    fill.style.width = percent + '%';
-    text.innerText = Math.floor(amount) + ' / 100';
-
-    // Cambios de color según nivel de salud
-    if (percent <= 30) {
-        fill.style.background = 'linear-gradient(90deg, #880000, #ff2222)';
-    } else if (percent <= 60) {
-        fill.style.background = 'linear-gradient(90deg, #cc4400, #ff8800)';
-    } else {
-        fill.style.background = 'linear-gradient(90deg, #ff0000, #ff4444)';
-    }
-}
 
     static updateScore(score) {
         document.getElementById('score-display').innerText = "Enemigos: " + score;
@@ -123,17 +123,17 @@ export class UIManager {
     }
 
     static showGameOver() {
-    document.querySelector('#start-screen h1').innerText = "GAME OVER";
-    document.querySelector('#start-screen p').innerText = "Pulsa la tecla R para reiniciar";
-    document.getElementById('start-screen').style.display = 'flex';
-}
+        document.querySelector('#start-screen h1').innerText = "GAME OVER";
+        document.querySelector('#start-screen p').innerText = "Pulsa la tecla R para reiniciar";
+        document.getElementById('start-screen').style.display = 'flex';
+    }
 
     static togglePauseScreen(isLocked, isGameOver) {
         const screen = document.getElementById('start-screen');
         const pauseButtons = document.getElementById('pause-buttons');
         const pauseSubtitle = screen.querySelector('.pause-subtitle');
 
-        // ⭐ NUEVO: Obtener referencia al botón debug
+
         const debugBtn = document.getElementById('debug-btn');
 
         if (isLocked) {
@@ -145,7 +145,7 @@ export class UIManager {
             const debugPanel = document.getElementById('debug-panel');
             if (debugPanel) debugPanel.classList.remove('active');
 
-            // ⭐ NUEVO: Esconder botón debug cuando se reanuda el juego
+
             if (debugBtn) debugBtn.style.display = 'none';
         } else {
             screen.style.display = 'flex';
@@ -153,7 +153,7 @@ export class UIManager {
                 if (pauseSubtitle) pauseSubtitle.innerText = "Pausa - Click para continuar";
                 if (pauseButtons) pauseButtons.classList.add('visible');
 
-                // ⭐ NUEVO: Mostrar botón debug cuando se pausa el juego
+
                 if (debugBtn) debugBtn.style.display = 'block';
             } else {
                 if (pauseButtons) pauseButtons.classList.remove('visible');
@@ -165,7 +165,7 @@ export class UIManager {
 
 /*sección [GESTOR DE AJUSTES] Código de gestión de ajustes de audio*/
 export class SettingsManager {
-        constructor(audioManager) {
+    constructor(audioManager) {
         this.audioManager = audioManager;
         this.settingsMenu = document.getElementById('settings-menu');
         this.settingsBtn = document.getElementById('settings-btn');
@@ -176,7 +176,7 @@ export class SettingsManager {
         this.musicValueEl = document.getElementById('music-volume-value');
         this.sfxValueEl = document.getElementById('sfx-volume-value');
 
-        // NUEVA ESTRUCTURA: Definir AUDIO_CONFIG si no está importado
+
         if (typeof AUDIO_CONFIG === 'undefined') {
             window.AUDIO_CONFIG = {
                 MUSIC_VOLUME: 0.6,
@@ -193,7 +193,7 @@ export class SettingsManager {
         this.setupEventListeners();
     }
 
-        loadSettings() {
+    loadSettings() {
         const savedSettings = localStorage.getItem('gameAudioSettings');
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
@@ -257,7 +257,7 @@ export class SettingsManager {
         });
     }
 
-        updateMusicVolume() {
+    updateMusicVolume() {
         const value = parseInt(this.musicSlider.value);
         this.musicValueEl.textContent = `${value}%`;
         if (this.audioManager) {
@@ -266,7 +266,7 @@ export class SettingsManager {
         }
     }
 
-        updateSFXVolume() {
+    updateSFXVolume() {
         const value = parseInt(this.sfxSlider.value);
         this.sfxValueEl.textContent = `${value}%`;
         if (this.audioManager) {
@@ -323,7 +323,7 @@ export class DebugPanel {
 
         this.createDebugPanel();
         this.setupEventListeners();
-        this.setupPauseMenuIntegration(); // ⭐ NUEVO: Integración con menú de pausa
+        this.setupPauseMenuIntegration();
     }
 
     createDebugPanel() {
@@ -405,10 +405,10 @@ export class DebugPanel {
         this.panel = panel;
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [PANEL DEBUG - EVENTOS] Listeners de todos los controles del panel de debug*/
-setupEventListeners() {
+    setupEventListeners() {
         document.getElementById('debug-close-btn').addEventListener('click', () => {
             this.hide();
         });
@@ -490,10 +490,10 @@ setupEventListeners() {
         });
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [PANEL DEBUG - VISIBILIDAD Y ACTUALIZACIÓN] Control de visibilidad e información en tiempo real*/
-show() {
+    show() {
         this.isVisible = true;
         this.panel.classList.add('active');
         this.startInfoUpdate();
@@ -504,7 +504,7 @@ show() {
         this.panel.classList.remove('active');
         this.stopInfoUpdate();
 
-        // ⭐ NUEVO: Resetear los checkboxes al estado del debugState actual
+
         document.getElementById('debug-god-mode').checked = this.debugState.godMode;
         document.getElementById('debug-infinite-ammo').checked = this.debugState.infiniteAmmo;
         document.getElementById('debug-fly-mode').checked = this.debugState.flyMode;
@@ -524,7 +524,7 @@ show() {
             this.show();
         }
 
-        // ⭐ NUEVO: Asegurarse de que el menú de pausa permanezca visible
+
         const startScreen = document.getElementById('start-screen');
         if (startScreen && this.isVisible) {
             startScreen.style.display = 'flex';

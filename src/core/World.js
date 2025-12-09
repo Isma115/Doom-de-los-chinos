@@ -19,7 +19,7 @@ export class World {
         this.doorMeshes = [];
         this.foodMeshes = [];
         this.ammoMeshes = [];
-        this.staticModels = []; // ★ NUEVO: Almacenar modelos 3D estáticos
+        this.staticModels = []; // Almacenar modelos 3D estáticos
     }
 
     async init(mapName = 'default') {
@@ -134,7 +134,7 @@ export class World {
         this.createFoodItemsFromMap();
         this.createAmmoItemsFromMap();
 
-        // ★ NUEVO: Cargar modelos 3D desde JSON externo
+        // Cargar modelos 3D desde JSON externo
         await this.load3DModelsFromJSON(mapName);
     }
 
@@ -255,10 +255,10 @@ export class World {
         return ammoSprite;
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [CREACIÓN DE ELEMENTOS DEL MAPA] Métodos para crear items coleccionables, muros, puertas y modelos 3D*/
-createAmmoItemsFromMap() {
+    createAmmoItemsFromMap() {
         this.ammoMeshes = [];
 
         if (!this.mapData.ammoItems || this.mapData.ammoItems.length === 0) {
@@ -349,7 +349,7 @@ createAmmoItemsFromMap() {
         });
     }
 
-    // ★ NUEVO: Carga de modelos 3D desde archivo JSON externo por mapa
+    // Carga de modelos 3D desde archivo JSON externo por mapa
     async load3DModelsFromJSON(mapName) {
         try {
             const response = await fetch(`modelos/${mapName}_models.json`);
@@ -407,7 +407,7 @@ createAmmoItemsFromMap() {
 
                     this.scene.add(finalObject);
 
-                    // ★ Colisión: caja ajustada al modelo
+                    // Colisión: caja ajustada al modelo
                     const box = new THREE.Box3().setFromObject(finalObject);
                     const size = box.getSize(new THREE.Vector3());
                     const center = box.getCenter(new THREE.Vector3());
@@ -603,10 +603,10 @@ createAmmoItemsFromMap() {
         });
     }
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [LIMPIEZA DE RECURSOS] Método para liberar memoria y limpiar recursos del mundo*/
-dispose() {
+    dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
 

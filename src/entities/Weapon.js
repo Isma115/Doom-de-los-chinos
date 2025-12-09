@@ -32,7 +32,7 @@ export class WeaponSystem { //
     } //
 
 
-    // ★ NUEVA FUNCIÓN: Para el flash del disparo también debe ignorar profundidad
+
     showMuzzleFlash() {
         if (!this.weaponFlashTexture) return;
 
@@ -102,7 +102,7 @@ export class WeaponSystem { //
     /*[Fin de sección]*/
 
     /*sección [VISUALES DEL ARMA] Actualización de sprites y texturas del arma equipada*/
-updateVisuals() {
+    updateVisuals() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
             if (this.weaponMesh.material.map) this.weaponMesh.material.map.dispose();
@@ -126,12 +126,12 @@ updateVisuals() {
             () => { console.error("No se pudo cargar el sprite de ataque"); }
         );
 
-        // ★ CORRECCIÓN CLAVE: El arma NO debe escribirse en el depth buffer ni respetar profundidad de paredes
+        // El arma NO debe escribirse en el depth buffer ni respetar profundidad de paredes
         const material = new THREE.SpriteMaterial({
             map: this.weaponTexture,
             transparent: true,
-            depthTest: false,    // ← No comprobar profundidad (siempre visible)
-            depthWrite: false,   // ← No escribir en el buffer de profundidad
+            depthTest: false,
+            depthWrite: false,
             polygonOffset: true,
             polygonOffsetFactor: -1,
             polygonOffsetUnits: -1
@@ -141,7 +141,7 @@ updateVisuals() {
         this.weaponMesh.scale.set(1.4, 1.4, 1);
         this.weaponMesh.position.set(0.5, -0.25, -1.1);
 
-        // ★ NUEVA: Evitar que el arma sea afectada por frustum culling
+
         this.weaponMesh.frustumCulled = false;
 
         this.camera.add(this.weaponMesh);
@@ -149,7 +149,7 @@ updateVisuals() {
         UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
     } //
 
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [SISTEMA DE DISPARO Y ANIMACIÓN] Lógica de disparo, raycast, retroceso y limpieza*/
     tryShoot(scoreCallback) {
@@ -240,7 +240,7 @@ updateVisuals() {
         const weapon = this.getCurrentWeapon();
 
         if (weapon.isMelee) {
-            // ⚔️ ARMAS MELEE: Barrido horizontal brusco y largo
+            // ARMAS MELEE: Barrido horizontal brusco y largo
             const startX = this.weaponMesh.position.x;
             const swingDistance = 1.8; // Distancia larga del barrido
             const swingDuration = 100; // Milisegundos para el barrido (rápido)
@@ -265,7 +265,7 @@ updateVisuals() {
                 }
             }, swingDuration + 50);
         } else {
-            // 🔫 ARMAS A DISTANCIA: Retroceso tradicional
+            // ARMAS A DISTANCIA: Retroceso tradicional
             this.weaponMesh.position.z += 0.2;
             this.weaponMesh.position.y -= 0.05;
 

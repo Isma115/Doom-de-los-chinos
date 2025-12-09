@@ -7,7 +7,7 @@ export class MapLoader {
     }
 
     /*sección [CARGA DE ARCHIVO DE MAPA] Carga y parseo del archivo de texto del mapa*/
-async loadMapFile(mapName = 'default') {
+    async loadMapFile(mapName = 'default') {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
             const response = await fetch(`mapas/${mapName}.txt`);
@@ -23,10 +23,10 @@ async loadMapFile(mapName = 'default') {
             return this.getDefaultMap();
         }
     }
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [PROCESAMIENTO Y ANÁLISIS DEL MAPA] Parseo del texto del mapa y conversión a objetos del juego*/
-parseMap(mapText) {
+    parseMap(mapText) {
         const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
         const height = lines.length;
 
@@ -167,7 +167,7 @@ parseMap(mapText) {
                     case "3":
                     case "4":
                     case "5":
-                    case "7": {  // ⭐ NUEVO: Agregar caso 7 para el enemigo charo
+                    case "7": {
                         const mapTypes = {
                             "1": "pablo",
                             "2": "pera",
@@ -175,7 +175,7 @@ parseMap(mapText) {
                             "4": "medium_med",
                             "5": "medium_med2",
                             "6": "patica",
-                            "7": "charo"  // ⭐ NUEVO: El número 7 representará al enemigo charo
+                            "7": "charo"
                         };
 
                         enemySpawns.push({
@@ -273,7 +273,7 @@ parseMap(mapText) {
             blockSize: this.blockSize
         };
     }
-/*[Fin de sección]*/
+    /*[Fin de sección]*/
 
     /*sección [UTILIDADES DE CONVERSIÓN] Conversión de coordenadas de grid a coordenadas 3D del mundo y mapa por defecto*/
     gridToWorld(gridX, gridY, mapWidth, mapHeight) {
