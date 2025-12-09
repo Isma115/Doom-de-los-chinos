@@ -11,7 +11,7 @@ export class AudioManager {
         this.initialized = false;
     }
 
-    async init() {
+        async init() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             this.masterGain = this.audioContext.createGain();
@@ -44,37 +44,38 @@ export class AudioManager {
     }
 
     async loadAllSounds() {
-        const soundFiles = {
-            pistol: 'assets/sound/weapons/pistol.mp3',
-            machinegun: 'assets/sound/weapons/ametra.mp3',
-            enemyDeath: 'assets/sound/enemy_death.mp3',
-            enemyHit: 'assets/sound/enemy_hit.mp3',
-            playerScream: 'assets/sound/misc/gas.mp3',
-            playerHurt: 'assets/sound/player_hurt.mp3',
-            grunt1: 'assets/sound/enemy_grunt1.mp3',
-            grunt2: 'assets/sound/enemy_grunt2.mp3',
-            growl1: 'assets/sound/enemy_growl1.mp3',
-            growl2: 'assets/sound/enemy_growl2.mp3',
-            hiss1: 'assets/sound/enemy_hiss1.mp3',
-            roar1: 'assets/sound/enemy_roar1.mp3',
-            doorOpen: 'assets/sound/door_open.mp3',
-            collectItem: 'assets/sound/collect.mp3',
-            background: 'assets/sound/background_music.mp3'
-        };
-        const loadPromises = Object.entries(soundFiles).map(async ([key, path]) => {
-            try {
-                const buffer = await this.loadSound(path);
-                if (key === 'background') {
-                    this.music[key] = buffer;
-                } else {
-                    this.sounds[key] = buffer;
-                }
-            } catch (error) {
-                console.warn(`No se pudo cargar el sonido ${key}:`, error);
+    const soundFiles = {
+        pistol: 'assets/sound/weapons/pistol.mp3',
+        machinegun: 'assets/sound/weapons/ametra.mp3',
+        enemyDeath: 'assets/sound/enemy_death.mp3',
+        enemyHit: 'assets/sound/enemy_hit.mp3',
+        playerScream: 'assets/sound/misc/gas.mp3',
+        playerHurt: 'assets/sound/player_hurt.mp3',
+        grunt1: 'assets/sound/enemy_grunt1.mp3',
+        grunt2: 'assets/sound/enemy_grunt2.mp3',
+        growl1: 'assets/sound/enemy_growl1.mp3',
+        growl2: 'assets/sound/enemy_growl2.mp3',
+        hiss1: 'assets/sound/enemy_hiss1.mp3',
+        roar1: 'assets/sound/enemy_roar1.mp3',
+        doorOpen: 'assets/sound/door_open.mp3',
+        collectItem: 'assets/sound/collect.mp3',
+        background: 'assets/sound/background_music.mp3',
+        lpdpm: 'assets/sound/music/LPDPM.mp3'
+    };
+    const loadPromises = Object.entries(soundFiles).map(async ([key, path]) => {
+        try {
+            const buffer = await this.loadSound(path);
+            if (key === 'background' || key === 'lpdpm') {
+                this.music[key] = buffer;
+            } else {
+                this.sounds[key] = buffer;
             }
-        });
-        await Promise.all(loadPromises);
-    }
+        } catch (error) {
+            console.warn(`No se pudo cargar el sonido ${key}:`, error);
+        }
+    });
+    await Promise.all(loadPromises);
+}
 
     async loadSound(url) {
         try {
@@ -162,16 +163,18 @@ playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
     }
 
     setMusicVolume(volume) {
-        if (this.musicGain) {
-            this.musicGain.gain.value = Math.max(0, Math.min(1, volume));
-        }
+    if (this.musicGain) {
+        const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
+        this.musicGain.gain.value = clampedVolume;
     }
+}
 
     setSFXVolume(volume) {
-        if (this.sfxGain) {
-            this.sfxGain.gain.value = Math.max(0, Math.min(1, volume));
-        }
+    if (this.sfxGain) {
+        const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
+        this.sfxGain.gain.value = clampedVolume;
     }
+}
 
     playRandomEnemySound(enemyType) {
         if (!enemyType.sounds || enemyType.sounds.length === 0) return;

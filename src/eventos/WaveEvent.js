@@ -5,29 +5,31 @@ import { UIManager } from '../UI.js';
 
 export class WaveEvent {
     constructor(enemyManager, world) {
-        this.enemyManager = enemyManager;
-        this.world = world;
-        this.genericSpawners = world.getGenericSpawners();
-        this.ammoSpawners = world.getAmmoSpawners();
-        this.foodSpawners = world.getFoodSpawners();
+    this.enemyManager = enemyManager;
+    this.world = world;
+    this.genericSpawners = world.getGenericSpawners();
+    this.ammoSpawners = world.getAmmoSpawners();
+    this.foodSpawners = world.getFoodSpawners();
 
-        this.lastAmmoSpawnTime = 0;
-        this.ammoSpawnInterval = 300; // 300 seconds
-        this.timeSinceLastAmmoSpawn = 0;
-        this.timeSinceLastFoodSpawn = 0;
+    this.lastAmmoSpawnTime = 0;
+    this.ammoSpawnInterval = 300;
+    this.timeSinceLastAmmoSpawn = 0;
+    this.timeSinceLastFoodSpawn = 0;
 
-        this.currentWave = 0;
-        this.waveActive = false;
-        this.enemiesSpawned = 0;
-        this.waveConfig = this.configureWaveData();
+    this.currentWave = 0;
+    this.waveActive = false;
+    this.enemiesSpawned = 0;
+    this.waveConfig = this.configureWaveData();
 
-        // Start first wave automatically after a brief delay
-        setTimeout(() => this.startWave(), 2000);
+    // NUEVA ESTRUCTURA: Control de música LPDPM para mapa de fortaleza
+    this.isFortalezaMap = false;
+    this.lpdpmMusicPlaying = false;
 
-        // Spawn initial ammo and food
-        this.spawnAmmoAtSpawners();
-        this.spawnFoodAtSpawners();
-    }
+    setTimeout(() => this.startWave(), 2000);
+
+    this.spawnAmmoAtSpawners();
+    this.spawnFoodAtSpawners();
+}
 
     /**
      * Configure wave data: which spawners to use and which enemies to spawn
@@ -98,23 +100,38 @@ export class WaveEvent {
      * Start a new wave
      */
     startWave() {
-        if (this.currentWave >= this.waveConfig.length) {
-            // All waves completed
-            UIManager.showEventMessage('¡TODAS LAS RONDAS COMPLETADAS! ¡VICTORIA!', 5000);
-            return;
-        }
-
-        this.waveActive = true;
-        this.enemiesSpawned = 0;
-
-        const waveNumber = this.currentWave + 1;
-        UIManager.showEventMessage(`RONDA ${waveNumber} - ¡PREPÁRATE!`, 3000);
-
-        console.log(`Iniciando ronda ${waveNumber}`);
-
-        // Spawn enemies after showing message
-        setTimeout(() => this.spawnEnemiesForWave(), 1000);
+    if (this.currentWave >= this.waveConfig.length) {
+        UIManager.showEventMessage('¡TODAS LAS RONDAS COMPLETADAS! ¡VICTORIA!', 5000);
+        return;
     }
+
+    this.waveActive = true;
+    this.enemiesSpawned = 0;
+
+    const waveNumber = this.currentWave + 1;
+    UIManager.showEventMessage(`RONDA ${waveNumber} - ¡PREPÁRATE!`, 3000);
+
+    console.log(`Iniciando ronda ${waveNumber}`);
+
+    // NUEVA ESTRUCTURA: Controlar música LPDPM en rondas 1 y 2 del mapa fortaleza
+    if (this.isFortalezaMap && (waveNumber === 1 || waveNumber === 2)) {
+        if (!this.lpdpmMusicPlaying && this.audioManager) {
+            this.audioManager.stopMusic();
+            this.audioManager.playMusic('lpdpm', 0.3);
+            this.lpdpmMusicPlaying = true;
+            console.log('Reproduciendo música LPDPM para ronda', waveNumber);
+        }
+    } else if (this.isFortalezaMap && waveNumber === 3 && this.lpdpmMusicPlaying) {
+        if (this.audioManager) {
+            this.audioManager.stopMusic();
+            this.audioManager.playMusic('background', 0.3);
+            this.lpdpmMusicPlaying = false;
+            console.log('Deteniendo música LPDPM en ronda 3');
+        }
+    }
+
+    setTimeout(() => this.spawnEnemiesForWave(), 1000);
+}
 
     /**
      * Spawn enemies for the current wave
@@ -238,24 +255,22 @@ export class WaveEvent {
      * Update method called from EventManager
      */
     update(delta) {
-        this.checkWaveCompletion();
+    this.checkWaveCompletion();
 
-        // Update ammo and food spawn timer (same interval)
-        this.timeSinceLastAmmoSpawn += delta;
-        this.timeSinceLastFoodSpawn += delta;
+    this.timeSinceLastAmmoSpawn += delta;
+    this.timeSinceLastFoodSpawn += delta;
 
-        if (this.timeSinceLastAmmoSpawn >= this.ammoSpawnInterval) {
-            this.spawnAmmoAtSpawners();
-            this.timeSinceLastAmmoSpawn = 0;
-            UIManager.showEventMessage('¡SUMINISTROS DE MUNICIÓN HAN LLEGADO!', 3000);
-        }
-
-        if (this.timeSinceLastFoodSpawn >= this.ammoSpawnInterval) {
-            this.spawnFoodAtSpawners();
-            this.timeSinceLastFoodSpawn = 0;
-            // No mostrar mensaje para comida para no saturar
-        }
+    if (this.timeSinceLastAmmoSpawn >= this.ammoSpawnInterval) {
+        this.spawnAmmoAtSpawners();
+        this.timeSinceLastAmmoSpawn = 0;
+        UIManager.showEventMessage('¡SUMINISTROS DE MUNICIÓN HAN LLEGADO!', 3000);
     }
+
+    if (this.timeSinceLastFoodSpawn >= this.ammoSpawnInterval) {
+        this.spawnFoodAtSpawners();
+        this.timeSinceLastFoodSpawn = 0;
+    }
+}
 
     spawnAmmoAtSpawners() {
         if (!this.ammoSpawners || this.ammoSpawners.length === 0) return;

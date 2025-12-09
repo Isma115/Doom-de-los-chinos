@@ -6,42 +6,49 @@ import { WaveEvent } from '../eventos/WaveEvent.js';
 
 export class EventManager {
     constructor(scene, enemyManager, audioManager, world) {
-        this.scene = scene;
-        this.enemyManager = enemyManager;
-        this.audioManager = audioManager;
-        this.world = world;
+    this.scene = scene;
+    this.enemyManager = enemyManager;
+    this.audioManager = audioManager;
+    this.world = world;
 
-        this.events = [];
-        this.processedEvents = new Set();
-        this.timeElapsed = 0;
-        this.waveEvent = null;
+    this.events = [];
+    this.processedEvents = new Set();
+    this.timeElapsed = 0;
+    this.waveEvent = null;
 
-        // Contenedor para efectos visuales temporales
-        this.postProcessingEnabled = false;
+    this.postProcessingEnabled = false;
 
-        // Inicializamos algunos eventos de ejemplo (esto podría cargarse desde el mapa en el futuro)
-        this.initDefaultEvents();
+    this.initDefaultEvents();
 
-        // Initialize wave event if there are generic spawners
-        const genericSpawners = world.getGenericSpawners();
-        if (genericSpawners && genericSpawners.length > 0) {
-            this.waveEvent = new WaveEvent(enemyManager, world);
-            console.log('Wave system initialized with', genericSpawners.length, 'generic spawners');
-        }
+    const genericSpawners = world.getGenericSpawners();
+    if (genericSpawners && genericSpawners.length > 0) {
+        this.waveEvent = new WaveEvent(enemyManager, world);
+        
+        // NUEVA ESTRUCTURA: Asignar AudioManager al WaveEvent
+        this.waveEvent.audioManager = audioManager;
+        
+        console.log('Wave system initialized with', genericSpawners.length, 'generic spawners');
     }
+}
 
     async loadEventsForMap(mapName) {
-        try {
-            const res = await fetch(`eventos/${mapName}_events.json`);
-            const data = await res.json();
+    try {
+        const res = await fetch(`eventos/${mapName}_events.json`);
+        const data = await res.json();
 
-            data.forEach(ev => this.addEvent(ev));
+        data.forEach(ev => this.addEvent(ev));
 
-            console.log(`Eventos cargados para el mapa: ${mapName}`);
-        } catch (err) {
-            console.warn(`No hay archivo de eventos para este mapa (${mapName})`);
-        }
+        console.log(`Eventos cargados para el mapa: ${mapName}`);
+    } catch (err) {
+        console.warn(`No hay archivo de eventos para este mapa (${mapName})`);
     }
+    
+    // NUEVA ESTRUCTURA: Activar música LPDPM si es el mapa de fortaleza
+    if (this.waveEvent && mapName === 'mapa1') {
+        this.waveEvent.isFortalezaMap = true;
+        console.log('Mapa de fortaleza detectado - Música LPDPM activada para rondas 1 y 2');
+    }
+}
 
 /*[Fin de sección]*/
 

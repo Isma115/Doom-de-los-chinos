@@ -35,11 +35,13 @@ export const AVAILABLE_MAPS = [
 ];
 
 export const AUDIO_CONFIG = {
-    MUSIC_VOLUME: 0.3,
-    SFX_VOLUME: 0.5,
-    ENEMY_SOUND_INTERVAL: 5000, // ★ NUEVO: Intervalo de 5 segundos
-    ENEMY_SOUND_DISTANCE: 60, // ★ NUEVO: Distancia máxima para escuchar enemigos
-    MAX_SIMULTANEOUS_ENEMY_SOUNDS: 10 // ★ NUEVO: Máximo 10 sonidos simultáneos
+    MUSIC_VOLUME: 0.6,
+    SFX_VOLUME: 0.8,
+    ENEMY_SOUND_MIN_INTERVAL: 5000,
+    ENEMY_SOUND_MAX_INTERVAL: 7000,
+    ENEMY_SOUND_DISTANCE: 60,
+    MAX_SIMULTANEOUS_ENEMY_SOUNDS: 10,
+    MAX_VOLUME_MULTIPLIER: 3.0
 };
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);

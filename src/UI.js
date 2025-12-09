@@ -165,7 +165,7 @@ export class UIManager {
 
 /*sección [GESTOR DE AJUSTES] Código de gestión de ajustes de audio*/
 export class SettingsManager {
-    constructor(audioManager) {
+        constructor(audioManager) {
         this.audioManager = audioManager;
         this.settingsMenu = document.getElementById('settings-menu');
         this.settingsBtn = document.getElementById('settings-btn');
@@ -176,11 +176,24 @@ export class SettingsManager {
         this.musicValueEl = document.getElementById('music-volume-value');
         this.sfxValueEl = document.getElementById('sfx-volume-value');
 
+        // NUEVA ESTRUCTURA: Definir AUDIO_CONFIG si no está importado
+        if (typeof AUDIO_CONFIG === 'undefined') {
+            window.AUDIO_CONFIG = {
+                MUSIC_VOLUME: 0.6,
+                SFX_VOLUME: 0.8,
+                ENEMY_SOUND_MIN_INTERVAL: 5000,
+                ENEMY_SOUND_MAX_INTERVAL: 7000,
+                ENEMY_SOUND_DISTANCE: 60,
+                MAX_SIMULTANEOUS_ENEMY_SOUNDS: 10,
+                MAX_VOLUME_MULTIPLIER: 3.0
+            };
+        }
+
         this.loadSettings();
         this.setupEventListeners();
     }
 
-    loadSettings() {
+        loadSettings() {
         const savedSettings = localStorage.getItem('gameAudioSettings');
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
@@ -244,19 +257,21 @@ export class SettingsManager {
         });
     }
 
-    updateMusicVolume() {
+        updateMusicVolume() {
         const value = parseInt(this.musicSlider.value);
         this.musicValueEl.textContent = `${value}%`;
         if (this.audioManager) {
-            this.audioManager.setMusicVolume(value / 100);
+            const normalizedVolume = (value / 100) * AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER;
+            this.audioManager.setMusicVolume(normalizedVolume);
         }
     }
 
-    updateSFXVolume() {
+        updateSFXVolume() {
         const value = parseInt(this.sfxSlider.value);
         this.sfxValueEl.textContent = `${value}%`;
         if (this.audioManager) {
-            this.audioManager.setSFXVolume(value / 100);
+            const normalizedVolume = (value / 100) * AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER;
+            this.audioManager.setSFXVolume(normalizedVolume);
         }
     }
 
