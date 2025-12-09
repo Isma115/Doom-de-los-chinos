@@ -9,41 +9,44 @@ export class Player {
 
 
 
-    constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
-    this.controls = new PointerLockControls(camera, domElement);
-    this.camera = camera;
-    this.audioManager = audioManager;
-    this.enemyManager = enemyManager;
-    this.gameInstance = gameInstance;
+        constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
+        this.controls = new PointerLockControls(camera, domElement);
+        this.camera = camera;
+        this.audioManager = audioManager;
+        this.enemyManager = enemyManager;
+        this.gameInstance = gameInstance;
 
-    scene.add(camera);
+        scene.add(camera);
 
-    this.world = world;
-    this.velocity = new THREE.Vector3();
-    this.direction = new THREE.Vector3();
-    this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
-    this.canJump = false;
+        this.world = world;
+        this.velocity = new THREE.Vector3();
+        this.direction = new THREE.Vector3();
+        this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
+        this.canJump = false;
 
-    this.health = 100;
-    this.score = 0;
-    this.isGameOver = false;
+        this.health = 100;
+        this.score = 0;
+        this.isGameOver = false;
 
-    this.radius = 2.0;
+        this.radius = 2.0;
 
-    camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
-    this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this, scene); // MODIFICACIÓN: añadimos scene
-    this.isShooting = false;
+        camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
+        
+        // NUEVA ESTRUCTURA: Inicializar debugState con bulletLog antes de crear WeaponSystem
+        this.debugState = {
+            godMode: false,
+            infiniteAmmo: false,
+            flyMode: false,
+            noClip: false,
+            speedMultiplier: 1.0,
+            bulletLog: true  // Valor por defecto
+        };
+        
+        this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this, scene);
+        this.isShooting = false;
 
-    this.debugState = {
-        godMode: false,
-        infiniteAmmo: false,
-        flyMode: false,
-        noClip: false,
-        speedMultiplier: 1.0
-    };
-
-    this.initEvents(domElement);
-}
+        this.initEvents(domElement);
+    }
     /*[Fin de sección]*/
 
     /*sección [TELETRANSPORTE] Método de teletransporte del jugador*/

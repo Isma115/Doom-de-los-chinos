@@ -84,7 +84,7 @@ class Game { //
     /*[Fin de sección]*/
 
     /*sección [INICIALIZACIÓN DEL JUEGO] Carga de mapa, jugador, enemigos y eventos*/
-    async initGame(mapName) {
+            async initGame(mapName) {
         await this.audioManager.init();
         this.world = new World(this.scene);
         await this.world.init(mapName);
@@ -105,15 +105,16 @@ class Game { //
             this.enemyManager,
             this.world,
             this.audioManager,
-            this // pasamos la instancia del Game al Player
-        ); const playerSpawn = this.world.getPlayerSpawn();
+            this
+        );
+        
+        const playerSpawn = this.world.getPlayerSpawn();
         const playerRotation = this.world.getPlayerRotation();
 
         if (playerSpawn) {
             this.player.teleport(playerSpawn, playerRotation);
         }
 
-        // Inicializar barra de vida antes de desbloquear controles
         UIManager.updateHealth(this.player.health);
 
         this.player.controls.addEventListener('lock', () => {
@@ -130,6 +131,10 @@ class Game { //
 
         this.settingsManager = new SettingsManager(this.audioManager);
         this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
+
+        // NUEVA ESTRUCTURA: Sincronizar el estado de bulletLog del debug panel con el weapon system y player
+        this.player.weaponSystem.debugState.bulletLog = this.debugPanel.debugState.bulletLog;
+        this.player.debugState.bulletLog = this.debugPanel.debugState.bulletLog;
 
         this.audioManager.playMusic('background');
 

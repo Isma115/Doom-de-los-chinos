@@ -4,126 +4,125 @@ import { WEAPONS_DATA } from '../Constants.js'; //
 import { UIManager } from '../UI.js';
 export class WeaponSystem { //
 
-constructor(camera, enemyManager, audioManager, player, scene) {
-    this.camera = camera;
-    this.enemyManager = enemyManager;
-    this.audioManager = audioManager;
-    this.player = player;
-    this.scene = scene;
-    this.currentIndex = 0;
-    this.lastShotTime = 0;
-    this.weaponMesh = null;
+    constructor(camera, enemyManager, audioManager, player, scene) {
+        this.camera = camera;
+        this.enemyManager = enemyManager;
+        this.audioManager = audioManager;
+        this.player = player;
+        this.scene = scene;
+        this.currentIndex = 0;
+        this.lastShotTime = 0;
+        this.weaponMesh = null;
 
-    this.raycaster = new THREE.Raycaster();
-    this.rayOrigin = new THREE.Vector2(0, 0);
+        this.raycaster = new THREE.Raycaster();
+        this.rayOrigin = new THREE.Vector2(0, 0);
 
-    this.debugState = {
-        infiniteAmmo: false
-    };
+        // NUEVA ESTRUCTURA: Inicializar bulletLog desde el debugState del player si está disponible
+        this.debugState = {
+            infiniteAmmo: false,
+            bulletLog: (player && player.debugState && player.debugState.bulletLog !== undefined)
+                ? player.debugState.bulletLog
+                : true  // Por defecto activado
+        };
 
-    this.weaponMaterials = [];
-    WEAPONS_DATA.forEach(weapon => {
-        this.weaponMaterials.push(
-            new THREE.MeshBasicMaterial({ color: weapon.color })
-        );
-    });
+        this.weaponMaterials = [];
+        WEAPONS_DATA.forEach(weapon => {
+            this.weaponMaterials.push(
+                new THREE.MeshBasicMaterial({ color: weapon.color })
+            );
+        });
 
-    // ──────────────────────────────────────────────────────────────
-    // NUEVA ESTRUCTURA: cargar las dos texturas de impacto en muros
-    // ──────────────────────────────────────────────────────────────
-    this.impactTextures = [];
-    const textureLoader = new THREE.TextureLoader();
-    const paths = ['assets/textures/bullet_wall.png', 'assets/textures/bullet_wall2.png'];
-    paths.forEach(path => {
-        textureLoader.load(path,
-            (texture) => {
-                this.impactTextures.push(texture);
-            },
-            undefined,
-            (err) => {
-                console.error('No se pudo cargar la textura de impacto en muros', path, err);
-            }
-        );
-    });
+        this.impactTextures = [];
+        const textureLoader = new THREE.TextureLoader();
+        const paths = ['assets/textures/bullet_wall.png', 'assets/textures/bullet_wall2.png'];
+        paths.forEach(path => {
+            textureLoader.load(path,
+                (texture) => {
+                    this.impactTextures.push(texture);
+                },
+                undefined,
+                (err) => {
+                    console.error('No se pudo cargar la textura de impacto en muros', path, err);
+                }
+            );
+        });
 
-    // Si por alguna razón alguna textura falla, siempre tendremos al menos una
-    if (this.impactTextures.length === 0) {
-        // fallback: crear una textura en blanco (evita errores)
-        this.impactTextures.push(new THREE.Texture());
+        if (this.impactTextures.length === 0) {
+            this.impactTextures.push(new THREE.Texture());
+        }
+
+        this.updateVisuals();
     }
-
-    this.updateVisuals();
-}
     getCurrentWeapon() {
         return WEAPONS_DATA[this.currentIndex];
     } //
 
 
 
-createWallImpactEffect(hitPoint, hitNormal) {
-    // ──────────────────────────────────────────────────────────────
-    // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
-    // ──────────────────────────────────────────────────────────────
-    if (this.impactTextures.length === 0) {
-        return; // nada que pintar si no hay texturas cargadas
-    }
-
-    const texture = this.impactTextures[Math.floor(Math.random() * this.impactTextures.length)];
-
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: 1.0,
-        depthTest: false,
-        depthWrite: false,
-        side: THREE.DoubleSide
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-
-    const offset = 0.05;
-    const adjustedPosition = hitPoint.clone();
-    adjustedPosition.add(hitNormal.clone().multiplyScalar(offset));
-    mesh.position.copy(adjustedPosition);
-
-    mesh.lookAt(adjustedPosition.clone().add(hitNormal.clone().negate()));
-
-    mesh.rotateOnAxis(new THREE.Vector3(0, 0, 1), Math.random() * Math.PI * 2);
-
-    const baseSize = 0.4;
-    const randomSize = 0.2 + Math.random() * 0.4;
-    const finalSize = baseSize + randomSize;
-    mesh.scale.set(finalSize, finalSize, finalSize);
-
-    this.scene.add(mesh);
-
-    const fadeOut = () => {
-        if (mesh.parent) {
-            mesh.material.opacity -= 0.05;
-            if (mesh.material.opacity <= 0) {
-                mesh.parent.remove(mesh);
-                if (mesh.material.map) mesh.material.map.dispose();
-                mesh.material.dispose();
-                mesh.geometry.dispose();
-            } else {
-                requestAnimationFrame(fadeOut);
-            }
+    createWallImpactEffect(hitPoint, hitNormal) {
+        // ──────────────────────────────────────────────────────────────
+        // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
+        // ──────────────────────────────────────────────────────────────
+        if (this.impactTextures.length === 0) {
+            return; // nada que pintar si no hay texturas cargadas
         }
-    };
 
-    setTimeout(fadeOut, 300);
-}
+        const texture = this.impactTextures[Math.floor(Math.random() * this.impactTextures.length)];
+
+        const geometry = new THREE.PlaneGeometry(1, 1);
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 1.0,
+            depthTest: false,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+
+        const offset = 0.05;
+        const adjustedPosition = hitPoint.clone();
+        adjustedPosition.add(hitNormal.clone().multiplyScalar(offset));
+        mesh.position.copy(adjustedPosition);
+
+        mesh.lookAt(adjustedPosition.clone().add(hitNormal.clone().negate()));
+
+        mesh.rotateOnAxis(new THREE.Vector3(0, 0, 1), Math.random() * Math.PI * 2);
+
+        const baseSize = 0.4;
+        const randomSize = 0.2 + Math.random() * 0.4;
+        const finalSize = baseSize + randomSize;
+        mesh.scale.set(finalSize, finalSize, finalSize);
+
+        this.scene.add(mesh);
+
+        const fadeOut = () => {
+            if (mesh.parent) {
+                mesh.material.opacity -= 0.05;
+                if (mesh.material.opacity <= 0) {
+                    mesh.parent.remove(mesh);
+                    if (mesh.material.map) mesh.material.map.dispose();
+                    mesh.material.dispose();
+                    mesh.geometry.dispose();
+                } else {
+                    requestAnimationFrame(fadeOut);
+                }
+            }
+        };
+
+        setTimeout(fadeOut, 300);
+    }
 
     getSolidObjects() {
         const solidObjects = [];
-        
+
         // Obtener muros del mundo
         if (this.player && this.player.world && this.player.world.getWalls) {
             const walls = this.player.world.getWalls();
             solidObjects.push(...walls);
         }
-        
+
         // Obtener puertas cerradas
         if (window.Door && Door.instances) {
             Door.instances.forEach(door => {
@@ -132,13 +131,13 @@ createWallImpactEffect(hitPoint, hitNormal) {
                 }
             });
         }
-        
+
         // Obtener modelos estáticos 3D que sean sólidos
         if (this.player && this.player.world && this.player.world.getStaticModels) {
             const staticModels = this.player.world.getStaticModels();
             solidObjects.push(...staticModels);
         }
-        
+
         return solidObjects;
     }
     showMuzzleFlash() {
@@ -305,72 +304,75 @@ createWallImpactEffect(hitPoint, hitNormal) {
         this.animateRecoil();
     }
 
-        performRaycast(weapon, scoreCallback) {
-    this.raycaster.setFromCamera(this.rayOrigin, this.camera);
+    performRaycast(weapon, scoreCallback) {
+        this.raycaster.setFromCamera(this.rayOrigin, this.camera);
 
-    // Aplicar rango limitado para armas melee
-    if (weapon.isMelee && weapon.range) {
-        this.raycaster.far = weapon.range;
-    } else {
-        this.raycaster.far = Infinity; // Armas de fuego sin límite
-    }
+        if (weapon.isMelee && weapon.range) {
+            this.raycaster.far = weapon.range;
+        } else {
+            this.raycaster.far = Infinity;
+        }
 
-    const enemyMeshes = this.enemyManager.enemies.filter(e => e.visible);
-    
-    // Obtener todos los objetos sólidos (muros, puertas cerradas, etc.)
-    const solidObjects = this.getSolidObjects();
-    
-    // Combinar enemigos y objetos sólidos para la detección de colisiones
-    const allObjects = enemyMeshes.concat(solidObjects);
-    
-    const intersects = this.raycaster.intersectObjects(allObjects, false);
+        const enemyMeshes = this.enemyManager.enemies.filter(e => e.visible);
 
-    if (intersects.length > 0) {
-        const hitObj = intersects[0].object;
-        const hitPoint = intersects[0].point;
-        
-        // Verificar si el objeto impactado es un enemigo
-        if (hitObj.userData && hitObj.userData.hp !== undefined) {
-            // Es un enemigo - aplicar daño
-            hitObj.userData.hp -= weapon.damage;
+        const solidObjects = this.getSolidObjects();
 
-            const impactTime = performance.now();
-            hitObj.userData.bloodTime = impactTime;
-            if (hitObj.userData.drawBlood) {
-                hitObj.userData.drawBlood(hitPoint);
-            }
+        const allObjects = enemyMeshes.concat(solidObjects);
 
-            hitObj.material.color.setHex(0xff3333);
-            setTimeout(() => {
-                if (hitObj.parent && hitObj.userData.hp > 0) {
-                    hitObj.material.color.setHex(0xffffff);
+        const intersects = this.raycaster.intersectObjects(allObjects, false);
+
+        let lastBulletStopPosition = null;
+
+        if (intersects.length > 0) {
+            const hitObj = intersects[0].object;
+            const hitPoint = intersects[0].point;
+            lastBulletStopPosition = hitPoint.clone();
+
+            if (hitObj.userData && hitObj.userData.hp !== undefined) {
+                hitObj.userData.hp -= weapon.damage;
+
+                const impactTime = performance.now();
+                hitObj.userData.bloodTime = impactTime;
+                if (hitObj.userData.drawBlood) {
+                    hitObj.userData.drawBlood(hitPoint);
                 }
-            }, 80);
-            if (hitObj.userData.hp <= 0) {
-                this.enemyManager.removeEnemy(hitObj);
-                scoreCallback();
+
+                hitObj.material.color.setHex(0xff3333);
+                setTimeout(() => {
+                    if (hitObj.parent && hitObj.userData.hp > 0) {
+                        hitObj.material.color.setHex(0xffffff);
+                    }
+                }, 80);
+                if (hitObj.userData.hp <= 0) {
+                    this.enemyManager.removeEnemy(hitObj);
+                    scoreCallback();
+                }
+            } else {
+                if (this.audioManager) {
+                    this.audioManager.playSound('enemyHit', 0.3);
+                }
+
+                if (intersects[0].face) {
+                    const hitNormal = intersects[0].face.normal.clone();
+                    hitNormal.transformDirection(hitObj.matrixWorld);
+                    this.createWallImpactEffect(hitPoint, hitNormal);
+                } else {
+                    const hitNormal = new THREE.Vector3().subVectors(hitPoint, this.camera.position).normalize();
+                    this.createWallImpactEffect(hitPoint, hitNormal);
+                }
             }
         } else {
-            // Es un objeto sólido (muro, puerta cerrada, etc.)
-            // El disparo se detiene aquí, no atraviesa
-            if (this.audioManager) {
-                this.audioManager.playSound('enemyHit', 0.3); // Sonido de impacto en pared
-            }
-            
-            // Crear efecto visual de impacto en la pared
-            // Obtener la normal de la superficie para colocar el sprite correctamente
-            if (intersects[0].face) {
-                const hitNormal = intersects[0].face.normal.clone();
-                hitNormal.transformDirection(hitObj.matrixWorld);
-                this.createWallImpactEffect(hitPoint, hitNormal);
-            } else {
-                // Si no hay normal (no debería pasar), usamos un vector por defecto (por ejemplo, hacia la cámara)
-                const hitNormal = new THREE.Vector3().subVectors(hitPoint, this.camera.position).normalize();
-                this.createWallImpactEffect(hitPoint, hitNormal);
-            }
+            const farPoint = new THREE.Vector3();
+            this.raycaster.ray.at(200, farPoint);
+            lastBulletStopPosition = farPoint;
+        }
+
+        // NUEVA ESTRUCTURA: Verificar bulletLog antes de imprimir el console log
+
+        if (lastBulletStopPosition && this.player && this.player.debugState && this.player.debugState.bulletLog) {
+            console.log(`Última bala disparada se detuvo en X: ${lastBulletStopPosition.x.toFixed(2)}, Y: ${lastBulletStopPosition.y.toFixed(2)}, Z: ${lastBulletStopPosition.z.toFixed(2)}`);
         }
     }
-}
 
     animateRecoil() {
         if (!this.weaponMesh) return;

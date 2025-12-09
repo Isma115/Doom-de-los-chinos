@@ -58,6 +58,9 @@ export class UIManager {
         document.getElementById('ammo-display').innerText = "Munición: " + ammoText;
     }
 
+
+
+
     static updateAngle(angleDegrees) {
         let el = document.getElementById('angle-display');
         if (!el) {
@@ -140,7 +143,7 @@ export class UIManager {
         document.getElementById('start-screen').style.display = 'flex';
     }
 
-        static togglePauseScreen(isLocked, isGameOver) {
+    static togglePauseScreen(isLocked, isGameOver) {
         const screen = document.getElementById('start-screen');
         const pauseButtons = document.getElementById('pause-buttons');
         const pauseSubtitle = screen.querySelector('.pause-subtitle');
@@ -158,7 +161,7 @@ export class UIManager {
             if (debugPanel) debugPanel.classList.remove('active');
 
             if (debugBtn) debugBtn.style.display = 'none';
-            
+
             // NUEVA ESTRUCTURA: Mostrar coordenadas cuando el juego está activo
             if (coordsDisplay) coordsDisplay.style.display = 'block';
         } else {
@@ -172,7 +175,7 @@ export class UIManager {
                 if (pauseButtons) pauseButtons.classList.remove('visible');
                 if (debugBtn) debugBtn.style.display = 'none';
             }
-            
+
             // NUEVA ESTRUCTURA: Ocultar coordenadas cuando el juego está en pausa
             if (coordsDisplay) coordsDisplay.style.display = 'none';
         }
@@ -329,13 +332,27 @@ export class DebugPanel {
         this.weaponSystem = weaponSystem;
         this.isVisible = false;
 
-        this.debugState = {
-            godMode: false,
-            infiniteAmmo: false,
-            flyMode: false,
-            noClip: false,
-            speedMultiplier: 1.0
-        };
+        const savedDebugSettings = localStorage.getItem('gameDebugSettings');
+        if (savedDebugSettings) {
+            const settings = JSON.parse(savedDebugSettings);
+            this.debugState = {
+                godMode: settings.godMode || false,
+                infiniteAmmo: settings.infiniteAmmo || false,
+                flyMode: settings.flyMode || false,
+                noClip: settings.noClip || false,
+                speedMultiplier: settings.speedMultiplier || 1.0,
+                bulletLog: settings.bulletLog !== undefined ? settings.bulletLog : true // NUEVA ESTRUCTURA: Cargar valor guardado
+            };
+        } else {
+            this.debugState = {
+                godMode: false,
+                infiniteAmmo: false,
+                flyMode: false,
+                noClip: false,
+                speedMultiplier: 1.0,
+                bulletLog: true // NUEVA ESTRUCTURA: Por defecto activado
+            };
+        }
 
         this.createDebugPanel();
         this.setupEventListeners();
@@ -343,6 +360,12 @@ export class DebugPanel {
     }
 
     createDebugPanel() {
+        // Limpiar panel existente si hay alguno para evitar duplicados e IDs repetidos
+        const existingPanel = document.getElementById('debug-panel');
+        if (existingPanel) {
+            existingPanel.remove();
+        }
+
         const panel = document.createElement('div');
         panel.id = 'debug-panel';
         panel.className = 'debug-panel';
@@ -369,6 +392,10 @@ export class DebugPanel {
                         <span class="debug-toggle-label">Munición Infinita</span>
                     </label>
                     <button class="debug-btn" id="debug-refill-ammo">Rellenar Munición</button>
+                    <label class="debug-toggle">
+                        <input type="checkbox" id="debug-bullet-log" checked>
+                        <span class="debug-toggle-label">Console Log de Impacto de Balas</span>
+                    </label>
                 </div>
                 
                 <div class="debug-section">
@@ -421,6 +448,18 @@ export class DebugPanel {
         this.panel = panel;
     }
 
+    saveDebugSettings() {
+        const settings = {
+            godMode: this.debugState.godMode,
+            infiniteAmmo: this.debugState.infiniteAmmo,
+            flyMode: this.debugState.flyMode,
+            noClip: this.debugState.noClip,
+            speedMultiplier: this.debugState.speedMultiplier,
+            bulletLog: this.debugState.bulletLog
+        };
+        localStorage.setItem('gameDebugSettings', JSON.stringify(settings));
+    }
+
     /*[Fin de sección]*/
 
     /*sección [PANEL DEBUG - EVENTOS] Listeners de todos los controles del panel de debug*/
@@ -431,78 +470,73 @@ export class DebugPanel {
 
         document.getElementById('debug-god-mode').addEventListener('change', (e) => {
             this.debugState.godMode = e.target.checked;
-            this.player.debugState.godMode = e.target.checked;
-            console.log('God Mode:', e.target.checked);
+            this.saveDebugSettings();
         });
 
         document.getElementById('debug-infinite-ammo').addEventListener('change', (e) => {
             this.debugState.infiniteAmmo = e.target.checked;
-            this.weaponSystem.debugState.infiniteAmmo = e.target.checked;
-            console.log('Infinite Ammo:', e.target.checked);
+            this.saveDebugSettings();
+
+            // NUEVA ESTRUCTURA: Sincronizar con weapon system
+            if (this.weaponSystem) {
+                this.weaponSystem.debugState.infiniteAmmo = e.target.checked;
+            }
+        });
+
+        // NUEVA ESTRUCTURA: Event listener para Console Log de Impacto de Balas
+        document.getElementById('debug-bullet-log').addEventListener('change', (e) => {
+            this.debugState.bulletLog = e.target.checked;
+            this.saveDebugSettings();
+
+            // Sincronizar con weapon system
+            if (this.weaponSystem) {
+                this.weaponSystem.debugState.bulletLog = e.target.checked;
+            }
+
+            // Sincronizar con player debugState para consistencia
+            if (this.player) {
+                this.player.debugState.bulletLog = e.target.checked;
+            }
         });
 
         document.getElementById('debug-fly-mode').addEventListener('change', (e) => {
             this.debugState.flyMode = e.target.checked;
-            this.player.debugState.flyMode = e.target.checked;
-            console.log('Fly Mode:', e.target.checked);
+            this.saveDebugSettings();
         });
 
         document.getElementById('debug-noclip').addEventListener('change', (e) => {
             this.debugState.noClip = e.target.checked;
-            this.player.debugState.noClip = e.target.checked;
-            console.log('NoClip:', e.target.checked);
+            this.saveDebugSettings();
         });
 
         document.getElementById('debug-speed').addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            this.debugState.speedMultiplier = value;
-            this.player.debugState.speedMultiplier = value;
-            document.getElementById('speed-value').textContent = value.toFixed(1) + 'x';
+            this.debugState.speedMultiplier = parseFloat(e.target.value);
+            document.getElementById('speed-value').textContent = this.debugState.speedMultiplier.toFixed(1) + 'x';
+            this.saveDebugSettings();
         });
 
         document.getElementById('debug-refill-ammo').addEventListener('click', () => {
-            WEAPONS_DATA.forEach((weapon, index) => {
-                if (!weapon.isMelee) {
-                    weapon.ammo = weapon.maxAmmo;
-                }
-            });
-            UIManager.updateAmmo(this.weaponSystem.getCurrentWeapon().ammo);
-            console.log('Munición rellenada');
+            this.weaponSystem.refillAllAmmo();
         });
 
         document.getElementById('debug-heal-full').addEventListener('click', () => {
             this.player.health = 100;
-            UIManager.updateHealth(this.player.health);
-            console.log('Salud restaurada');
+            UIManager.updateHealth(100);
         });
 
         document.getElementById('debug-damage-self').addEventListener('click', () => {
             this.player.takeDamage(20);
-            console.log('Daño auto-infligido');
         });
 
         document.getElementById('debug-kill-all').addEventListener('click', () => {
-            const enemies = [...this.player.enemyManager.enemies];
-            enemies.forEach(enemy => {
-                this.player.enemyManager.removeEnemy(enemy);
-            });
-            console.log('Todos los enemigos eliminados');
+            this.player.enemyManager.removeAllEnemies();
         });
 
         document.getElementById('debug-teleport').addEventListener('click', () => {
-            const x = parseFloat(document.getElementById('debug-tp-x').value) || 0;
-            const y = parseFloat(document.getElementById('debug-tp-y').value) || 10;
-            const z = parseFloat(document.getElementById('debug-tp-z').value) || 0;
-
-            this.player.teleport(new THREE.Vector3(x, y, z));
-            console.log(`Teletransportado a: ${x}, ${y}, ${z}`);
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'F3') {
-                e.preventDefault();
-                this.toggle();
-            }
+            const x = parseFloat(document.getElementById('debug-tp-x').value);
+            const y = parseFloat(document.getElementById('debug-tp-y').value);
+            const z = parseFloat(document.getElementById('debug-tp-z').value);
+            this.player.teleport(x, y, z);
         });
     }
 
@@ -512,6 +546,19 @@ export class DebugPanel {
     show() {
         this.isVisible = true;
         this.panel.classList.add('active');
+
+        document.getElementById('debug-god-mode').checked = this.debugState.godMode;
+        document.getElementById('debug-infinite-ammo').checked = this.debugState.infiniteAmmo;
+        document.getElementById('debug-fly-mode').checked = this.debugState.flyMode;
+        document.getElementById('debug-noclip').checked = this.debugState.noClip;
+        document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog; // NUEVA ESTRUCTURA: Actualizar checkbox
+
+        const speedSlider = document.getElementById('debug-speed');
+        if (speedSlider) {
+            speedSlider.value = this.debugState.speedMultiplier;
+            document.getElementById('speed-value').textContent = this.debugState.speedMultiplier.toFixed(1) + 'x';
+        }
+
         this.startInfoUpdate();
     }
 
@@ -520,11 +567,11 @@ export class DebugPanel {
         this.panel.classList.remove('active');
         this.stopInfoUpdate();
 
-
         document.getElementById('debug-god-mode').checked = this.debugState.godMode;
         document.getElementById('debug-infinite-ammo').checked = this.debugState.infiniteAmmo;
         document.getElementById('debug-fly-mode').checked = this.debugState.flyMode;
         document.getElementById('debug-noclip').checked = this.debugState.noClip;
+        document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog; // NUEVA ESTRUCTURA: Actualizar checkbox
 
         const speedSlider = document.getElementById('debug-speed');
         if (speedSlider) {

@@ -3,7 +3,7 @@
         "type": "square",
         "texture": "assets/3D/decoracion/images.jpeg",
         "position": {
-            "x": -135,
+            "x": -180,
             "y": 2,
             "z": -80.1
         },
