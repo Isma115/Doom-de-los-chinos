@@ -3,71 +3,117 @@ import * as THREE from '../../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from '../Constants.js'; //
 import { UIManager } from '../UI.js';
 export class WeaponSystem { //
-    constructor(camera, enemyManager, audioManager, player) {
-        this.camera = camera;
-        this.enemyManager = enemyManager;
-        this.audioManager = audioManager;
-        this.player = player;
-        this.currentIndex = 0;
-        this.lastShotTime = 0;
-        this.weaponMesh = null;
 
-        this.raycaster = new THREE.Raycaster();
-        this.rayOrigin = new THREE.Vector2(0, 0);
+constructor(camera, enemyManager, audioManager, player, scene) {
+    this.camera = camera;
+    this.enemyManager = enemyManager;
+    this.audioManager = audioManager;
+    this.player = player;
+    this.scene = scene;
+    this.currentIndex = 0;
+    this.lastShotTime = 0;
+    this.weaponMesh = null;
 
-        this.debugState = {
-            infiniteAmmo: false
-        };
+    this.raycaster = new THREE.Raycaster();
+    this.rayOrigin = new THREE.Vector2(0, 0);
 
-        this.weaponMaterials = [];
-        WEAPONS_DATA.forEach(weapon => {
-            this.weaponMaterials.push(
-                new THREE.MeshBasicMaterial({ color: weapon.color })
-            );
-        });
-        this.updateVisuals();
+    this.debugState = {
+        infiniteAmmo: false
+    };
+
+    this.weaponMaterials = [];
+    WEAPONS_DATA.forEach(weapon => {
+        this.weaponMaterials.push(
+            new THREE.MeshBasicMaterial({ color: weapon.color })
+        );
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // NUEVA ESTRUCTURA: cargar las dos texturas de impacto en muros
+    // ──────────────────────────────────────────────────────────────
+    this.impactTextures = [];
+    const textureLoader = new THREE.TextureLoader();
+    const paths = ['assets/textures/bullet_wall.png', 'assets/textures/bullet_wall2.png'];
+    paths.forEach(path => {
+        textureLoader.load(path,
+            (texture) => {
+                this.impactTextures.push(texture);
+            },
+            undefined,
+            (err) => {
+                console.error('No se pudo cargar la textura de impacto en muros', path, err);
+            }
+        );
+    });
+
+    // Si por alguna razón alguna textura falla, siempre tendremos al menos una
+    if (this.impactTextures.length === 0) {
+        // fallback: crear una textura en blanco (evita errores)
+        this.impactTextures.push(new THREE.Texture());
     }
+
+    this.updateVisuals();
+}
     getCurrentWeapon() {
         return WEAPONS_DATA[this.currentIndex];
     } //
 
 
-    createWallImpactEffect(position) {
-        // Crear un efecto visual temporal en el punto de impacto
-        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0xffcc00,
-            transparent: true,
-            opacity: 0.8
-        });
-        
-        const impactSphere = new THREE.Mesh(geometry, material);
-        impactSphere.position.copy(position);
-        
-        if (this.camera && this.camera.parent) {
-            this.camera.parent.add(impactSphere);
-        }
-        
-        // Animar y eliminar el efecto
-        let scale = 0.5;
-        const animate = () => {
-            scale += 0.1;
-            impactSphere.scale.set(scale, scale, scale);
-            material.opacity -= 0.05;
-            
-            if (material.opacity > 0) {
-                requestAnimationFrame(animate);
-            } else {
-                if (impactSphere.parent) {
-                    impactSphere.parent.remove(impactSphere);
-                }
-                geometry.dispose();
-                material.dispose();
-            }
-        };
-        
-        setTimeout(animate, 0);
+
+createWallImpactEffect(hitPoint, hitNormal) {
+    // ──────────────────────────────────────────────────────────────
+    // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
+    // ──────────────────────────────────────────────────────────────
+    if (this.impactTextures.length === 0) {
+        return; // nada que pintar si no hay texturas cargadas
     }
+
+    const texture = this.impactTextures[Math.floor(Math.random() * this.impactTextures.length)];
+
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 1.0,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+
+    const offset = 0.05;
+    const adjustedPosition = hitPoint.clone();
+    adjustedPosition.add(hitNormal.clone().multiplyScalar(offset));
+    mesh.position.copy(adjustedPosition);
+
+    mesh.lookAt(adjustedPosition.clone().add(hitNormal.clone().negate()));
+
+    mesh.rotateOnAxis(new THREE.Vector3(0, 0, 1), Math.random() * Math.PI * 2);
+
+    const baseSize = 0.4;
+    const randomSize = 0.2 + Math.random() * 0.4;
+    const finalSize = baseSize + randomSize;
+    mesh.scale.set(finalSize, finalSize, finalSize);
+
+    this.scene.add(mesh);
+
+    const fadeOut = () => {
+        if (mesh.parent) {
+            mesh.material.opacity -= 0.05;
+            if (mesh.material.opacity <= 0) {
+                mesh.parent.remove(mesh);
+                if (mesh.material.map) mesh.material.map.dispose();
+                mesh.material.dispose();
+                mesh.geometry.dispose();
+            } else {
+                requestAnimationFrame(fadeOut);
+            }
+        }
+    };
+
+    setTimeout(fadeOut, 300);
+}
 
     getSolidObjects() {
         const solidObjects = [];
@@ -260,63 +306,71 @@ export class WeaponSystem { //
     }
 
         performRaycast(weapon, scoreCallback) {
-        this.raycaster.setFromCamera(this.rayOrigin, this.camera);
+    this.raycaster.setFromCamera(this.rayOrigin, this.camera);
 
-        // Aplicar rango limitado para armas melee
-        if (weapon.isMelee && weapon.range) {
-            this.raycaster.far = weapon.range;
+    // Aplicar rango limitado para armas melee
+    if (weapon.isMelee && weapon.range) {
+        this.raycaster.far = weapon.range;
+    } else {
+        this.raycaster.far = Infinity; // Armas de fuego sin límite
+    }
+
+    const enemyMeshes = this.enemyManager.enemies.filter(e => e.visible);
+    
+    // Obtener todos los objetos sólidos (muros, puertas cerradas, etc.)
+    const solidObjects = this.getSolidObjects();
+    
+    // Combinar enemigos y objetos sólidos para la detección de colisiones
+    const allObjects = enemyMeshes.concat(solidObjects);
+    
+    const intersects = this.raycaster.intersectObjects(allObjects, false);
+
+    if (intersects.length > 0) {
+        const hitObj = intersects[0].object;
+        const hitPoint = intersects[0].point;
+        
+        // Verificar si el objeto impactado es un enemigo
+        if (hitObj.userData && hitObj.userData.hp !== undefined) {
+            // Es un enemigo - aplicar daño
+            hitObj.userData.hp -= weapon.damage;
+
+            const impactTime = performance.now();
+            hitObj.userData.bloodTime = impactTime;
+            if (hitObj.userData.drawBlood) {
+                hitObj.userData.drawBlood(hitPoint);
+            }
+
+            hitObj.material.color.setHex(0xff3333);
+            setTimeout(() => {
+                if (hitObj.parent && hitObj.userData.hp > 0) {
+                    hitObj.material.color.setHex(0xffffff);
+                }
+            }, 80);
+            if (hitObj.userData.hp <= 0) {
+                this.enemyManager.removeEnemy(hitObj);
+                scoreCallback();
+            }
         } else {
-            this.raycaster.far = Infinity; // Armas de fuego sin límite
-        }
-
-        const enemyMeshes = this.enemyManager.enemies.filter(e => e.visible);
-        
-        // Obtener todos los objetos sólidos (muros, puertas cerradas, etc.)
-        const solidObjects = this.getSolidObjects();
-        
-        // Combinar enemigos y objetos sólidos para la detección de colisiones
-        const allObjects = enemyMeshes.concat(solidObjects);
-        
-        const intersects = this.raycaster.intersectObjects(allObjects, false);
-
-        if (intersects.length > 0) {
-            const hitObj = intersects[0].object;
-            const hitPoint = intersects[0].point;
+            // Es un objeto sólido (muro, puerta cerrada, etc.)
+            // El disparo se detiene aquí, no atraviesa
+            if (this.audioManager) {
+                this.audioManager.playSound('enemyHit', 0.3); // Sonido de impacto en pared
+            }
             
-            // Verificar si el objeto impactado es un enemigo
-            if (hitObj.userData && hitObj.userData.hp !== undefined) {
-                // Es un enemigo - aplicar daño
-                hitObj.userData.hp -= weapon.damage;
-
-                const impactTime = performance.now();
-                hitObj.userData.bloodTime = impactTime;
-                if (hitObj.userData.drawBlood) {
-                    hitObj.userData.drawBlood(hitPoint);
-                }
-
-                hitObj.material.color.setHex(0xff3333);
-                setTimeout(() => {
-                    if (hitObj.parent && hitObj.userData.hp > 0) {
-                        hitObj.material.color.setHex(0xffffff);
-                    }
-                }, 80);
-                if (hitObj.userData.hp <= 0) {
-                    this.enemyManager.removeEnemy(hitObj);
-                    scoreCallback();
-                }
+            // Crear efecto visual de impacto en la pared
+            // Obtener la normal de la superficie para colocar el sprite correctamente
+            if (intersects[0].face) {
+                const hitNormal = intersects[0].face.normal.clone();
+                hitNormal.transformDirection(hitObj.matrixWorld);
+                this.createWallImpactEffect(hitPoint, hitNormal);
             } else {
-                // Es un objeto sólido (muro, puerta cerrada, etc.)
-                // El disparo se detiene aquí, no atraviesa
-                // Opcional: Podemos añadir efectos de impacto en la pared aquí
-                if (this.audioManager) {
-                    this.audioManager.playSound('enemyHit', 0.3); // Sonido de impacto en pared
-                }
-                
-                // Crear efecto visual de impacto en la pared
-                this.createWallImpactEffect(hitPoint);
+                // Si no hay normal (no debería pasar), usamos un vector por defecto (por ejemplo, hacia la cámara)
+                const hitNormal = new THREE.Vector3().subVectors(hitPoint, this.camera.position).normalize();
+                this.createWallImpactEffect(hitPoint, hitNormal);
             }
         }
     }
+}
 
     animateRecoil() {
         if (!this.weaponMesh) return;

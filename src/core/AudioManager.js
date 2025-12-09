@@ -43,7 +43,7 @@ export class AudioManager {
         }
     }
 
-    async loadAllSounds() {
+        async loadAllSounds() {
         const soundFiles = {
             pistol: 'assets/sound/weapons/pistol.mp3',
             machinegun: 'assets/sound/weapons/ametra.mp3',
@@ -60,12 +60,13 @@ export class AudioManager {
             doorOpen: 'assets/sound/door_open.mp3',
             collectItem: 'assets/sound/collect.mp3',
             background: 'assets/sound/background_music.mp3',
-            lpdpm: 'assets/sound/music/LPDPM.mp3'
+            lpdpm: 'assets/sound/music/LPDPM.mp3',
+            lpdmc: 'assets/sound/music/LPDMC.mp3'
         };
         const loadPromises = Object.entries(soundFiles).map(async ([key, path]) => {
             try {
                 const buffer = await this.loadSound(path);
-                if (key === 'background' || key === 'lpdpm') {
+                if (key === 'background' || key === 'lpdpm' || key === 'lpdmc') {
                     this.music[key] = buffer;
                 } else {
                     this.sounds[key] = buffer;

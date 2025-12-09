@@ -4,7 +4,7 @@ import { ENEMY_TYPES } from '../Constants.js';
 import { UIManager } from '../UI.js';
 
 export class WaveEvent {
-    constructor(enemyManager, world) {
+        constructor(enemyManager, world) {
     this.enemyManager = enemyManager;
     this.world = world;
     this.genericSpawners = world.getGenericSpawners();
@@ -21,9 +21,10 @@ export class WaveEvent {
     this.enemiesSpawned = 0;
     this.waveConfig = this.configureWaveData();
 
-    // NUEVA ESTRUCTURA: Control de música LPDPM para mapa de fortaleza
+    // NUEVA ESTRUCTURA: Control de música LPDMC para mapa de fortaleza en rondas 3 y 4
     this.isFortalezaMap = false;
     this.lpdpmMusicPlaying = false;
+    this.lpdmcMusicPlaying = false;
 
     setTimeout(() => this.startWave(), 2000);
 
@@ -99,7 +100,7 @@ export class WaveEvent {
 /**
      * Start a new wave
      */
-    startWave() {
+        startWave() {
     if (this.currentWave >= this.waveConfig.length) {
         UIManager.showEventMessage('¡TODAS LAS RONDAS COMPLETADAS! ¡VICTORIA!', 5000);
         return;
@@ -119,14 +120,28 @@ export class WaveEvent {
             this.audioManager.stopMusic();
             this.audioManager.playMusic('lpdpm', 0.3);
             this.lpdpmMusicPlaying = true;
+            this.lpdmcMusicPlaying = false;
             console.log('Reproduciendo música LPDPM para ronda', waveNumber);
         }
-    } else if (this.isFortalezaMap && waveNumber === 3 && this.lpdpmMusicPlaying) {
+    } 
+    // NUEVA ESTRUCTURA: Controlar música LPDMC en rondas 3 y 4 del mapa fortaleza
+    else if (this.isFortalezaMap && (waveNumber === 3 || waveNumber === 4)) {
+        if (!this.lpdmcMusicPlaying && this.audioManager) {
+            this.audioManager.stopMusic();
+            this.audioManager.playMusic('lpdmc', 0.3);
+            this.lpdmcMusicPlaying = true;
+            this.lpdpmMusicPlaying = false;
+            console.log('Reproduciendo música LPDMC para ronda', waveNumber);
+        }
+    } 
+    // NUEVA ESTRUCTURA: Detener música especial en ronda 5 y volver a música normal
+    else if (this.isFortalezaMap && waveNumber === 5 && (this.lpdpmMusicPlaying || this.lpdmcMusicPlaying)) {
         if (this.audioManager) {
             this.audioManager.stopMusic();
             this.audioManager.playMusic('background', 0.3);
             this.lpdpmMusicPlaying = false;
-            console.log('Deteniendo música LPDPM en ronda 3');
+            this.lpdmcMusicPlaying = false;
+            console.log('Deteniendo música especial en ronda 5');
         }
     }
 
