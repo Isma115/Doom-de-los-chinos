@@ -27,26 +27,28 @@ class MapEditor:
         self.editing_cell = None
         
         # Definición de tipos de bloques con sus colores
-        self.block_types = {
-            "#": {"name": "Muro", "color": "#888888"},
-            "D": {"name": "Puerta", "color": "#00FFFF"},
-            "+": {"name": "Comida", "color": "#FF0000"},
-            ".": {"name": "Suelo", "color": "#44AA44"},
-            "P": {"name": "Jugador", "color": "#0000FF"},
-            "1": {"name": "Enemigo Pablo", "color": "#FF00FF"},
-            "2": {"name": "Enemigo Pera", "color": "#FF8800"},
-            "3": {"name": "Enemigo Slow", "color": "#8800FF"},
-            "4": {"name": "Enemigo Medium", "color": "#FF0088"},
-            "5": {"name": "Enemigo Medium 2", "color": "#00FF88"},
-            "6": {"name": "Enemigo Shooter", "color": "#880088"},
-            "7": {"name": "Enemigo Charo (Cuerpo a Cuerpo)", "color": "#FF5500"},  # ⭐ NUEVO: Enemigo Charo
-            "S": {"name": "Spawner Genérico", "color": "#CCFF00"},
-            "MP": {"name": "Munición Pistola", "color": "#FFFF00"},
-            "MA": {"name": "Munición Ametralladora", "color": "#FF8800"},
-            "T": {"name": "Árbol 3D", "color": "#228822"},
-            "B": {"name": "Arbusto", "color": "#336633"},
-            "L": {"name": "Ladrillo", "color": "#AA4444"},
-            " ": {"name": "Vacío", "color": "#222222"}
+self.block_types = {
+    "#": {"name": "Muro", "color": "#888888"},
+    "D": {"name": "Puerta", "color": "#00FFFF"},
+    "+": {"name": "Comida", "color": "#FF0000"},
+    ".": {"name": "Suelo", "color": "#44AA44"},
+    "P": {"name": "Jugador", "color": "#0000FF"},
+    "1": {"name": "Enemigo Pablo", "color": "#FF00FF"},
+    "2": {"name": "Enemigo Pera", "color": "#FF8800"},
+    "3": {"name": "Enemigo Slow", "color": "#8800FF"},
+    "4": {"name": "Enemigo Medium", "color": "#FF0088"},
+    "5": {"name": "Enemigo Medium 2", "color": "#00FF88"},
+    "6": {"name": "Enemigo Shooter", "color": "#880088"},
+    "7": {"name": "Enemigo Charo (Cuerpo a Cuerpo)", "color": "#FF5500"},
+    "S": {"name": "Spawner Genérico", "color": "#CCFF00"},
+    "MP": {"name": "Munición Pistola", "color": "#FFFF00"},
+    "MA": {"name": "Munición Ametralladora", "color": "#FF8800"},
+    "T": {"name": "Árbol 3D", "color": "#228822"},
+    "B": {"name": "Arbusto", "color": "#336633"},
+    "L": {"name": "Ladrillo", "color": "#AA4444"},
+    "IMG": {"name": "Imagen Decorativa", "color": "#FFD700"},  # NUEVA ESTRUCTURA: Imagen decorativa
+    " ": {"name": "Vacío", "color": "#222222"}
+}
         }
         }
         

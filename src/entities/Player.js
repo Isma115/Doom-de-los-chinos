@@ -231,7 +231,7 @@ export class Player {
     /*[Fin de sección]*/
 
     /*sección [BUCLE DE ACTUALIZACIÓN] Actualización del estado del jugador cada frame*/
-    update(delta) {
+        update(delta) {
         if (!this.controls.isLocked) return;
         if (this.isShooting) {
             this.weaponSystem.tryShoot(() => {
@@ -280,6 +280,13 @@ export class Player {
         let angleDegrees = (angleRadians * 180) / Math.PI;
         if (angleDegrees < 0) angleDegrees += 360;
         UIManager.updateAngle(angleDegrees);
+
+        // NUEVA ESTRUCTURA: Actualizar las coordenadas del jugador
+        UIManager.updateCoordinates(
+            this.camera.position.x,
+            this.camera.position.y,
+            this.camera.position.z
+        );
 
         if (!this.debugState.noClip) {
             this.checkCollisions(oldPosition);

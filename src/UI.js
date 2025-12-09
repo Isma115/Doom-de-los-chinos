@@ -78,6 +78,18 @@ export class UIManager {
         el.innerText = `Ángulo: ${angleDegrees.toFixed(0)}°`;
     }
 
+
+    static updateCoordinates(x, y, z) {
+        let coordsEl = document.getElementById('coordinates-display');
+        if (!coordsEl) {
+            coordsEl = document.createElement('div');
+            coordsEl.id = 'coordinates-display';
+            coordsEl.style.display = 'block';
+            document.getElementById('ui-layer').appendChild(coordsEl);
+        }
+        coordsEl.innerText = `X: ${x.toFixed(1)}  Y: ${y.toFixed(1)}  Z: ${z.toFixed(1)}`;
+    }
+
     static showEventMessage(text, duration = 3000) {
         let msgEl = document.getElementById('event-message');
         if (!msgEl) {
@@ -128,13 +140,13 @@ export class UIManager {
         document.getElementById('start-screen').style.display = 'flex';
     }
 
-    static togglePauseScreen(isLocked, isGameOver) {
+        static togglePauseScreen(isLocked, isGameOver) {
         const screen = document.getElementById('start-screen');
         const pauseButtons = document.getElementById('pause-buttons');
         const pauseSubtitle = screen.querySelector('.pause-subtitle');
 
-
         const debugBtn = document.getElementById('debug-btn');
+        const coordsDisplay = document.getElementById('coordinates-display');
 
         if (isLocked) {
             screen.style.display = 'none';
@@ -145,20 +157,24 @@ export class UIManager {
             const debugPanel = document.getElementById('debug-panel');
             if (debugPanel) debugPanel.classList.remove('active');
 
-
             if (debugBtn) debugBtn.style.display = 'none';
+            
+            // NUEVA ESTRUCTURA: Mostrar coordenadas cuando el juego está activo
+            if (coordsDisplay) coordsDisplay.style.display = 'block';
         } else {
             screen.style.display = 'flex';
             if (!isGameOver) {
                 if (pauseSubtitle) pauseSubtitle.innerText = "Pausa - Click para continuar";
                 if (pauseButtons) pauseButtons.classList.add('visible');
 
-
                 if (debugBtn) debugBtn.style.display = 'block';
             } else {
                 if (pauseButtons) pauseButtons.classList.remove('visible');
                 if (debugBtn) debugBtn.style.display = 'none';
             }
+            
+            // NUEVA ESTRUCTURA: Ocultar coordenadas cuando el juego está en pausa
+            if (coordsDisplay) coordsDisplay.style.display = 'none';
         }
     }
 }

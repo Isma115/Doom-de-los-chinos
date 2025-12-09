@@ -1,0 +1,14 @@
+[
+    {
+        "type": "square",
+        "texture": "assets/3D/decoracion/images.jpeg",
+        "position": {
+            "x": -135,
+            "y": 2,
+            "z": -80.1
+        },
+        "rotation": 0,
+        "width": 10,
+        "height": 10
+    }
+]
