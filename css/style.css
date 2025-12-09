@@ -14,10 +14,11 @@ pointer-events: none;
     display: flex;
     justify-content: space-between;
     padding: 20px;
-font-size: 24px;
+    font-size: 24px;
     color: #ffffff;
     text-shadow: 2px 2px 2px #000;
 }
+
 #hud-bottom {
     padding: 20px;
     text-align: right;
@@ -25,7 +26,7 @@ font-size: 24px;
 color: #ffcc00;
     text-shadow: 2px 2px 2px #000;
 }
-/* ⭐ NUEVO: Estilo para mensajes de eventos */
+/* Estilo para mensajes de eventos */
 #event-message {
     position: absolute;
     top: 25%;
@@ -41,14 +42,120 @@ color: #ffcc00;
     width: 80%;
     pointer-events: none;
 }
+
+/* ⏱️ Contador de cuenta regresiva entre rondas */
+#wave-countdown {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.countdown-label {
+    font-size: 24px;
+    color: #ffcc00;
+    text-shadow: 0 0 10px #000, 2px 2px 0 #000;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+}
+
+/* Barra de vida gráfica */
+#health-bar-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 260px;
+    height: 18px;                    /* aún más delgada */
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #880000;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 100;
+}
+
+
+#coordinates-display {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    padding: 5px 15px;
+    border-radius: 5px;
+    border: 2px solid #008800;
+    text-shadow: 0 0 5px #00ff00;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+}
+
+#health-bar-bg {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #000000;
+    border-radius: 4px;
+}
+
+#health-bar-fill {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    width: 100%;
+    background: #ff0000;
+    border-radius: 4px;
+    transition: width 0.25s ease;
+    box-shadow: none;
+}
+
+#health-bar-text {
+    display: none;
+}
+.countdown-number {
+    font-size: 120px;
+    font-weight: 900;
+    color: #ff3333;
+    text-shadow: 0 0 30px rgba(255, 0, 0, 0.8), 0 0 60px rgba(255, 0, 0, 0.5), 4px 4px 0 #000;
+    animation: pulse-countdown 1s ease-in-out infinite;
+}
+
+@keyframes pulse-countdown {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
 #crosshair {
     position: absolute;
-    top: 50%; left: 50%;
-    width: 20px;
-height: 20px;
-    background: transparent;
-    border: 2px solid white;
-    border-radius: 50%;
+    top: 50%; 
+    left: 50%;
+    width: 2px;
+    height: 12px;
+    background: #ff0000;
+    transform: translate(-50%, -50%);
+}
+
+#crosshair::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 2px;
+    background: #ff0000;
     transform: translate(-50%, -50%);
 }
 #start-screen {
@@ -56,7 +163,7 @@ height: 20px;
 top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.8);
     color: white;
-    display: none; /* ⭐ CAMBIO: Oculto por defecto, se activa al pausar */
+    display: none; /* Oculto por defecto, se activa al pausar */
     justify-content: center;
     align-items: center;
     flex-direction: column;
@@ -64,7 +171,7 @@ pointer-events: auto;
     z-index: 10;
 }
 
-/* ⭐ NUEVO: Estilos para el selector de mapas */
+/* Estilos para el selector de mapas */
 #map-selector {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -127,5 +234,374 @@ h1 { margin: 0 0 20px 0; font-size: 50px; color: #ff3333; }
 p { font-size: 20px;
 }
 .controls-info { color: #aaa;
-    font-size: 16px; margin-top: 10px;}
+    font-size: 16px; margin-top: 5px;}
+
+.pause-subtitle {
+    font-size: 22px;
+    color: #ffcc00;
+    margin-bottom: 10px;
+}
+
+/* Botones del menú de pausa */
+#pause-buttons {
+    display: none; /* Ocultos por defecto, visibles solo en pausa */
+    flex-direction: row;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+#pause-buttons.visible {
+    display: flex;
+}
+
+.pause-menu-btn {
+    padding: 15px 30px;
+    background: linear-gradient(90deg, #330000 0%, #000 100%);
+    border: 2px solid #660000;
+    color: #ff8888;
+    font-size: 18px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    border-radius: 8px;
+    min-width: 150px;
+}
+
+.pause-menu-btn:hover {
+    background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
+    color: #fff;
+    border-color: #ff3333;
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+    transform: scale(1.05);
+}
+
+/* ⚙️ MENÚ DE AJUSTES */
+.settings-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+.settings-overlay.active {
+    display: flex;
+}
+
+.settings-panel {
+    background: linear-gradient(135deg, #1a0000 0%, #0d0d0d 50%, #1a0000 100%);
+    border: 3px solid #660000;
+    border-radius: 15px;
+    padding: 40px 50px;
+    min-width: 350px;
+    box-shadow: 0 0 40px rgba(255, 0, 0, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.settings-title {
+    color: #ff3333;
+    font-size: 32px;
+    text-align: center;
+    margin: 0 0 30px 0;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+}
+
+.settings-section {
+    margin-bottom: 25px;
+}
+
+.settings-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #ffcccc;
+    font-size: 18px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.label-icon {
+    margin-right: 10px;
+    font-size: 20px;
+}
+
+.volume-value {
+    color: #ff6666;
+    font-size: 16px;
+    min-width: 45px;
+    text-align: right;
+}
+
+.volume-slider {
+    width: 100%;
+    height: 12px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(90deg, #330000, #660000);
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+    border: 1px solid #440000;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    border: 3px solid #ff6666;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    border: 3px solid #ff6666;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+}
+
+.settings-btn {
+    width: 100%;
+    padding: 15px;
+    margin-top: 20px;
+    background: linear-gradient(90deg, #660000 0%, #330000 100%);
+    border: 2px solid #880000;
+    color: #ff8888;
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.settings-btn:hover {
+    background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
+    color: #fff;
+    border-color: #ff3333;
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+    transform: scale(1.02);
+}
+.debug-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #1a0000 0%, #0d0d0d 50%, #1a0000 100%);
+    border: 3px solid #660000;
+    border-radius: 15px;
+    padding: 0;
+    min-width: 500px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 0 40px rgba(255, 0, 0, 0.5);
+    z-index: 150;
+    display: none;
+    pointer-events: auto;
+}
+
+.debug-panel.active {
+    display: block;
+}
+
+.debug-header {
+    background: linear-gradient(90deg, #660000 0%, #330000 100%);
+    padding: 15px 20px;
+    border-bottom: 2px solid #ff0000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 12px 12px 0 0;
+}
+
+.debug-header h3 {
+    margin: 0;
+    color: #ff3333;
+    font-size: 20px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.debug-close-btn {
+    background: #ff0000;
+    border: none;
+    color: white;
+    font-size: 20px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.debug-close-btn:hover {
+    background: #ff3333;
+    transform: scale(1.1);
+}
+
+.debug-content {
+    padding: 20px;
+}
+
+.debug-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #440000;
+    border-radius: 8px;
+}
+
+.debug-section h4 {
+    margin: 0 0 10px 0;
+    color: #ff6666;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.debug-toggle {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.debug-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+    cursor: pointer;
+    accent-color: #ff0000;
+}
+
+.debug-toggle-label {
+    color: #ffcccc;
+    font-size: 14px;
+}
+
+.debug-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    background: linear-gradient(90deg, #660000 0%, #330000 100%);
+    border: 2px solid #880000;
+    color: #ff8888;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.debug-btn:hover {
+    background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
+    color: #fff;
+    border-color: #ff3333;
+    transform: scale(1.02);
+}
+
+.debug-btn-danger {
+    background: linear-gradient(90deg, #880000 0%, #440000 100%);
+}
+
+.debug-btn-danger:hover {
+    background: linear-gradient(90deg, #ff4444 0%, #cc0000 100%);
+}
+
+.debug-slider-container {
+    margin-top: 10px;
+}
+
+.debug-slider-container label {
+    display: block;
+    color: #ffcccc;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.debug-slider-container input[type="range"] {
+    width: 100%;
+    height: 8px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(90deg, #330000, #660000);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+
+.debug-slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    border: 2px solid #ff6666;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.debug-slider-container input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    border: 2px solid #ff6666;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.debug-input-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 2fr;
+    gap: 5px;
+}
+
+#debug-btn {
+    background: linear-gradient(90deg, #000033 0%, #000000 100%);
+    border: 2px solid #0044aa;
+    color: #8888ff;
+    font-size: 18px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    border-radius: 8px;
+    min-width: 150px;
+    padding: 15px 30px;
+}
+
+#debug-btn:hover {
+    background: linear-gradient(90deg, #4444ff 0%, #000088 100%);
+    color: #fff;
+    border-color: #6666ff;
+    box-shadow: 0 0 20px rgba(100, 100, 255, 0.6);
+    transform: scale(1.05);
+}
+
 /*[Fin de sección]*/

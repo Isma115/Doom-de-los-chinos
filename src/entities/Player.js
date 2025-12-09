@@ -1,17 +1,20 @@
-/*sección [JUGADOR] Código de gestión del jugador*/
+/*sección [IMPORTACIONES Y CONSTRUCTOR] Imports y configuración inicial del jugador*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
-import { CONFIG } from '../Constants.js';
+import { CONFIG, WEAPONS_DATA } from '../Constants.js';
 import { WeaponSystem } from './Weapon.js';
 import { UIManager } from '../UI.js';
 import { Door } from '../entities/Door.js';
 import { PointerLockControls } from '../../node_modules/three/examples/jsm/controls/PointerLockControls.js';
 export class Player {
 
-    constructor(scene, camera, domElement, enemyManager, world, audioManager) {
 
+
+        constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
         this.controls = new PointerLockControls(camera, domElement);
         this.camera = camera;
         this.audioManager = audioManager;
+        this.enemyManager = enemyManager;
+        this.gameInstance = gameInstance;
 
         scene.add(camera);
 
@@ -28,13 +31,25 @@ export class Player {
         this.radius = 2.0;
 
         camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
-
-        this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager);
+        
+        // NUEVA ESTRUCTURA: Inicializar debugState con bulletLog antes de crear WeaponSystem
+        this.debugState = {
+            godMode: false,
+            infiniteAmmo: false,
+            flyMode: false,
+            noClip: false,
+            speedMultiplier: 1.0,
+            bulletLog: true  // Valor por defecto
+        };
+        
+        this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this, scene);
         this.isShooting = false;
 
         this.initEvents(domElement);
     }
+    /*[Fin de sección]*/
 
+    /*sección [TELETRANSPORTE] Método de teletransporte del jugador*/
     teleport(position, rotation = 0) {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
@@ -46,10 +61,13 @@ export class Player {
         this.camera.updateMatrixWorld(true);
     }
 
+    /*[Fin de sección]*/
+
+    /*sección [SISTEMA DE EVENTOS E INPUT] Gestión de eventos de teclado, ratón y controles*/
     initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
-            // ⭐ NUEVO: Reanudamos el audio tras el clic del usuario (User Gesture)
+            // Reanudamos el audio tras el clic del usuario (User Gesture)
             if (this.audioManager) {
                 this.audioManager.resume();
             }
@@ -72,17 +90,46 @@ export class Player {
         }
     }
 
+    getWorldWalls() {
+        if (this.world && this.world.getWalls) {
+            return this.world.getWalls();
+        }
+        return [];
+    }
+
+
     onKey(event, isDown) {
         switch (event.code) {
-            case 'ArrowUp': case 'KeyW': this.moveFlags.fwd = isDown;
+            case 'ArrowUp':
+            case 'KeyW':
+                this.moveFlags.fwd = isDown;
                 break;
-            case 'ArrowLeft': case 'KeyA': this.moveFlags.left = isDown; break;
-            case 'ArrowDown': case 'KeyS': this.moveFlags.bwd = isDown; break;
-            case 'ArrowRight': case 'KeyD': this.moveFlags.right = isDown; break;
+            case 'ArrowLeft':
+            case 'KeyA':
+                this.moveFlags.left = isDown;
+                break;
+            case 'ArrowDown':
+            case 'KeyS':
+                this.moveFlags.bwd = isDown;
+                break;
+            case 'ArrowRight':
+            case 'KeyD':
+                this.moveFlags.right = isDown;
+                break;
             case 'Space':
-                if (isDown && this.canJump) {
-                    this.velocity.y += CONFIG.JUMP_FORCE;
-                    this.canJump = false;
+                if (isDown) {
+                    if (this.debugState.flyMode) {
+                        this.velocity.y = CONFIG.JUMP_FORCE * 1.5;
+                    } else if (this.canJump) {
+                        this.velocity.y += CONFIG.JUMP_FORCE;
+                        this.canJump = false;
+                    }
+                }
+                break;
+            case 'ShiftLeft':
+            case 'ShiftRight':
+                if (isDown && this.debugState.flyMode) {
+                    this.velocity.y = -CONFIG.JUMP_FORCE * 1.5;
                 }
                 break;
             case 'KeyE':
@@ -110,6 +157,9 @@ export class Player {
         }
     }
 
+    /*[Fin de sección]*/
+
+    /*sección [COMBATE Y DAÑO] Sistema de disparo, daño, recolección y retroceso*/
     onMouseDown() {
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
@@ -126,6 +176,12 @@ export class Player {
 
     takeDamage(damageAmount = 1) {
         if (this.isGameOver) return;
+
+        if (this.debugState.godMode) {
+            console.log('Daño bloqueado por God Mode');
+            return;
+        }
+
         this.health -= damageAmount;
         UIManager.updateHealth(this.health);
 
@@ -162,8 +218,23 @@ export class Player {
         }
     }
 
+    /**
+     * Aplica retroceso al jugador en dirección opuesta a donde está mirando
+     * @param {number} strength - Fuerza del retroceso (valor recomendado: 0.5 - 1.5)
+     */
+    applyRecoil(strength = 0.5) {
+        if (this.isGameOver || !this.controls.isLocked) return;
 
-    update(delta) {
+        // Aumentar velocity.z para retroceder hacia atrás
+        // moveForward(-velocity.z) se encarga automáticamente de aplicar
+        // el retroceso en la dirección correcta según el ángulo actual
+        this.velocity.z += strength;
+    }
+
+    /*[Fin de sección]*/
+
+    /*sección [BUCLE DE ACTUALIZACIÓN] Actualización del estado del jugador cada frame*/
+        update(delta) {
         if (!this.controls.isLocked) return;
         if (this.isShooting) {
             this.weaponSystem.tryShoot(() => {
@@ -172,16 +243,27 @@ export class Player {
             });
         }
 
-        this.velocity.x -= this.velocity.x * 10.0 * delta;
-        this.velocity.z -= this.velocity.z * 10.0 * delta;
-        this.velocity.y -= CONFIG.GRAVITY * delta;
+        const speedMultiplier = this.debugState.speedMultiplier || 1.0;
+
+        this.velocity.x -= this.velocity.x * 12.0 * delta;
+        this.velocity.z -= this.velocity.z * 12.0 * delta;
+
+        if (!this.debugState.flyMode) {
+            this.velocity.y -= CONFIG.GRAVITY * delta;
+        } else {
+            this.velocity.y -= this.velocity.y * 12.0 * delta;
+        }
 
         this.direction.z = Number(this.moveFlags.fwd) - Number(this.moveFlags.bwd);
         this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
         this.direction.normalize();
 
-        if (this.moveFlags.fwd || this.moveFlags.bwd) this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta;
-        if (this.moveFlags.left || this.moveFlags.right) this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta;
+        if (this.moveFlags.fwd || this.moveFlags.bwd) {
+            this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+        }
+        if (this.moveFlags.left || this.moveFlags.right) {
+            this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+        }
 
         const oldPosition = this.camera.position.clone();
 
@@ -189,14 +271,44 @@ export class Player {
         this.controls.moveForward(-this.velocity.z * delta);
         this.camera.position.y += (this.velocity.y * delta);
 
-        if (this.camera.position.y < CONFIG.PLAYER_HEIGHT) {
-            this.velocity.y = 0;
-            this.camera.position.y = CONFIG.PLAYER_HEIGHT;
-            this.canJump = true;
+        if (!this.debugState.flyMode) {
+            if (this.camera.position.y < CONFIG.PLAYER_HEIGHT) {
+                this.velocity.y = 0;
+                this.camera.position.y = CONFIG.PLAYER_HEIGHT;
+                this.canJump = true;
+            }
         }
 
-        this.checkCollisions(oldPosition);
+        const angleRadians = this.camera.rotation.y;
+        let angleDegrees = (angleRadians * 180) / Math.PI;
+        if (angleDegrees < 0) angleDegrees += 360;
+        UIManager.updateAngle(angleDegrees);
+
+        // NUEVA ESTRUCTURA: Actualizar las coordenadas del jugador
+        UIManager.updateCoordinates(
+            this.camera.position.x,
+            this.camera.position.y,
+            this.camera.position.z
+        );
+
+        if (!this.debugState.noClip) {
+            this.checkCollisions(oldPosition);
+        }
+
         this.checkAmmoItems();
+    }
+
+    gameOver() {
+        if (this.isGameOver) return;
+        this.isGameOver = true;
+
+        // Notificamos al Game que estamos en Game Over
+        if (this.gameInstance) {
+            this.gameInstance.isGameOver = true;
+        }
+
+        UIManager.showGameOver();
+        this.controls.unlock();
     }
 
     checkAmmoItems() {
@@ -207,9 +319,15 @@ export class Player {
             if (ammoMesh.userData.collected) return;
 
             const distance = playerPos.distanceTo(ammoMesh.position);
-            if (distance < 2.0) {
+            if (distance < CONFIG.PICKUP_DISTANCE) {
                 const ammoAmount = ammoMesh.userData.ammoAmount;
                 const weaponIndex = ammoMesh.userData.weaponIndex;
+
+                // Check if ammo is full
+                const weapon = WEAPONS_DATA[weaponIndex];
+                if (weapon && weapon.ammo >= weapon.maxAmmo) {
+                    return; // Don't collect if full
+                }
 
                 this.collectAmmo(ammoAmount, weaponIndex);
 
@@ -219,9 +337,12 @@ export class Player {
         });
     }
 
+    /*[Fin de sección]*/
+
+    /*sección [SISTEMA DE COLISIONES] Detección de colisiones con muros y puertas*/
     checkCollisions(oldPosition) {
         const playerPos = this.camera.position;
-        const offset = 1.0;
+        const offset = CONFIG.PLAYER_COLLISION_OFFSET;
 
         const playerBox = new THREE.Box3();
         playerBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);

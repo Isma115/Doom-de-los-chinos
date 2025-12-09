@@ -1,0 +1,15 @@
+assets/sound/weapons/pistol.mp3
+assets/sounds/machinegun.mp3
+assets/sounds/enemy_death.mp3
+assets/sounds/enemy_hit.mp3
+assets/sound/misc/gas.mp3
+assets/sounds/player_hurt.mp3
+assets/sounds/enemy_grunt1.mp3
+assets/sounds/enemy_grunt2.mp3
+assets/sounds/enemy_growl1.mp3
+assets/sounds/enemy_growl2.mp3
+assets/sounds/enemy_hiss1.mp3
+assets/sounds/enemy_roar1.mp3
+assets/sounds/door_open.mp3
+assets/sounds/collect.mp3
+assets/sounds/background_music.mp3

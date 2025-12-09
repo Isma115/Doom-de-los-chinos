@@ -6,28 +6,46 @@ export const CONFIG = {
     PLAYER_HEIGHT: 2.0,
     PLAYER_SPEED: 400.0,
     ARENA_SIZE: 200,
-    ENEMY_SPAWN_RATE: 2000,
+    ENEMY_SPAWN_RATE: 5000,
     DOOR_OPEN_DURATION: 3000,
     DOOR_CLOSE_DISTANCE: 20,
     BLOCK_SIZE: 10,
 
+    // Colisiones
+    PLAYER_COLLISION_RADIUS: 2.0,
+    PLAYER_COLLISION_OFFSET: 1.0,
+
+    // Pickups
+    PICKUP_DISTANCE: 2.0,
+    FOOD_HEAL_AMOUNT: 25,
+    PISTOL_AMMO_AMOUNT: 30,
+    MACHINEGUN_AMMO_AMOUNT: 300,
+
+    // Spawns
+    FLOOR_TILE_SIZE: 20,
+    DEFAULT_SPAWN_HEIGHT: 1,
+
     DEBUG_SHOW_HITBOXES: false
 };
-// ★ NUEVO: Lista de mapas disponibles para el selector
+// Lista de mapas disponibles para el selector
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
     { id: 'mapa1', name: 'La Fortaleza' },
-    { id: 'mapa2', name: 'Arena de Sangre' } 
+    { id: 'mapa2', name: 'Arena de Sangre' }
 ];
 
 export const AUDIO_CONFIG = {
-    MUSIC_VOLUME: 0.3,
-    SFX_VOLUME: 0.5,
-    ENEMY_SOUND_CHANCE: 0.02,
-    ENEMY_SOUND_COOLDOWN: 3000
+    MUSIC_VOLUME: 0.6,
+    SFX_VOLUME: 0.8,
+    ENEMY_SOUND_MIN_INTERVAL: 5000,
+    ENEMY_SOUND_MAX_INTERVAL: 7000,
+    ENEMY_SOUND_DISTANCE: 60,
+    MAX_SIMULTANEOUS_ENEMY_SOUNDS: 10,
+    MAX_VOLUME_MULTIPLIER: 3.0
 };
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);
+
 export const WEAPONS_DATA = [
     {
         name: "PISTOLA TÁCTICA",
@@ -37,103 +55,198 @@ export const WEAPONS_DATA = [
         ammo: 100,
         maxAmmo: 100,
         geo: pistolGeometry,
-        shootSound: 'pistol'
+        shootSound: 'pistol',
+        sprite: 'pistol.png',
+        flash: 'pistol_flash.png',
+        isMelee: false
     },
     {
         name: "AMETRALLADORA",
-  
-      color: 0xff0000,
+        color: 0xff0000,
         damage: 10,
         delay: 100,
         ammo: 600,
         maxAmmo: 600,
         geo: machineGunGeometry,
-        shootSound: 'machinegun'
+        shootSound: 'machinegun',
+        sprite: 'ametralla.png',
+        flash: 'ametralla_flash.png',
+        isMelee: false
+    },
+    {
+        name: "CUCHILLO",
+        damage: 45,
+        delay: 600,               // cadencia media (más lento que pistola)
+        range: 5.6,               // rango duplicado
+        ammo: Infinity,
+        maxAmmo: Infinity,
+        shootSound: 'knife',
+        sprite: 'knife.png',
+        flash: 'knife.png',
+        isMelee: true
+    },
+    {
+        name: "ESPADA",
+        damage: 70,
+        delay: 800,               // más lenta pero más daño
+        range: 7.0,               // rango duplicado
+        ammo: Infinity,
+        maxAmmo: Infinity,
+        shootSound: 'sword_swing',
+        sprite: 'sword.png',
+        flash: 'sword_slash.png',
+        isMelee: true
+    },
+    {
+        name: "BATE",
+        damage: 55,
+        delay: 700,
+        range: 8.0,               // rango duplicado
+        ammo: Infinity,
+        maxAmmo: Infinity,
+        shootSound: 'bat_swing',
+        sprite: 'bat.png',
+        flash: 'bat_hit.png',
+        isMelee: true
     }
 ];
+
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
-        speed: 2.0,
+        speed: 4.5,  // Lento - tanque
         damage: 5,
         hp: 150,
         texture: 'assets/enemies/pablo.png',
+        textureWalk: 'assets/enemies/pablo_walk.png',
         spawnWeight: 3,
         width: 5,
         height: 7,
         projectileSize: 0.3,
-        sounds: ['grunt1', 'grunt2', 
-'growl1']
+        sounds: ['grunt1', 'grunt2', 'growl1']
     },
     {
         id: 'pera',
-        speed: 2.2,
+        speed: 7.5,  // Velocidad media
         damage: 6,
         hp: 160,
         texture: 'assets/enemies/pera.png',
+        textureWalk: 'assets/enemies/pera_walk.png',
         spawnWeight: 3,
         width: 2.5,
         height: 3.25,
         projectileSize: 0.25,
-        sounds: ['grunt1', 'hiss1', 
-'growl2']
+        sounds: ['grunt1', 'hiss1', 'growl2']
     },
-
     {
         id: 'patica',
-        speed: 1.5,
+        speed: 3.0,  // Muy lento - dispara
         damage: 10,
         hp: 120,
         texture: 'assets/enemies/patica.png',
+        textureWalk: 'assets/enemies/patica_walk.png',
+        textureShoot: 'assets/enemies/patica.png',
         spawnWeight: 2,
         width: 6,
         height: 7.5,
         isShooter: true,
         shootRate: 2000,
-  
-      projectileSpeed: 15.0,
-
+        projectileSpeed: 15.0,
         projectileOffsetX: 0,
         projectileOffsetY: -0.9,
         projectileOffsetZ: 0,
-
         projectileSize: 0.6,
         sounds: ['roar1', 'growl1', 'hiss1']
     },
-
+    {
+        id: 'trancas_barrancas',
+        speed: 18.0,  // ¡MUY RÁPIDO! - El más veloz
+        damage: 12,
+        hp: 80,  // Poca vida para compensar velocidad
+        texture: 'assets/enemies/trancas-barrancas.png',
+        textureWalk: 'assets/enemies/trancas-barrancas.png',
+        spawnWeight: 1,  // Aparece menos frecuentemente
+        width: 3,
+        height: 4,
+        projectileSize: 0.25,
+        sounds: ['hiss1', 'growl2', 'grunt1']
+    },
+    {
+        id: 'amego',
+        speed: 15.0,  // Muy rápido, pero menos que trancas
+        damage: 14,
+        hp: 100,
+        texture: 'assets/enemies/amego.png',
+        textureWalk: 'assets/enemies/amego.png',
+        spawnWeight: 2,
+        width: 3.5,
+        height: 4.5,
+        projectileSize: 0.25,
+        sounds: ['grunt1', 'growl1', 'hiss1']
+    },
     {
         id: 'slow_low3',
-        speed: 1.8,
+        speed: 5.0,  // Lento
         damage: 4,
         hp: 140,
-  
-      texture: 'assets/enemies/slow_low3.png',
+        texture: 'assets/enemies/slow_low3.png',
+        textureWalk: 'assets/enemies/slow_low3_walk.png',
         spawnWeight: 3,
         projectileSize: 0.3,
         sounds: ['grunt2', 'growl2', 'hiss1']
     },
     {
         id: 'medium_med',
-        speed: 4.0,
+        speed: 9.0,  // Rápido
         damage: 15,
         hp: 200,
         texture: 'assets/enemies/medium_med.png',
+        textureWalk: 'assets/enemies/medium_med_walk.png',
         spawnWeight: 2,
-  
-      projectileSize: 0.35,
+        projectileSize: 0.35,
         sounds: ['roar1', 'growl1', 'grunt1']
     },
     {
         id: 'medium_med2',
-        speed: 4.2,
+        speed: 11.0,  // Más rápido
         damage: 16,
         hp: 210,
         texture: 'assets/enemies/medium_med2.png',
+        textureWalk: 'assets/enemies/medium_med2_walk.png',
         spawnWeight: 2,
         projectileSize: 0.35,
-        sounds: ['roar1', 'growl2', 
-'grunt2']
+        sounds: ['roar1', 'growl2', 'grunt2']
     },
+    // Charo 1
+    {
+        id: 'charo',
+        speed: 8.0,   // Velocidad media (entre pera [7.5] y medium_med [9.0])
+        damage: 9,    // Daño moderado (más que pera [6], menos que amego [14])
+        hp: 135,      // Salud equilibrada
+        texture: 'assets/enemies/charo1.png',
+        textureWalk: 'assets/enemies/charo1.png', // Misma textura para caminar
+        spawnWeight: 2,
+        width: 3.5,   // Tamaño medio
+        height: 4.5,
+        projectileSize: 0.25,
+        sounds: ['grunt2', 'hiss1', 'growl1'],
+        isMelee: true  // Especificar que es cuerpo a cuerpo
+    },
+    // Charo 2 (igual que charo1 pero con textura diferente)
+    {
+        id: 'charo2',
+        speed: 8.0,   // Velocidad media (igual que charo1)
+        damage: 9,    // Daño moderado (igual que charo1)
+        hp: 135,      // Salud equilibrada (igual que charo1)
+        texture: 'assets/enemies/charo2.png',
+        textureWalk: 'assets/enemies/charo2.png', // Misma textura para caminar
+        spawnWeight: 2,
+        width: 3.5,   // Tamaño medio (igual que charo1)
+        height: 4.5,
+        projectileSize: 0.25,
+        sounds: ['grunt2', 'hiss1', 'growl1'],
+        isMelee: true  // Es cuerpo a cuerpo como charo1
+    }
 ];
 
 export const MAP_BLOCKS = {
@@ -145,16 +258,17 @@ export const MAP_BLOCKS = {
     '.': { type: 'floor', color: 0x44aa44, height: 0, solid: false },
     'P': { type: 'player_spawn', color: 0x44aa44, height: 0, solid: false },
     'E': { type: 'enemy_spawn', color: 0x44aa44, height: 0, solid: false },
-    ' ': { 
-type: 'empty', color: 0x44aa44, height: 0, solid: false },
+    ' ': { type: 'empty', color: 0x44aa44, height: 0, solid: false },
     '1': { type: 'enemy_slow_low', color: 0x44aa44, height: 0, solid: false },
     '2': { type: 'enemy_slow_low2', color: 0x44aa44, height: 0, solid: false },
     '3': { type: 'enemy_slow_low3', color: 0x44aa44, height: 0, solid: false },
     '4': { type: 'enemy_medium_med', color: 0x44aa44, height: 0, solid: false },
     '5': { type: 'enemy_medium_med2', color: 0x44aa44, height: 0, solid: false },
     '6': { type: 'enemy_shooter', color: 0x44aa44, height: 0, solid: false },
-    'MP': { type: 'MP', 
-color: 0xffff00, height: 0, solid: false },
-    'MA': { type: 'MA', color: 0xff8800, height: 0, solid: false }
+    'S': { type: 'generic_spawner', color: 0x44aa44, height: 0, solid: false },
+    'MP': { type: 'MP', color: 0xffff00, height: 0, solid: false },
+    'MA': { type: 'MA', color: 0xff8800, height: 0, solid: false },
+    'SMuni': { type: 'ammo_spawner', color: 0x0000ff, height: 0, solid: false },
+    'SComida': { type: 'food_spawner', color: 0x00ff00, height: 0, solid: false }
 };
 /*[Fin de sección]*/

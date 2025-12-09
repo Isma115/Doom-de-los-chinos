@@ -11,13 +11,6 @@
 <body>
 
     <div id="ui-layer">
-        <div id="hud-top">
-            <div>
-                <div id="health-display">Salud: 100</div>
-                <div id="fps-display">FPS: 0</div>
-            </div>
-            <div id="score-display">Enemigos: 0</div>
-        </div>
 
         <div id="crosshair"></div>
 
@@ -30,10 +23,45 @@
 
     <div id="start-screen">
         <h1>ARENA SHOOTER</h1>
-        <p>Haz click para jugar</p>
-        <p>WASD: Moverse | ESPACIO: Saltar</p>
-        <p>Click: Disparar | Scroll: Cambiar Arma</p>
+        <p class="pause-subtitle">Haz click para jugar</p>
+        <p class="controls-info">WASD: Moverse | ESPACIO: Saltar</p>
+        <p class="controls-info">Click: Disparar | Scroll: Cambiar Arma</p>
+
+        <!-- Botones del menú de pausa -->
+        <div id="pause-buttons">
+            <button id="menu-btn" class="pause-menu-btn">🏠 MENÚ</button>
+            <button id="settings-btn" class="pause-menu-btn">⚙️ AJUSTES</button>
+            <button id="debug-btn" class="pause-menu-btn">DEBUG</button>
+
+        </div>
     </div>
+
+    <!-- Menú de Ajustes -->
+    <div id="settings-menu" class="settings-overlay">
+        <div class="settings-panel">
+            <h2 class="settings-title">⚙️ AJUSTES</h2>
+
+            <div class="settings-section">
+                <label class="settings-label">
+                    <span class="label-icon">🎵</span> Música
+                    <span id="music-volume-value" class="volume-value">30%</span>
+                </label>
+                <input type="range" id="music-volume" class="volume-slider" min="0" max="100" value="30">
+            </div>
+
+            <div class="settings-section">
+                <label class="settings-label">
+                    <span class="label-icon">🔊</span> Efectos
+                    <span id="sfx-volume-value" class="volume-value">50%</span>
+                </label>
+                <input type="range" id="sfx-volume" class="volume-slider" min="0" max="100" value="50">
+            </div>
+
+            <button id="settings-close-btn" class="settings-btn">CERRAR</button>
+        </div>
+    </div>
+
+
 
     <script type="module" src="./src/main.js"></script>
 </body>

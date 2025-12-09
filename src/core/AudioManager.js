@@ -1,4 +1,4 @@
-/*sección [GESTOR DE AUDIO] Código de gestión de audio*/
+/*sección [INICIALIZACIÓN Y CARGA] Constructor, inicialización del contexto de audio y carga de sonidos*/
 import { AUDIO_CONFIG } from '../Constants.js';
 export class AudioManager {
     constructor() {
@@ -34,7 +34,7 @@ export class AudioManager {
         }
     }
 
-    // ⭐ NUEVO: Método para reanudar el contexto de audio tras interacción del usuario
+    // Método para reanudar el contexto de audio tras interacción del usuario
     resume() {
         if (this.audioContext && this.audioContext.state === 'suspended') {
             this.audioContext.resume().then(() => {
@@ -43,31 +43,32 @@ export class AudioManager {
         }
     }
 
-    async loadAllSounds() {
+        async loadAllSounds() {
         const soundFiles = {
             pistol: 'assets/sound/weapons/pistol.mp3',
-            machinegun: 'assets/sounds/machinegun.mp3',
-            enemyDeath: 'assets/sounds/enemy_death.mp3',
-            enemyHit: 'assets/sounds/enemy_hit.mp3',
+            machinegun: 'assets/sound/weapons/ametra.mp3',
+            enemyDeath: 'assets/sound/enemy_death.mp3',
+            enemyHit: 'assets/sound/enemy_hit.mp3',
             playerScream: 'assets/sound/misc/gas.mp3',
-            playerHurt: 'assets/sounds/player_hurt.mp3',
-            grunt1: 'assets/sounds/enemy_grunt1.mp3',
-            grunt2: 'assets/sounds/enemy_grunt2.mp3',
-            growl1: 'assets/sounds/enemy_growl1.mp3',
-            growl2: 'assets/sounds/enemy_growl2.mp3',
-            hiss1: 'assets/sounds/enemy_hiss1.mp3',
-            roar1: 'assets/sounds/enemy_roar1.mp3',
-            doorOpen: 'assets/sounds/door_open.mp3',
-            collectItem: 'assets/sounds/collect.mp3',
-            background: 'assets/sounds/background_music.mp3'
+            playerHurt: 'assets/sound/player_hurt.mp3',
+            grunt1: 'assets/sound/enemy_grunt1.mp3',
+            grunt2: 'assets/sound/enemy_grunt2.mp3',
+            growl1: 'assets/sound/enemy_growl1.mp3',
+            growl2: 'assets/sound/enemy_growl2.mp3',
+            hiss1: 'assets/sound/enemy_hiss1.mp3',
+            roar1: 'assets/sound/enemy_roar1.mp3',
+            doorOpen: 'assets/sound/door_open.mp3',
+            collectItem: 'assets/sound/collect.mp3',
+            background: 'assets/sound/background_music.mp3',
+            lpdpm: 'assets/sound/music/LPDPM.mp3',
+            lpdmc: 'assets/sound/music/LPDMC.mp3'
         };
         const loadPromises = Object.entries(soundFiles).map(async ([key, path]) => {
             try {
                 const buffer = await this.loadSound(path);
-                if (key === 'background') {
+                if (key === 'background' || key === 'lpdpm' || key === 'lpdmc') {
                     this.music[key] = buffer;
-                } else 
-                {
+                } else {
                     this.sounds[key] = buffer;
                 }
             } catch (error) {
@@ -89,6 +90,9 @@ export class AudioManager {
         }
     }
 
+    /*[Fin de sección]*/
+
+    /*sección [REPRODUCCIÓN DE SONIDOS] Métodos de reproducción de efectos, música y audio 3D*/
     playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
         if (!this.initialized || !this.sounds[soundName]) {
             return null;
@@ -97,16 +101,16 @@ export class AudioManager {
         try {
             const source = this.audioContext.createBufferSource();
             source.buffer = this.sounds[soundName];
-            
+
             const gainNode = this.audioContext.createGain();
             gainNode.gain.value = volume;
-            
+
             source.playbackRate.value = pitch;
             source.loop = loop;
-            
+
             source.connect(gainNode);
             gainNode.connect(this.sfxGain);
-            
+
             source.start(0);
             return source;
         } catch (error) {
@@ -127,16 +131,18 @@ export class AudioManager {
 
             const source = this.audioContext.createBufferSource();
             source.buffer = this.music[musicName];
+
+            // FORZAR SIEMPRE LOOP GLOBAL
             source.loop = true;
-            
+
             const gainNode = this.audioContext.createGain();
             gainNode.gain.value = volume;
-            
+
             source.connect(gainNode);
             gainNode.connect(this.musicGain);
-            
+
             source.start(0);
-            
+
             this.currentMusic = source;
             this.currentMusicGain = gainNode;
             return source;
@@ -159,13 +165,15 @@ export class AudioManager {
 
     setMusicVolume(volume) {
         if (this.musicGain) {
-            this.musicGain.gain.value = Math.max(0, Math.min(1, volume));
+            const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
+            this.musicGain.gain.value = clampedVolume;
         }
     }
 
     setSFXVolume(volume) {
         if (this.sfxGain) {
-            this.sfxGain.gain.value = Math.max(0, Math.min(1, volume));
+            const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
+            this.sfxGain.gain.value = clampedVolume;
         }
     }
 
@@ -174,7 +182,7 @@ export class AudioManager {
         const randomSound = enemyType.sounds[Math.floor(Math.random() * enemyType.sounds.length)];
         const randomPitch = 0.8 + Math.random() * 0.4;
         const randomVolume = 0.3 + Math.random() * 0.3;
-        
+
         this.playSound(randomSound, randomVolume, false, randomPitch);
     }
 
@@ -191,12 +199,15 @@ export class AudioManager {
         return this.playSound(soundName, finalVolume);
     }
 
+    /*[Fin de sección]*/
+
+    /*sección [LIMPIEZA] Liberación de recursos de audio*/
     dispose() {
         this.stopMusic();
         if (this.audioContext) {
             this.audioContext.close();
         }
-        
+
         this.sounds = {};
         this.music = {};
         this.initialized = false;
