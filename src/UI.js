@@ -1,7 +1,6 @@
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from './Constants.js';
-
-// *-- Gestión de UI
+// *-- Gestión de UI (UIManager)
 export class UIManager {
     static updateHealth(amount) {
         let container = document.getElementById('health-bar-container');
@@ -46,11 +45,6 @@ export class UIManager {
 
     static updateScore(score) {
         document.getElementById('score-display').innerText = "Enemigos: " + score;
-    }
-
-    static updateWeapon(name, ammo) {
-        document.getElementById('weapon-name').innerText = "Arma: " + name;
-        this.updateAmmo(ammo);
     }
 
     static updateAmmo(ammo) {
@@ -181,8 +175,7 @@ export class UIManager {
         }
     }
 }
-
-// *-- Gestor de Ajustes
+// *-- Gestor de Ajustes (SettingsManager)
 export class SettingsManager {
     constructor(audioManager) {
         this.audioManager = audioManager;
@@ -324,7 +317,7 @@ export class SettingsManager {
     }
 }
 
-// *-- Panel Debug - Constructor y Creación
+// *-- Panel Debug Constructor
 
 export class DebugPanel {
     constructor(player, weaponSystem) {
@@ -462,7 +455,7 @@ export class DebugPanel {
 
 
 
-    // *-- Panel Debug - Eventos
+    // *-- Panel Debug Eventos
     setupEventListeners() {
         document.getElementById('debug-close-btn').addEventListener('click', () => {
             this.hide();
@@ -542,7 +535,7 @@ export class DebugPanel {
 
 
 
-    // *-- Panel Debug - Visibilidad y Actualización
+    // *-- Panel Debug Visibilidad
     show() {
         this.isVisible = true;
         this.panel.classList.add('active');

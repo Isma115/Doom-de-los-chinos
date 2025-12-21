@@ -1,4 +1,4 @@
-// *-- Importaciones y Constructor de main
+// *-- Importaciones Main.js
 import { World } from './core/World.js';
 import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
@@ -11,6 +11,7 @@ import { AudioManager } from './core/AudioManager.js';
 
 import { EventManager } from './core/EventManager.js';
 
+// *-- Clase Game y Constructor Main
 class Game { //
     constructor(mapName) {
         this.scene = new THREE.Scene();
@@ -42,6 +43,7 @@ class Game { //
     }
 
 
+    // *-- Gestión de Estado del Juego Main
     restartGame() {
         // Limpiar escena
         while (this.scene.children.length > 0) {
@@ -82,7 +84,7 @@ class Game { //
     }
 
 
-    // *-- Inicialización de Audio y Mundo
+    // *-- Inicialización Main
     async initGame(mapName) {
         await this.audioManager.init();
         this.world = new World(this.scene);
@@ -145,11 +147,11 @@ class Game { //
 
 
 
-    // *-- Bucle de Animación y Actualización
+    // *-- Bucle de Animación Main
     animate() {
         requestAnimationFrame(() => this.animate());
 
-        // *-- Control de Pausa
+        // *-- Lógica de Actualización Main
         if (this.isPaused) {
             this.renderer.render(this.scene, this.camera);
             return;
@@ -214,6 +216,7 @@ class Game { //
 
     } //
 
+    // *-- Actualización de Entidades Main
     updateFoodItems(delta) {
         const foodMeshes = this.world.getFoodMeshes();
         const playerPos = this.player.getPosition(); //
@@ -235,12 +238,14 @@ class Game { //
         });
     } //
 
+    // *-- Manejo de Ventana Main
     onWindowResize() {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight); //
     }
 
+    // *-- Limpieza Periódica Main
     performPeriodicCleanup(time) {
         if (time - this.lastCleanupTime > 30000) {
             if (this.enemyManager.enemies.length === 0 && this.enemyManager.enemyPool.length > 5) {
@@ -254,8 +259,7 @@ class Game { //
 
 
 
-// *-- Selector de Mapas
-// Lógica del selector de mapas
+// *-- UI Selector de Mapas Main
 function createMapSelector() {
     const selectorDiv = document.createElement('div');
     selectorDiv.id = 'map-selector';

@@ -1,8 +1,9 @@
-# *-- Importaciones y Configuración Inicial
+# *-- Importaciones MapEditor
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import json
 
+# *-- Clase e Inicialización MapEditor
 class MapEditor:
     def __init__(self, root):
         self.root = root
@@ -62,7 +63,7 @@ class MapEditor:
 
 
 
-# *-- Interfaz de Usuario
+# *-- Configuración de Interfaz MapEditor
     def create_ui(self):
         # *-- Configuración de Layout Principal
         # Frame principal
@@ -182,7 +183,7 @@ class MapEditor:
         
 
 
-# *-- Diálogo de Propiedades
+# *-- Diálogo de Propiedades MapEditor
     def open_properties_dialog(self, event):
         # *-- Cálculos de Posición
         canvas_x = self.canvas.canvasx(event.x)
@@ -321,6 +322,7 @@ class MapEditor:
         )
         btn_cancel.pack(side=tk.LEFT, padx=5)
 
+# *-- Lógica de Propiedades MapEditor
     def apply_properties(self):
         if not self.editing_cell:
             return
@@ -389,7 +391,7 @@ class MapEditor:
 
 
 
-# *-- Leyenda y Búsqueda
+# *-- Sistema de Leyenda MapEditor
     def create_legend(self, parent):
         # Frame para el buscador
         search_frame = tk.Frame(parent, bg="#333333")
@@ -526,13 +528,14 @@ class MapEditor:
         if legend_canvas:
             legend_canvas.configure(scrollregion=legend_canvas.bbox("all"))
 
+# *-- Selección de Bloques MapEditor
     def select_block(self, block_type):
         self.selected_block = block_type
         self.selected_label.config(text=f"Seleccionado: {self.block_types[block_type]['name']}")
 
 
 
-# *-- Historial (Undo/Redo)
+# *-- Sistema de Historial MapEditor
     def add_to_history(self):
         """Agrega el estado actual al historial"""
         # Crear una copia profunda del grid actual
@@ -567,7 +570,7 @@ class MapEditor:
 
 
 
-# *-- Dibujado y Pintado
+# *-- Sistema de Dibujado MapEditor
     def draw_grid(self):
         # *-- Limpieza y Configuración
         self.canvas.delete("all")
@@ -629,6 +632,7 @@ class MapEditor:
         
         self.canvas.config(scrollregion=(0, 0, self.grid_width * self.cell_size, self.grid_height * self.cell_size))
         
+# *-- Lógica de Pintado MapEditor
     def stop_painting(self, event):
         """Reinicia la bandera de pintado al soltar el mouse"""
         if hasattr(self, '_painting'):
@@ -682,7 +686,7 @@ class MapEditor:
 
 
 
-# *-- Guardar y Cargar
+# *-- Sistema de Archivos MapEditor
     def save_map(self):
         filename = filedialog.asksaveasfilename(
             defaultextension=".txt",
@@ -778,6 +782,7 @@ class MapEditor:
             except Exception as e:
                 messagebox.showerror("Error", f"Error al cargar el mapa:\n{str(e)}")
         
+# *-- Gestión del Mapa MapEditor
     def clear_map(self):
         if messagebox.askyesno("Confirmar", "¿Estás seguro de que quieres limpiar el mapa?"):
             # Agregar estado actual al historial antes de limpiar
@@ -789,7 +794,7 @@ class MapEditor:
 
 
 
-# *-- Redimensionado
+# *-- Redimensionado MapEditor
     def resize_map(self):
         """Redimensiona el mapa al tamaño especificado"""
         try:

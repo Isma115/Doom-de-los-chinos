@@ -1,4 +1,4 @@
-// *-- Inicialización y Configuración
+// *-- Importaciones World.js
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG } from '../Constants.js';
 import { MapLoader } from './MapLoader.js';
@@ -6,6 +6,7 @@ import { MapLoader } from './MapLoader.js';
 import { OBJLoader } from '../../node_modules/three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from '../../node_modules/three/examples/jsm/loaders/MTLLoader.js';
 
+// *-- Constructor World
 export class World {
     constructor(scene) {
         this.scene = scene;
@@ -22,6 +23,7 @@ export class World {
         this.staticModels = []; // Almacenar modelos 3D estáticos
     }
 
+    // *-- Inicialización World
     async init(mapName = 'default') {
         // *-- Carga de Datos
         this.mapData = await this.mapLoader.loadMapFile(mapName);
@@ -83,7 +85,7 @@ export class World {
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
         const floorSize = Math.max(mapWidth, mapHeight, CONFIG.ARENA_SIZE);
 
-        // *-- Generación de Suelo
+        // *-- Generación de Suelo World
         const tileSize = 20;
         const tilesX = Math.ceil((floorSize * 1.5) / tileSize) + 2;
         const tilesZ = Math.ceil((floorSize * 1.5) / tileSize) + 2;
@@ -135,7 +137,7 @@ export class World {
 
         this.scene.add(floorGroup);
 
-        // *-- Generación de Objetos
+        // *-- Generación de Objetos Inicial World
         this.createWallsFromMap();
         this.createDoorsFromMap();
         this.createFoodItemsFromMap();
@@ -146,6 +148,7 @@ export class World {
     }
 
 
+    // *-- Getters de Objetos World
     getSolidObjects() {
         const solidObjects = [];
 
@@ -171,6 +174,7 @@ export class World {
         return this.walls;
     }
 
+    // *-- Getters de Spawners World
     getEnemySpawns() {
         return this.enemySpawns;
     }
@@ -205,6 +209,7 @@ export class World {
         return this.foodSpawners || [];
     }
 
+    // *-- Creación de Items (Runtime) World
     spawnFood(position) {
         const textureLoader = new THREE.TextureLoader();
         const foodTexture = textureLoader.load(
@@ -288,7 +293,7 @@ export class World {
 
 
 
-    // *-- Creación de Elementos del Mapa
+    // *-- Creación de Items (Map Data) World
     createAmmoItemsFromMap() {
         this.ammoMeshes = [];
 
@@ -380,7 +385,7 @@ export class World {
         });
     }
 
-    // Carga de modelos 3D desde archivo JSON externo por mapa
+    // *-- Carga de Modelos 3D World
     async load3DModelsFromJSON(mapName) {
         try {
             const response = await fetch(`modelos/${mapName}_models.json`);
@@ -541,6 +546,7 @@ export class World {
         }
     }
 
+    // *-- Creación de Puertas World
     createDoorsFromMap() {
         this.doorMeshes = [];
 
@@ -608,6 +614,7 @@ export class World {
         return this.mapData ? this.mapData.playerRotation : 0;
     }
 
+    // *-- Creación de Muros World
     createWallsFromMap() {
         this.walls = [];
 
@@ -705,7 +712,7 @@ export class World {
 
 
 
-    // *-- Limpieza de Recursos
+    // *-- Limpieza de Recursos World
     dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
