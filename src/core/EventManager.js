@@ -1,8 +1,10 @@
+// *-- Importaciones EventManager
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { UIManager } from '../UI.js';
 import { CONFIG } from '../Constants.js';
 import { WaveEvent } from '../eventos/WaveEvent.js';
 
+// *-- Clase EventManager
 export class EventManager {
     constructor(scene, enemyManager, audioManager, world) {
         this.scene = scene;
@@ -17,6 +19,7 @@ export class EventManager {
 
         this.postProcessingEnabled = false;
 
+        // *-- Inicialización
         this.initDefaultEvents();
 
         const genericSpawners = world.getGenericSpawners();
@@ -30,6 +33,7 @@ export class EventManager {
         }
     }
 
+    // *-- Carga de Eventos
     async loadEventsForMap(mapName) {
         try {
             const res = await fetch(`eventos/${mapName}_events.json`);
@@ -57,6 +61,7 @@ export class EventManager {
         this.events.push(eventData);
     }
 
+    // *-- Loop Principal EventManager
     update(delta, playerPosition) {
         this.timeElapsed += delta;
 
@@ -91,6 +96,7 @@ export class EventManager {
         });
     }
 
+    // *-- Ejecución de Acciones
     executeActions(actions, playerPos) {
         actions.forEach(action => {
             switch (action.type) {

@@ -1,3 +1,4 @@
+// *-- Clase Door
 export class Door {
     // Array estático para guardar todas las puertas activas
     static instances = [];
@@ -13,6 +14,7 @@ export class Door {
     }
 
     // Método estático para intentar abrir la puerta más cercana
+    // *-- Métodos Estáticos Door
     static tryOpenNearest(playerPosition) {
         let opened = false;
         Door.instances.forEach(door => {
@@ -34,6 +36,7 @@ export class Door {
         Door.instances = [];
     }
 
+    // *-- Métodos de Instancia Door
     open() {
         if (this.isOpen) return;
         this.isOpen = true;

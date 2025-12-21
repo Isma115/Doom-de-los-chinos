@@ -1,8 +1,11 @@
+// *-- Importaciones WeaponSystem
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from '../Constants.js'; //
 import { UIManager } from '../UI.js';
-export class WeaponSystem { //
+// *-- Clase WeaponSystem
+export class WeaponSystem {
 
+    // *-- Constructor WeaponSystem
     constructor(camera, enemyManager, audioManager, player, scene) {
         this.camera = camera;
         this.enemyManager = enemyManager;
@@ -58,6 +61,7 @@ export class WeaponSystem { //
 
 
 
+    // *-- Efectos Visuales
     createWallImpactEffect(hitPoint, hitNormal) {
         // ──────────────────────────────────────────────────────────────
         // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
@@ -181,6 +185,7 @@ export class WeaponSystem { //
         setTimeout(fadeOut, 50);
     }
 
+    // *-- Gestión de Munición
     addAmmo(amount, weaponIndex = null) {
         if (weaponIndex !== null) {
             const weapon = WEAPONS_DATA[weaponIndex];
@@ -203,6 +208,7 @@ export class WeaponSystem { //
         this.updateVisuals();
     }
 
+    // *-- Visuales Arma
     updateVisuals() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
@@ -250,6 +256,7 @@ export class WeaponSystem { //
         UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
     } //
 
+    // *-- Lógica de Disparo
     tryShoot(scoreCallback) {
         const now = performance.now();
         const weapon = this.getCurrentWeapon();
@@ -295,6 +302,7 @@ export class WeaponSystem { //
         this.animateRecoil();
     }
 
+    // *-- Sistema Raycast
     performRaycast(weapon, scoreCallback) {
         this.raycaster.setFromCamera(this.rayOrigin, this.camera);
 

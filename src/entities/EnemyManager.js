@@ -1,8 +1,11 @@
+// *-- Importaciones EnemyManager
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, ENEMY_TYPES, AUDIO_CONFIG } from '../Constants.js';
 
+// *-- Clase EnemyManager
 export class EnemyManager {
 
+    // *-- Constructor EnemyManager
     constructor(scene, world, audioManager) {
         this.scene = scene;
         this.world = world;
@@ -55,6 +58,7 @@ export class EnemyManager {
         this.activeSoundSources = [];
     }
 
+    // *-- Sistema de Partículas
     createBloodParticles(enemy, hitPosition) {
         const existingParticles = this.bloodParticles.get(enemy);
 
@@ -295,6 +299,7 @@ export class EnemyManager {
         return weightedTypes[Math.floor(Math.random() * weightedTypes.length)];
     }
 
+    // *-- Pool de Enemigos
     getEnemyFromPool(enemyType = null) {
         const type = enemyType ||
             this.getRandomEnemyType();
@@ -453,6 +458,7 @@ export class EnemyManager {
         }
     }
 
+    // *-- Sistema de Spawning
     spawn(time, specificType = null, specificPosition = null) {
         if (specificPosition || time - this.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
             const enemyType = specificType ||
@@ -503,6 +509,7 @@ export class EnemyManager {
         }
     }
 
+    // *-- Sistema de Proyectiles
     shootProjectile(enemy, targetPos) {
         const size = enemy.userData.projectileSize ||
             0.3;
@@ -560,6 +567,7 @@ export class EnemyManager {
         });
     }
 
+    // *-- Update Loop EnemyManager
     update(delta, playerPos, onHitPlayer) {
         const tempEnemyBox = new THREE.Box3();
         const now = performance.now();
@@ -743,6 +751,7 @@ export class EnemyManager {
         this.returnEnemyToPool(enemy);
     }
 
+    // *-- Limpieza EnemyManager
     dispose() {
         this.bloodParticles.forEach((particles, enemy) => {
             this.clearBloodParticles(enemy);

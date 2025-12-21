@@ -1,14 +1,14 @@
 import os
 import datetime
 
-# ----- CONFIGURACIÓN -----
+# *-- Configuración
 obj_in = "assets/3D/10446_Palm_Tree_v1_max2010_iteration-2.obj"
 obj_out = "assets/3D/10446_Palm_Tree_v1_max2010_iteration-2.obj"
 
 # eje de salida para cada coordenada de entrada: (nuevo_x, nuevo_y, nuevo_z)
 axis_map = ("x", "z", "y")   # aquí cambias como quieras
 
-# ----- COPIA DE SEGURIDAD -----
+# *-- Copia de Seguridad
 
 backup_dir = "copias_seguridad"
 os.makedirs(backup_dir, exist_ok=True)
@@ -27,14 +27,14 @@ with open(obj_backup, "w") as f:
 print("Copia de seguridad OBJ creada:", obj_backup)
 
 
-# ----- FUNCIÓN PARA REORDENAR LOS EJES -----
+# *-- Función de Reordenamiento
 
 def reorder(x, y, z, axis_map):
     values = {"x": x, "y": y, "z": z}
     return values[axis_map[0]], values[axis_map[1]], values[axis_map[2]]
 
 
-# ----- PROCESAR ROTACIÓN -----
+# *-- Procesar Rotación
 
 nuevo = []
 

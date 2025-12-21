@@ -1,11 +1,14 @@
+// *-- Importaciones MapLoader
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, ENEMY_TYPES } from '../Constants.js';
 
+// *-- Clase MapLoader
 export class MapLoader {
     constructor() {
         this.blockSize = CONFIG.BLOCK_SIZE || 10;
     }
 
+    // *-- Carga de Mapa
     async loadMapFile(mapName = 'default') {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
@@ -23,6 +26,7 @@ export class MapLoader {
         }
     }
 
+    // *-- Parseo de Mapa
     parseMap(mapText) {
         const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
         const height = lines.length;
@@ -286,6 +290,7 @@ export class MapLoader {
         };
     }
 
+    // *-- Utilidades MapLoader
     gridToWorld(gridX, gridY, mapWidth, mapHeight) {
         const offsetX = (mapWidth * this.blockSize) / 2;
         const offsetZ = (mapHeight * this.blockSize) / 2;
