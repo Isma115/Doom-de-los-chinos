@@ -541,8 +541,7 @@ export class World {
             console.warn(`No hay archivo de modelos 3D para el mapa ${mapName} o error de carga`, err);
         }
     }
-
-    // *-- Creación de Puertas World
+// *-- Creación de Puertas World
     createDoorsFromMap() {
         this.doorMeshes = [];
 
@@ -596,19 +595,23 @@ export class World {
 
             doorMesh.userData = {
                 closedY: doorHeight / 2,
-                openY: doorHeight + 10,
+                openY: doorHeight + 10,        // Altura abierta (sube más para que quede completamente abierta)
                 targetY: doorHeight / 2,
                 id: Math.random()
             };
 
             this.scene.add(doorMesh);
             this.doorMeshes.push(doorMesh);
+
+            // Crear instancia de Door con este mesh
+            new Door(doorMesh);
         });
     }
 
     getPlayerRotation() {
         return this.mapData ? this.mapData.playerRotation : 0;
     }
+
 
     // *-- Creación de Muros World
     createWallsFromMap() {

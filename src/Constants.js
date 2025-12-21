@@ -8,7 +8,7 @@ export const CONFIG = {
     PLAYER_SPEED: 400.0,
     ARENA_SIZE: 200,
     ENEMY_SPAWN_RATE: 5000,
-    DOOR_OPEN_DURATION: 3000,
+    DOOR_OPEN_DURATION: 3000,        // ← Ya no se usa directamente, pero se mantiene por compatibilidad
     DOOR_CLOSE_DISTANCE: 20,
     BLOCK_SIZE: 10,
 
@@ -18,7 +18,7 @@ export const CONFIG = {
 
     // Pickups
     PICKUP_DISTANCE: 2.0,
-    FOOD_HEAL_AMOUNT: 50,          // ← Modificado: antes era 25, ahora recupera 50 de salud
+    FOOD_HEAL_AMOUNT: 50,          
     PISTOL_AMMO_AMOUNT: 30,
     MACHINEGUN_AMMO_AMOUNT: 300,
 
@@ -28,6 +28,8 @@ export const CONFIG = {
 
     DEBUG_SHOW_HITBOXES: false
 };
+
+
 
 // *-- Mapas Disponibles
 export const AVAILABLE_MAPS = [

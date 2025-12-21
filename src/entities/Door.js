@@ -14,6 +14,7 @@ export class Door {
     }
 
     // Método estático para intentar abrir la puerta más cercana
+
     // *-- Métodos Estáticos Door
     static tryOpenNearest(playerPosition) {
         let opened = false;
@@ -35,7 +36,6 @@ export class Door {
     static clearAll() {
         Door.instances = [];
     }
-
     // *-- Métodos de Instancia Door
     open() {
         if (this.isOpen) return;
@@ -53,7 +53,8 @@ export class Door {
     update(delta, playerPosition) {
         const targetY = this.mesh.userData.targetY;
         const currentY = this.mesh.position.y;
-        const speed = 8;
+        // Velocidad reducida de 8 → 3 para que la apertura/cierre sea más lenta y suave
+        const speed = 3;
 
         if (Math.abs(currentY - targetY) > 0.1) {
             this.mesh.position.y += (targetY - currentY) * speed * delta;
