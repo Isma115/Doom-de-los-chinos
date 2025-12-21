@@ -204,7 +204,6 @@ export class World {
     getFoodSpawners() {
         return this.foodSpawners || [];
     }
-
     // *-- Creación de Items (Runtime) World
     spawnFood(position) {
         const textureLoader = new THREE.TextureLoader();
@@ -228,7 +227,7 @@ export class World {
 
         foodSprite.userData = {
             type: 'food',
-            healAmount: CONFIG.FOOD_HEAL_AMOUNT,
+            healAmount: CONFIG.FOOD_HEAL_AMOUNT,   // ← Ahora usa la constante modificada (50)
             collected: false,
             rotationSpeed: 2.0
         };
@@ -371,7 +370,7 @@ export class World {
 
             foodSprite.userData = {
                 type: 'food',
-                healAmount: 25,
+                healAmount: CONFIG.FOOD_HEAL_AMOUNT,   // ← Ahora usa la constante modificada (50)
                 collected: false,
                 rotationSpeed: 2.0
             };
@@ -380,6 +379,7 @@ export class World {
             this.foodMeshes.push(foodSprite);
         });
     }
+
 
     // *-- Carga de Modelos 3D World
     async load3DModelsFromJSON(mapName) {

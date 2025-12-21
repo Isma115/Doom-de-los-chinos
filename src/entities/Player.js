@@ -367,8 +367,7 @@ export class Player {
     onMouseUp() {
         this.isShooting = false;
     }
-
-    // *-- Sistema de Salud Player
+// *-- Sistema de Salud Player
     takeDamage(damageAmount = 1) {
         if (this.isGameOver) return;
 
@@ -408,6 +407,7 @@ export class Player {
             this.audioManager.playSound('collectItem', 0.5);
         }
     }
+
 
     // *-- Sistema de Munición Player
     collectAmmo(amount, weaponIndex) {

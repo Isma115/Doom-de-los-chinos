@@ -18,7 +18,7 @@ export const CONFIG = {
 
     // Pickups
     PICKUP_DISTANCE: 2.0,
-    FOOD_HEAL_AMOUNT: 25,
+    FOOD_HEAL_AMOUNT: 50,          // ← Modificado: antes era 25, ahora recupera 50 de salud
     PISTOL_AMMO_AMOUNT: 30,
     MACHINEGUN_AMMO_AMOUNT: 300,
 
@@ -28,6 +28,7 @@ export const CONFIG = {
 
     DEBUG_SHOW_HITBOXES: false
 };
+
 // *-- Mapas Disponibles
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
