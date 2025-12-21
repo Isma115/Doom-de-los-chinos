@@ -118,7 +118,6 @@ export class AudioManager {
             return null;
         }
     }
-
     // *-- Reproducción Música Audio
     playMusic(musicName, volume = 1.0) {
         if (!this.initialized || !this.music[musicName]) {
@@ -137,7 +136,7 @@ export class AudioManager {
             source.loop = true;
 
             const gainNode = this.audioContext.createGain();
-            gainNode.gain.value = volume;
+            gainNode.gain.value = volume;  // Ahora el valor por defecto es 1.0 (más alto)
 
             source.connect(gainNode);
             gainNode.connect(this.musicGain);
@@ -163,7 +162,6 @@ export class AudioManager {
             }
         }
     }
-
     // *-- Control de Volumen Audio
     setMusicVolume(volume) {
         if (this.musicGain) {

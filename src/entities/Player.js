@@ -66,8 +66,7 @@ export class Player {
 
         this.camera.updateMatrixWorld(true);
     }
-
-    // *-- Inicialización de Eventos Player
+// *-- Inicialización de Eventos Player
     initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
@@ -92,9 +91,7 @@ export class Player {
         if (screamButton) {
             screamButton.addEventListener('click', () => this.scream());
         }
-    }
-
-    // *-- Getters y Utilidades Player
+    }    // *-- Getters y Utilidades Player
     getWorldWalls() {
         if (this.world && this.world.getWalls) {
             return this.world.getWalls();

@@ -47,7 +47,6 @@ export const AUDIO_CONFIG = {
 };
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);
-
 // *-- Datos de Armas
 export const WEAPONS_DATA = [
     {
@@ -87,34 +86,8 @@ export const WEAPONS_DATA = [
         sprite: 'knife.png',
         flash: 'knife.png',
         isMelee: true
-    },
-    {
-        name: "ESPADA",
-        damage: 70,
-        delay: 800,               // más lenta pero más daño
-        range: 7.0,               // rango duplicado
-        ammo: Infinity,
-        maxAmmo: Infinity,
-        shootSound: 'sword_swing',
-        sprite: 'sword.png',
-        flash: 'sword_slash.png',
-        isMelee: true
-    },
-    {
-        name: "BATE",
-        damage: 55,
-        delay: 700,
-        range: 8.0,               // rango duplicado
-        ammo: Infinity,
-        maxAmmo: Infinity,
-        shootSound: 'bat_swing',
-        sprite: 'bat.png',
-        flash: 'bat_hit.png',
-        isMelee: true
     }
-];
-
-// *-- Tipos de Enemigos
+];// *-- Tipos de Enemigos
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
