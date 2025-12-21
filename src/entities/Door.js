@@ -1,4 +1,3 @@
-/*sección [PUERTA] Puerta abrir y cerrar*/
 export class Door {
     // Array estático para guardar todas las puertas activas
     static instances = [];
@@ -8,7 +7,7 @@ export class Door {
         this.isOpen = false;
         this.openTime = 0;
         this.openDuration = 5000;
-        
+
         // Agregar esta instancia a la lista global de puertas
         Door.instances.push(this);
     }
@@ -77,4 +76,3 @@ export class Door {
         return playerPosition.distanceTo(this.mesh.position) < 8; // Reducir distancia de apertura
     }
 }
-/*[Fin de sección]*/

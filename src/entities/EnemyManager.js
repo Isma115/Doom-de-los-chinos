@@ -1,4 +1,3 @@
-/*sección [INICIALIZACIÓN Y CONFIGURACIÓN] Configuración inicial del gestor de enemigos, texturas, geometrías compartidas y sistema de pooling*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, ENEMY_TYPES, AUDIO_CONFIG } from '../Constants.js';
 
@@ -56,9 +55,6 @@ export class EnemyManager {
         this.activeSoundSources = [];
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [SISTEMA DE PARTÍCULAS DE SANGRE] Creación, actualización y gestión de partículas de sangre con física y efectos visuales*/
     createBloodParticles(enemy, hitPosition) {
         const existingParticles = this.bloodParticles.get(enemy);
 
@@ -289,9 +285,6 @@ export class EnemyManager {
         this.bloodParticles.delete(enemy);
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [GESTIÓN DE ENEMIGOS Y PROYECTILES] Sistema de pooling de enemigos, spawn, actualización con IA, disparos y detección de colisiones*/
     getRandomEnemyType() {
         const weightedTypes = [];
         ENEMY_TYPES.forEach(enemyType => {

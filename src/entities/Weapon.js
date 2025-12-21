@@ -1,4 +1,3 @@
-/*sección [CONSTRUCTOR Y ESTADO] Inicialización del sistema de armas*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from '../Constants.js'; //
 import { UIManager } from '../UI.js';
@@ -181,9 +180,7 @@ export class WeaponSystem { //
         };
         setTimeout(fadeOut, 50);
     }
-    /*[Fin de sección]*/
 
-    /*sección [GESTIÓN DE MUNICIÓN] Añadir munición y cambio de arma*/
     addAmmo(amount, weaponIndex = null) {
         if (weaponIndex !== null) {
             const weapon = WEAPONS_DATA[weaponIndex];
@@ -206,9 +203,6 @@ export class WeaponSystem { //
         this.updateVisuals();
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [VISUALES DEL ARMA] Actualización de sprites y texturas del arma equipada*/
     updateVisuals() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
@@ -256,9 +250,6 @@ export class WeaponSystem { //
         UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
     } //
 
-    /*[Fin de sección]*/
-
-    /*sección [SISTEMA DE DISPARO Y ANIMACIÓN] Lógica de disparo, raycast, retroceso y limpieza*/
     tryShoot(scoreCallback) {
         const now = performance.now();
         const weapon = this.getCurrentWeapon();
@@ -429,4 +420,3 @@ export class WeaponSystem { //
         this.weaponMaterials = [];
     } //
 }
-/*[Fin de sección]*/

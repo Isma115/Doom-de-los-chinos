@@ -1,4 +1,3 @@
-/*sección [ESTILO CSS] Estilo css*/
 body { margin: 0;
 overflow: hidden; font-family: 'Arial', sans-serif; background-color: #000;}
 #ui-layer {
@@ -603,5 +602,3 @@ p { font-size: 20px;
     box-shadow: 0 0 20px rgba(100, 100, 255, 0.6);
     transform: scale(1.05);
 }
-
-/*[Fin de sección]*/

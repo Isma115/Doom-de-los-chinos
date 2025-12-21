@@ -1,4 +1,3 @@
-/*sección [CONSTRUCTOR Y CONFIGURACIÓN] Inicialización del gestor de eventos y carga desde archivo*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { UIManager } from '../UI.js';
 import { CONFIG } from '../Constants.js';
@@ -50,47 +49,14 @@ export class EventManager {
         }
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [EVENTOS POR DEFECTO] Plantillas de eventos predefinidos*/
     initDefaultEvents() {
-        // // EVENTO 1: Emboscada por proximidad
-        // this.addEvent({
-        //     id: 'ambush_01',
-        //     trigger: {
-        //         type: 'AREA',
-        //         position: new THREE.Vector3(0, 0, 20), // Ajustar según mapa
-        //         radius: 5.0
-        //     },
-        //     actions: [
-        //         { type: 'MESSAGE', text: "¡ES UNA TRAMPA!", duration: 3000 },
-        //         { type: 'SOUND', id: 'roar1' },
-        //         { type: 'SPAWN', enemyType: 'pablo', count: 2, offset: 5 },
-        //         { type: 'LIGHT_FLASH', color: 0xff0000, duration: 500 }
-        //     ]
-        // });
 
-        // // EVENTO 2: Mensaje de atmósfera por tiempo
-        // this.addEvent({
-        //     id: 'creepy_atmosphere',
-        //     trigger: {
-        //         type: 'TIME',
-        //         value: 10 // A los 10 segundos
-        //     },
-        //     actions: [
-        //         { type: 'MESSAGE', text: "Algo te observa desde la oscuridad...", duration: 4000 },
-        //         { type: 'SOUND', id: 'hiss1', volume: 0.8 }
-        //     ]
-        // });
     }
 
     addEvent(eventData) {
         this.events.push(eventData);
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [ACTUALIZACIÓN Y EJECUCIÓN] Detección de triggers y ejecución de acciones*/
     update(delta, playerPosition) {
         this.timeElapsed += delta;
 
@@ -177,4 +143,3 @@ export class EventManager {
         });
     }
 }
-/*[Fin de sección]*/

@@ -1,152 +1,148 @@
-/*sección [CONSTRUCTOR Y CONFIGURACIÓN DE OLEADAS] Inicialización y definición de datos de cada ronda*/
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { ENEMY_TYPES } from '../Constants.js';
 import { UIManager } from '../UI.js';
 
 export class WaveEvent {
-        constructor(enemyManager, world) {
-    this.enemyManager = enemyManager;
-    this.world = world;
-    this.genericSpawners = world.getGenericSpawners();
-    this.ammoSpawners = world.getAmmoSpawners();
-    this.foodSpawners = world.getFoodSpawners();
+    constructor(enemyManager, world) {
+        this.enemyManager = enemyManager;
+        this.world = world;
+        this.genericSpawners = world.getGenericSpawners();
+        this.ammoSpawners = world.getAmmoSpawners();
+        this.foodSpawners = world.getFoodSpawners();
 
-    this.lastAmmoSpawnTime = 0;
-    this.ammoSpawnInterval = 300;
-    this.timeSinceLastAmmoSpawn = 0;
-    this.timeSinceLastFoodSpawn = 0;
+        this.lastAmmoSpawnTime = 0;
+        this.ammoSpawnInterval = 300;
+        this.timeSinceLastAmmoSpawn = 0;
+        this.timeSinceLastFoodSpawn = 0;
 
-    this.currentWave = 0;
-    this.waveActive = false;
-    this.enemiesSpawned = 0;
-    this.waveConfig = this.configureWaveData();
+        this.currentWave = 0;
+        this.waveActive = false;
+        this.enemiesSpawned = 0;
+        this.waveConfig = this.configureWaveData();
 
-    // NUEVA ESTRUCTURA: Control de música LPDMC para mapa de fortaleza en rondas 3 y 4
-    this.isFortalezaMap = false;
-    this.lpdpmMusicPlaying = false;
-    this.lpdmcMusicPlaying = false;
+        // NUEVA ESTRUCTURA: Control de música LPDMC para mapa de fortaleza en rondas 3 y 4
+        this.isFortalezaMap = false;
+        this.lpdpmMusicPlaying = false;
+        this.lpdmcMusicPlaying = false;
 
-    setTimeout(() => this.startWave(), 2000);
+        setTimeout(() => this.startWave(), 2000);
 
-    this.spawnAmmoAtSpawners();
-    this.spawnFoodAtSpawners();
-}
+        this.spawnAmmoAtSpawners();
+        this.spawnFoodAtSpawners();
+    }
 
     /**
      * Configure wave data: which spawners to use and which enemies to spawn
      */
     configureWaveData() {
-    return [
-        // Ronda 1: Solo enemigos básicos (sin pablo)
-        {
-            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-            enemies: [
-                { type: 'pera', count: 15 }
-            ]
-        },
-        // Ronda 2: Más variedad, pero todavía sin pablo
-        {
-            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-            enemies: [
-                { type: 'pera', count: 12 },
-                { type: 'trancas_barrancas', count: 4 },
-                { type: 'charo', count: 3 },
-                { type: 'charo2', count: 3 }
-            ]
-        },
-        // Ronda 3
-        {
-            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-            enemies: [
-                { type: 'pera', count: 14 },
-                { type: 'trancas_barrancas', count: 6 },
-                { type: 'amego', count: 4 },
-                { type: 'charo', count: 5 },
-                { type: 'charo2', count: 5 }
-            ]
-        },
-        // Ronda 4
-        {
-            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-            enemies: [
-                { type: 'pera', count: 12 },
-                { type: 'trancas_barrancas', count: 8 },
-                { type: 'amego', count: 6 },
-                { type: 'patica', count: 5 },
-                { type: 'charo', count: 6 },
-                { type: 'charo2', count: 6 }
-            ]
-        },
-        // Ronda 5: Aquí aparece Pablo por primera vez (y en mayor cantidad)
-        {
-            spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
-            enemies: [
-                { type: 'pablo', count: 12 },          // Pablo aparece SOLO a partir de aquí
-                { type: 'pera', count: 10 },
-                { type: 'trancas_barrancas', count: 8 },
-                { type: 'amego', count: 5 },
-                { type: 'patica', count: 6 },
-                { type: 'charo', count: 5 },
-                { type: 'charo2', count: 5 }
-            ]
-        }
-        // Si añades más rondas en el futuro, puedes seguir incluyendo a Pablo aquí
-    ];
-}
-
-/*[Fin de sección]*/
-
-    /*sección [GESTIÓN DE OLEADAS] Inicio y spawn de enemigos por ronda*/
-/**
-     * Start a new wave
-     */
-        startWave() {
-    if (this.currentWave >= this.waveConfig.length) {
-        UIManager.showEventMessage('¡TODAS LAS RONDAS COMPLETADAS! ¡VICTORIA!', 5000);
-        return;
+        return [
+            // Ronda 1: Solo enemigos básicos (sin pablo)
+            {
+                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+                enemies: [
+                    { type: 'pera', count: 15 }
+                ]
+            },
+            // Ronda 2: Más variedad, pero todavía sin pablo
+            {
+                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+                enemies: [
+                    { type: 'pera', count: 12 },
+                    { type: 'trancas_barrancas', count: 4 },
+                    { type: 'charo', count: 3 },
+                    { type: 'charo2', count: 3 }
+                ]
+            },
+            // Ronda 3
+            {
+                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+                enemies: [
+                    { type: 'pera', count: 14 },
+                    { type: 'trancas_barrancas', count: 6 },
+                    { type: 'amego', count: 4 },
+                    { type: 'charo', count: 5 },
+                    { type: 'charo2', count: 5 }
+                ]
+            },
+            // Ronda 4
+            {
+                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+                enemies: [
+                    { type: 'pera', count: 12 },
+                    { type: 'trancas_barrancas', count: 8 },
+                    { type: 'amego', count: 6 },
+                    { type: 'patica', count: 5 },
+                    { type: 'charo', count: 6 },
+                    { type: 'charo2', count: 6 }
+                ]
+            },
+            // Ronda 5: Aquí aparece Pablo por primera vez (y en mayor cantidad)
+            {
+                spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
+                enemies: [
+                    { type: 'pablo', count: 12 },          // Pablo aparece SOLO a partir de aquí
+                    { type: 'pera', count: 10 },
+                    { type: 'trancas_barrancas', count: 8 },
+                    { type: 'amego', count: 5 },
+                    { type: 'patica', count: 6 },
+                    { type: 'charo', count: 5 },
+                    { type: 'charo2', count: 5 }
+                ]
+            }
+            // Si añades más rondas en el futuro, puedes seguir incluyendo a Pablo aquí
+        ];
     }
 
-    this.waveActive = true;
-    this.enemiesSpawned = 0;
-
-    const waveNumber = this.currentWave + 1;
-    UIManager.showEventMessage(`RONDA ${waveNumber} - ¡PREPÁRATE!`, 3000);
-
-    console.log(`Iniciando ronda ${waveNumber}`);
-
-    // NUEVA ESTRUCTURA: Controlar música LPDPM en rondas 1 y 2 del mapa fortaleza
-    if (this.isFortalezaMap && (waveNumber === 1 || waveNumber === 2)) {
-        if (!this.lpdpmMusicPlaying && this.audioManager) {
-            this.audioManager.stopMusic();
-            this.audioManager.playMusic('lpdpm', 0.3);
-            this.lpdpmMusicPlaying = true;
-            this.lpdmcMusicPlaying = false;
-            console.log('Reproduciendo música LPDPM para ronda', waveNumber);
+    /**
+         * Start a new wave
+         */
+    startWave() {
+        if (this.currentWave >= this.waveConfig.length) {
+            UIManager.showEventMessage('¡TODAS LAS RONDAS COMPLETADAS! ¡VICTORIA!', 5000);
+            return;
         }
-    } 
-    // NUEVA ESTRUCTURA: Controlar música LPDMC en rondas 3 y 4 del mapa fortaleza
-    else if (this.isFortalezaMap && (waveNumber === 3 || waveNumber === 4)) {
-        if (!this.lpdmcMusicPlaying && this.audioManager) {
-            this.audioManager.stopMusic();
-            this.audioManager.playMusic('lpdmc', 0.3);
-            this.lpdmcMusicPlaying = true;
-            this.lpdpmMusicPlaying = false;
-            console.log('Reproduciendo música LPDMC para ronda', waveNumber);
+
+        this.waveActive = true;
+        this.enemiesSpawned = 0;
+
+        const waveNumber = this.currentWave + 1;
+        UIManager.showEventMessage(`RONDA ${waveNumber} - ¡PREPÁRATE!`, 3000);
+
+        console.log(`Iniciando ronda ${waveNumber}`);
+
+        // NUEVA ESTRUCTURA: Controlar música LPDPM en rondas 1 y 2 del mapa fortaleza
+        if (this.isFortalezaMap && (waveNumber === 1 || waveNumber === 2)) {
+            if (!this.lpdpmMusicPlaying && this.audioManager) {
+                this.audioManager.stopMusic();
+                this.audioManager.playMusic('lpdpm', 0.3);
+                this.lpdpmMusicPlaying = true;
+                this.lpdmcMusicPlaying = false;
+                console.log('Reproduciendo música LPDPM para ronda', waveNumber);
+            }
         }
-    } 
-    // NUEVA ESTRUCTURA: Detener música especial en ronda 5 y volver a música normal
-    else if (this.isFortalezaMap && waveNumber === 5 && (this.lpdpmMusicPlaying || this.lpdmcMusicPlaying)) {
-        if (this.audioManager) {
-            this.audioManager.stopMusic();
-            this.audioManager.playMusic('background', 0.3);
-            this.lpdpmMusicPlaying = false;
-            this.lpdmcMusicPlaying = false;
-            console.log('Deteniendo música especial en ronda 5');
+        // NUEVA ESTRUCTURA: Controlar música LPDMC en rondas 3 y 4 del mapa fortaleza
+        else if (this.isFortalezaMap && (waveNumber === 3 || waveNumber === 4)) {
+            if (!this.lpdmcMusicPlaying && this.audioManager) {
+                this.audioManager.stopMusic();
+                this.audioManager.playMusic('lpdmc', 0.3);
+                this.lpdmcMusicPlaying = true;
+                this.lpdpmMusicPlaying = false;
+                console.log('Reproduciendo música LPDMC para ronda', waveNumber);
+            }
         }
+        // NUEVA ESTRUCTURA: Detener música especial en ronda 5 y volver a música normal
+        else if (this.isFortalezaMap && waveNumber === 5 && (this.lpdpmMusicPlaying || this.lpdmcMusicPlaying)) {
+            if (this.audioManager) {
+                this.audioManager.stopMusic();
+                this.audioManager.playMusic('background', 0.3);
+                this.lpdpmMusicPlaying = false;
+                this.lpdmcMusicPlaying = false;
+                console.log('Deteniendo música especial en ronda 5');
+            }
+        }
+
+        setTimeout(() => this.spawnEnemiesForWave(), 1000);
     }
-
-    setTimeout(() => this.spawnEnemiesForWave(), 1000);
-}
 
     /**
      * Spawn enemies for the current wave
@@ -193,10 +189,7 @@ export class WaveEvent {
         console.log(`Spawneados ${this.enemiesSpawned} enemigos para la ronda ${this.currentWave + 1}`);
     }
 
-/*[Fin de sección]*/
-
-    /*sección [FINALIZACIÓN Y COUNTDOWN] Detección de finalización de ronda y cuenta regresiva*/
-/**
+    /**
      * Check if the current wave is complete
      */
     checkWaveCompletion() {
@@ -263,29 +256,26 @@ export class WaveEvent {
         }, 2000); // Esperar 2 segundos después de mostrar "RONDA COMPLETADA"
     }
 
-/*[Fin de sección]*/
-
-    /*sección [ACTUALIZACIÓN Y SPAWNERS] Bucle de actualización y spawn de munición/comida*/
-/**
+    /**
      * Update method called from EventManager
      */
     update(delta) {
-    this.checkWaveCompletion();
+        this.checkWaveCompletion();
 
-    this.timeSinceLastAmmoSpawn += delta;
-    this.timeSinceLastFoodSpawn += delta;
+        this.timeSinceLastAmmoSpawn += delta;
+        this.timeSinceLastFoodSpawn += delta;
 
-    if (this.timeSinceLastAmmoSpawn >= this.ammoSpawnInterval) {
-        this.spawnAmmoAtSpawners();
-        this.timeSinceLastAmmoSpawn = 0;
-        UIManager.showEventMessage('¡SUMINISTROS DE MUNICIÓN HAN LLEGADO!', 3000);
+        if (this.timeSinceLastAmmoSpawn >= this.ammoSpawnInterval) {
+            this.spawnAmmoAtSpawners();
+            this.timeSinceLastAmmoSpawn = 0;
+            UIManager.showEventMessage('¡SUMINISTROS DE MUNICIÓN HAN LLEGADO!', 3000);
+        }
+
+        if (this.timeSinceLastFoodSpawn >= this.ammoSpawnInterval) {
+            this.spawnFoodAtSpawners();
+            this.timeSinceLastFoodSpawn = 0;
+        }
     }
-
-    if (this.timeSinceLastFoodSpawn >= this.ammoSpawnInterval) {
-        this.spawnFoodAtSpawners();
-        this.timeSinceLastFoodSpawn = 0;
-    }
-}
 
     spawnAmmoAtSpawners() {
         if (!this.ammoSpawners || this.ammoSpawners.length === 0) return;
@@ -316,4 +306,3 @@ export class WaveEvent {
         });
     }
 }
-/*[Fin de sección]*/

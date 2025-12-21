@@ -1,4 +1,3 @@
-/*sección [CONSTANTES] Gestión de constantes*/
 import * as THREE from '../node_modules/three/build/three.module.js';
 export const CONFIG = {
     GRAVITY: 30.0,
@@ -271,4 +270,3 @@ export const MAP_BLOCKS = {
     'SMuni': { type: 'ammo_spawner', color: 0x0000ff, height: 0, solid: false },
     'SComida': { type: 'food_spawner', color: 0x00ff00, height: 0, solid: false }
 };
-/*[Fin de sección]*/
