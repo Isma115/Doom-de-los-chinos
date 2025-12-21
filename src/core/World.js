@@ -82,13 +82,11 @@ export class World {
         const mapWidth = this.mapData.width * CONFIG.BLOCK_SIZE;
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
         const floorSize = Math.max(mapWidth, mapHeight, CONFIG.ARENA_SIZE);
-// *-- Generación de Suelo
+
+        // *-- Generación de Suelo
         const tileSize = 20;
         const tilesX = Math.ceil((floorSize * 1.5) / tileSize) + 2;
         const tilesZ = Math.ceil((floorSize * 1.5) / tileSize) + 2;
-
-        // Nueva variable: control de visualización de parcelas
-        const showAllTiles = false; // Cambiar a true para mostrar todas, false para limitar a 200
 
         const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
 
@@ -115,22 +113,16 @@ export class World {
             tileMaterial = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
         }
 
+
+
         const floorGroup = new THREE.Group();
         const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
 
         const startX = -(tilesX * tileSize) / 2 + tileSize / 2;
         const startZ = -(tilesZ * tileSize) / 2 + tileSize / 2;
 
-        let tileCount = 0;
-        const maxTiles = showAllTiles ? Infinity : 200; // Límite de parcelas
-
         for (let x = 0; x < tilesX; x++) {
             for (let z = 0; z < tilesZ; z++) {
-                // Verificar si hemos alcanzado el límite de parcelas
-                if (tileCount >= maxTiles) {
-                    break;
-                }
-
                 const tile = new THREE.Mesh(tileGeometry, tileMaterial);
                 tile.rotation.x = -Math.PI / 2;
                 tile.rotation.z = rotations[Math.floor(Math.random() * rotations.length)];
@@ -138,19 +130,11 @@ export class World {
                 tile.matrixAutoUpdate = false;
                 tile.updateMatrix();
                 floorGroup.add(tile);
-                
-                tileCount++;
-            }
-            
-            // Salir del bucle exterior si hemos alcanzado el límite
-            if (tileCount >= maxTiles) {
-                break;
             }
         }
 
-        console.log(`Generadas ${tileCount} parcelas de suelo (${showAllTiles ? 'todas' : 'limitado a 200'})`);
-
         this.scene.add(floorGroup);
+
         // *-- Generación de Objetos
         this.createWallsFromMap();
         this.createDoorsFromMap();

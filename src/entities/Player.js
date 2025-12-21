@@ -1,3 +1,4 @@
+
 // *-- Importaciones y Constructor
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, WEAPONS_DATA } from '../Constants.js';
@@ -30,6 +31,13 @@ export class Player {
 
         this.radius = 2.0;
 
+        // NUEVAS PROPIEDADES PARA EL RAYO AZUL
+        this.rayActive = false;
+        this.rayLine = null;
+        this.lastRayHit = null;
+        this.impactEffect = null;
+        this.impactTimeout = null;
+
         camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
 
         // NUEVA ESTRUCTURA: Inicializar debugState con bulletLog antes de crear WeaponSystem
@@ -47,8 +55,6 @@ export class Player {
 
         this.initEvents(domElement);
     }
-
-
     // *-- Teletransporte
     teleport(position, rotation = 0) {
         this.camera.position.copy(position);
@@ -61,9 +67,7 @@ export class Player {
         this.camera.updateMatrixWorld(true);
     }
 
-
-
-    // *-- Sistema de Eventos e Input
+// *-- Sistema de Eventos e Input
     initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
@@ -147,7 +151,145 @@ export class Player {
                     this.scream();
                 }
                 break;
+            case 'Digit1':
+                if (isDown) {
+                    this.toggleRay();
+                }
+                break;
         }
+    }
+
+    // NUEVA FUNCIÓN: Activar/desactivar rayo
+    toggleRay() {
+        if (this.rayActive) {
+            this.deactivateRay();
+        } else {
+            this.activateRay();
+        }
+    }
+
+    // NUEVA FUNCIÓN: Activar rayo
+    activateRay() {
+        this.rayActive = true;
+        console.log("Ray azul activado");
+        
+        // Crear visualización del rayo azul si no existe
+        if (!this.rayLine) {
+            const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, -100)
+            ]);
+            const rayMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x0066ff, // AZUL brillante
+                linewidth: 3,
+                transparent: true,
+                opacity: 0.8
+            });
+            this.rayLine = new THREE.Line(rayGeometry, rayMaterial);
+            this.camera.add(this.rayLine);
+        }
+        
+        this.rayLine.visible = true;
+    }
+
+    // NUEVA FUNCIÓN: Desactivar rayo
+    deactivateRay() {
+        this.rayActive = false;
+        console.log("Ray desactivado");
+        if (this.rayLine) {
+            this.rayLine.visible = false;
+        }
+    }
+
+    // NUEVA FUNCIÓN: Actualizar visualización del rayo
+    updateRay() {
+        if (!this.rayActive || !this.rayLine || !this.rayLine.visible) return;
+        
+        const raycaster = new THREE.Raycaster();
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyQuaternion(this.camera.quaternion);
+        
+        raycaster.set(this.camera.position, direction);
+        
+        // Obtener todos los objetos colisionables
+        const walls = this.world.getWalls();
+        const doors = Door.instances.filter(d => !d.isOpen).map(d => d.mesh);
+        const staticModels = this.world.getStaticModels ? this.world.getStaticModels() : [];
+        
+        const intersectObjects = [...walls, ...doors, ...staticModels];
+        
+        const intersects = raycaster.intersectObjects(intersectObjects, true);
+        
+        if (intersects.length > 0) {
+            const hitPoint = intersects[0].point;
+            
+            // Actualizar línea del rayo
+            const points = [
+                this.camera.position,
+                hitPoint
+            ];
+            
+            this.rayLine.geometry.setFromPoints(points);
+            this.rayLine.geometry.attributes.position.needsUpdate = true;
+            
+            // Almacenar información del último impacto
+            this.lastRayHit = {
+                position: hitPoint.clone(),
+                time: Date.now()
+            };
+            
+            // Crear un efecto visual en el punto de impacto (círculo azul)
+            this.showImpactEffect(hitPoint);
+        } else {
+            // Si no hay colisión, mostrar rayo a distancia máxima
+            const maxDistance = 100;
+            const endPoint = this.camera.position.clone().add(
+                direction.clone().multiplyScalar(maxDistance)
+            );
+            
+            const points = [
+                this.camera.position,
+                endPoint
+            ];
+            
+            this.rayLine.geometry.setFromPoints(points);
+            this.rayLine.geometry.attributes.position.needsUpdate = true;
+            this.lastRayHit = null;
+        }
+    }
+    
+    // NUEVA FUNCIÓN: Mostrar efecto de impacto
+    showImpactEffect(position) {
+        // Limpiar efecto anterior si existe
+        if (this.impactEffect && this.impactEffect.parent) {
+            this.impactEffect.parent.remove(this.impactEffect);
+        }
+        
+        // Crear un pequeño círculo azul en el punto de impacto
+        const circleGeometry = new THREE.CircleGeometry(0.3, 16);
+        const circleMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x0066ff,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide
+        });
+        
+        this.impactEffect = new THREE.Mesh(circleGeometry, circleMaterial);
+        
+        // Orientar el círculo hacia la cámara
+        this.impactEffect.lookAt(this.camera.position);
+        this.impactEffect.position.copy(position);
+        
+        // Añadir a la escena
+        this.world.scene.add(this.impactEffect);
+        
+        // Eliminar después de 0.5 segundos
+        if (this.impactTimeout) clearTimeout(this.impactTimeout);
+        this.impactTimeout = setTimeout(() => {
+            if (this.impactEffect && this.impactEffect.parent) {
+                this.impactEffect.parent.remove(this.impactEffect);
+            }
+        }, 500);
     }
 
     scream() {
@@ -157,17 +299,71 @@ export class Player {
         }
     }
 
-
-
-    // *-- Combate y Daño
+// *-- Combate y Daño
     onMouseDown() {
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
-            this.weaponSystem.tryShoot(() => {
-                this.score++;
-                UIManager.updateScore(this.score);
-            });
+            
+            // NUEVA FUNCIONALIDAD: Si el rayo está activo, mostrar coordenadas de impacto
+            if (this.rayActive && this.lastRayHit) {
+                const hitPos = this.lastRayHit.position;
+                console.log(`📍 Ray Impact Coordinates: X: ${hitPos.x.toFixed(2)}, Y: ${hitPos.y.toFixed(2)}, Z: ${hitPos.z.toFixed(2)}`);
+                
+                // Mostrar en UI con estilo azul para coincidir con el rayo
+                UIManager.showEventMessage(
+                    `📍 IMPACTO RAYO AZUL: X:${hitPos.x.toFixed(1)} Y:${hitPos.y.toFixed(1)} Z:${hitPos.z.toFixed(1)}`,
+                    3000
+                );
+                
+                // Destacar visualmente el punto de impacto
+                this.highlightImpactPoint(hitPos);
+                
+                // También disparar normal si se mantiene presionado
+                this.weaponSystem.tryShoot(() => {
+                    this.score++;
+                    UIManager.updateScore(this.score);
+                });
+            } else {
+                // Disparo normal
+                this.weaponSystem.tryShoot(() => {
+                    this.score++;
+                    UIManager.updateScore(this.score);
+                });
+            }
         }
+    }
+    
+    // NUEVA FUNCIÓN: Destacar punto de impacto
+    highlightImpactPoint(position) {
+        // Crear un efecto visual más prominente para el clic
+        const sphereGeometry = new THREE.SphereGeometry(0.5, 8, 8);
+        const sphereMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x0066ff,
+            transparent: true,
+            opacity: 0.9,
+            wireframe: false
+        });
+        
+        const highlightSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        highlightSphere.position.copy(position);
+        
+        this.world.scene.add(highlightSphere);
+        
+        // Animación de pulsación
+        let scale = 1.0;
+        const animate = () => {
+            scale += 0.1;
+            highlightSphere.scale.set(scale, scale, scale);
+            sphereMaterial.opacity -= 0.05;
+            
+            if (sphereMaterial.opacity > 0) {
+                requestAnimationFrame(animate);
+            } else {
+                this.world.scene.remove(highlightSphere);
+            }
+        };
+        
+        animate();
     }
 
     onMouseUp() {
@@ -195,6 +391,11 @@ export class Player {
             UIManager.showGameOver();
             if (this.audioManager) {
                 this.audioManager.stopMusic();
+            }
+            
+            // Desactivar rayo al morir
+            if (this.rayActive) {
+                this.deactivateRay();
             }
         }
     }
@@ -229,11 +430,7 @@ export class Player {
         // moveForward(-velocity.z) se encarga automáticamente de aplicar
         // el retroceso en la dirección correcta según el ángulo actual
         this.velocity.z += strength;
-    }
-
-
-
-    // *-- Bucle de Actualización
+    }// *-- Bucle de Actualización
     update(delta) {
         if (!this.controls.isLocked) return;
         if (this.isShooting) {
@@ -296,6 +493,11 @@ export class Player {
         }
 
         this.checkAmmoItems();
+        
+        // NUEVA ESTRUCTURA: Actualizar visualización del rayo azul
+        if (this.rayActive) {
+            this.updateRay();
+        }
     }
 
     gameOver() {
@@ -309,6 +511,11 @@ export class Player {
 
         UIManager.showGameOver();
         this.controls.unlock();
+        
+        // Desactivar rayo al morir
+        if (this.rayActive) {
+            this.deactivateRay();
+        }
     }
 
     checkAmmoItems() {
@@ -336,9 +543,6 @@ export class Player {
             }
         });
     }
-
-
-
     // *-- Sistema de Colisiones
     checkCollisions(oldPosition) {
         const playerPos = this.camera.position;

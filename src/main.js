@@ -1,4 +1,4 @@
-// *-- Importaciones y Constructor
+// *-- Importaciones y Constructor de main
 import { World } from './core/World.js';
 import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
