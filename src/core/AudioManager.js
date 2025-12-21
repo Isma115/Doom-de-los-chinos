@@ -118,7 +118,7 @@ export class AudioManager {
             return null;
         }
     }
-    // *-- Reproducción Música Audio
+// *-- Reproducción Música Audio
     playMusic(musicName, volume = 1.0) {
         if (!this.initialized || !this.music[musicName]) {
             return null;
@@ -136,7 +136,7 @@ export class AudioManager {
             source.loop = true;
 
             const gainNode = this.audioContext.createGain();
-            gainNode.gain.value = volume;  // Ahora el valor por defecto es 1.0 (más alto)
+            gainNode.gain.value = volume * 2.5;  // Aumentado aún más (de 1.8 → 2.5) para que la música suene claramente más fuerte incluso al 100%
 
             source.connect(gainNode);
             gainNode.connect(this.musicGain);
@@ -162,10 +162,11 @@ export class AudioManager {
             }
         }
     }
-    // *-- Control de Volumen Audio
+// *-- Control de Volumen Audio
     setMusicVolume(volume) {
         if (this.musicGain) {
-            const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
+            // Aumentamos el límite máximo permitido para que al 100% realmente suene mucho más alto
+            const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER * 2.5, volume));
             this.musicGain.gain.value = clampedVolume;
         }
     }
@@ -175,9 +176,7 @@ export class AudioManager {
             const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
             this.sfxGain.gain.value = clampedVolume;
         }
-    }
-
-    // *-- Utilidades de Sonido Audio
+    }    // *-- Utilidades de Sonido Audio
     playRandomEnemySound(enemyType) {
         if (!enemyType.sounds || enemyType.sounds.length === 0) return;
         const randomSound = enemyType.sounds[Math.floor(Math.random() * enemyType.sounds.length)];
