@@ -1,7 +1,7 @@
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from './Constants.js';
 
-/*sección [GESTIÓN DE UI] Código de gestión de interfaz*/
+// *-- Gestión de UI
 export class UIManager {
     static updateHealth(amount) {
         let container = document.getElementById('health-bar-container');
@@ -182,7 +182,7 @@ export class UIManager {
     }
 }
 
-/*sección [GESTOR DE AJUSTES] Código de gestión de ajustes de audio*/
+// *-- Gestor de Ajustes
 export class SettingsManager {
     constructor(audioManager) {
         this.audioManager = audioManager;
@@ -324,7 +324,7 @@ export class SettingsManager {
     }
 }
 
-/*sección [PANEL DEBUG - CONSTRUCTOR Y CREACIÓN] Inicialización y generación del HTML del panel de debug*/
+// *-- Panel Debug - Constructor y Creación
 
 export class DebugPanel {
     constructor(player, weaponSystem) {
@@ -460,9 +460,9 @@ export class DebugPanel {
         localStorage.setItem('gameDebugSettings', JSON.stringify(settings));
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [PANEL DEBUG - EVENTOS] Listeners de todos los controles del panel de debug*/
+
+    // *-- Panel Debug - Eventos
     setupEventListeners() {
         document.getElementById('debug-close-btn').addEventListener('click', () => {
             this.hide();
@@ -540,9 +540,9 @@ export class DebugPanel {
         });
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [PANEL DEBUG - VISIBILIDAD Y ACTUALIZACIÓN] Control de visibilidad e información en tiempo real*/
+
+    // *-- Panel Debug - Visibilidad y Actualización
     show() {
         this.isVisible = true;
         this.panel.classList.add('active');
@@ -628,5 +628,3 @@ export class DebugPanel {
         }
     }
 }
-
-/*[Fin de sección]*/

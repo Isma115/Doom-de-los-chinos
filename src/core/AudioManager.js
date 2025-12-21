@@ -1,4 +1,3 @@
-/*sección [INICIALIZACIÓN Y CARGA] Constructor, inicialización del contexto de audio y carga de sonidos*/
 import { AUDIO_CONFIG } from '../Constants.js';
 export class AudioManager {
     constructor() {
@@ -43,7 +42,7 @@ export class AudioManager {
         }
     }
 
-        async loadAllSounds() {
+    async loadAllSounds() {
         const soundFiles = {
             pistol: 'assets/sound/weapons/pistol.mp3',
             machinegun: 'assets/sound/weapons/ametra.mp3',
@@ -90,9 +89,6 @@ export class AudioManager {
         }
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [REPRODUCCIÓN DE SONIDOS] Métodos de reproducción de efectos, música y audio 3D*/
     playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
         if (!this.initialized || !this.sounds[soundName]) {
             return null;
@@ -199,9 +195,6 @@ export class AudioManager {
         return this.playSound(soundName, finalVolume);
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [LIMPIEZA] Liberación de recursos de audio*/
     dispose() {
         this.stopMusic();
         if (this.audioContext) {
@@ -213,4 +206,3 @@ export class AudioManager {
         this.initialized = false;
     }
 }
-/*[Fin de sección]*/

@@ -1,4 +1,4 @@
-/*sección [INICIALIZACIÓN Y CONFIGURACIÓN] Importaciones, constructor y configuración inicial del mundo*/
+// *-- Inicialización y Configuración
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG } from '../Constants.js';
 import { MapLoader } from './MapLoader.js';
@@ -23,12 +23,14 @@ export class World {
     }
 
     async init(mapName = 'default') {
+        // *-- Carga de Datos
         this.mapData = await this.mapLoader.loadMapFile(mapName);
         this.enemySpawns = this.mapData.enemySpawns;
         this.genericSpawners = this.mapData.genericSpawners;
         this.ammoSpawners = this.mapData.ammoSpawners || [];
         this.foodSpawners = this.mapData.foodSpawners || [];
 
+        // *-- Configuración de Skybox
         const textureLoader = new THREE.TextureLoader();
         let skyTexture = null;
 
@@ -68,6 +70,7 @@ export class World {
             this.scene.fog = new THREE.Fog(skyColor, 120, 350);
         }
 
+        // *-- Iluminación
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
         hemiLight.position.set(0, 20, 0);
         this.scene.add(hemiLight);
@@ -79,10 +82,13 @@ export class World {
         const mapWidth = this.mapData.width * CONFIG.BLOCK_SIZE;
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
         const floorSize = Math.max(mapWidth, mapHeight, CONFIG.ARENA_SIZE);
-
+// *-- Generación de Suelo
         const tileSize = 20;
         const tilesX = Math.ceil((floorSize * 1.5) / tileSize) + 2;
         const tilesZ = Math.ceil((floorSize * 1.5) / tileSize) + 2;
+
+        // Nueva variable: control de visualización de parcelas
+        const showAllTiles = false; // Cambiar a true para mostrar todas, false para limitar a 200
 
         const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
 
@@ -109,16 +115,22 @@ export class World {
             tileMaterial = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
         }
 
-
-
         const floorGroup = new THREE.Group();
         const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
 
         const startX = -(tilesX * tileSize) / 2 + tileSize / 2;
         const startZ = -(tilesZ * tileSize) / 2 + tileSize / 2;
 
+        let tileCount = 0;
+        const maxTiles = showAllTiles ? Infinity : 200; // Límite de parcelas
+
         for (let x = 0; x < tilesX; x++) {
             for (let z = 0; z < tilesZ; z++) {
+                // Verificar si hemos alcanzado el límite de parcelas
+                if (tileCount >= maxTiles) {
+                    break;
+                }
+
                 const tile = new THREE.Mesh(tileGeometry, tileMaterial);
                 tile.rotation.x = -Math.PI / 2;
                 tile.rotation.z = rotations[Math.floor(Math.random() * rotations.length)];
@@ -126,11 +138,20 @@ export class World {
                 tile.matrixAutoUpdate = false;
                 tile.updateMatrix();
                 floorGroup.add(tile);
+                
+                tileCount++;
+            }
+            
+            // Salir del bucle exterior si hemos alcanzado el límite
+            if (tileCount >= maxTiles) {
+                break;
             }
         }
 
-        this.scene.add(floorGroup);
+        console.log(`Generadas ${tileCount} parcelas de suelo (${showAllTiles ? 'todas' : 'limitado a 200'})`);
 
+        this.scene.add(floorGroup);
+        // *-- Generación de Objetos
         this.createWallsFromMap();
         this.createDoorsFromMap();
         this.createFoodItemsFromMap();
@@ -141,15 +162,15 @@ export class World {
     }
 
 
-        getSolidObjects() {
+    getSolidObjects() {
         const solidObjects = [];
-        
+
         // Agregar muros
         solidObjects.push(...this.walls);
-        
+
         // Agregar modelos estáticos 3D
         solidObjects.push(...this.staticModels);
-        
+
         // Agregar puertas cerradas (si las tenemos referenciadas)
         if (window.Door && Door.instances) {
             Door.instances.forEach(door => {
@@ -158,7 +179,7 @@ export class World {
                 }
             });
         }
-        
+
         return solidObjects;
     }
 
@@ -281,9 +302,9 @@ export class World {
         return ammoSprite;
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [CREACIÓN DE ELEMENTOS DEL MAPA] Métodos para crear items coleccionables, muros, puertas y modelos 3D*/
+
+    // *-- Creación de Elementos del Mapa
     createAmmoItemsFromMap() {
         this.ammoMeshes = [];
 
@@ -377,164 +398,164 @@ export class World {
 
     // Carga de modelos 3D desde archivo JSON externo por mapa
     async load3DModelsFromJSON(mapName) {
-    try {
-        const response = await fetch(`modelos/${mapName}_models.json`);
-        if (!response.ok) {
-            console.warn(`No se encontró modelos/${mapName}_models.json`);
-            return;
-        }
+        try {
+            const response = await fetch(`modelos/${mapName}_models.json`);
+            if (!response.ok) {
+                console.warn(`No se encontró modelos/${mapName}_models.json`);
+                return;
+            }
 
-        const modelsData = await response.json();
-        console.log(`Cargados ${modelsData.length} modelos 3D desde JSON para ${mapName}`);
+            const modelsData = await response.json();
+            console.log(`Cargados ${modelsData.length} modelos 3D desde JSON para ${mapName}`);
 
-        const objLoader = new OBJLoader();
-        const mtlLoader = new MTLLoader();
+            const objLoader = new OBJLoader();
+            const mtlLoader = new MTLLoader();
 
-        for (const model of modelsData) {
-            const { type = "obj", path, position, rotation = 0, scale = 1, texture, width = 10, height = 10 } = model;
+            for (const model of modelsData) {
+                const { type = "obj", path, position, rotation = 0, scale = 1, texture, width = 10, height = 10 } = model;
 
-            // NUEVA ESTRUCTURA: Manejo de objetos de tipo "cuadrado" con textura de imagen
-            if (type === "square" || type === "cuadrado") {
-                const geometry = new THREE.PlaneGeometry(width, height);
-                const textureLoader = new THREE.TextureLoader();
-                
-                let material;
-                if (texture) {
-                    const tex = textureLoader.load(
-                        texture,
-                        () => { },
-                        () => { },
-                        () => { console.error(`No se pudo cargar textura: ${texture}`); }
+                // NUEVA ESTRUCTURA: Manejo de objetos de tipo "cuadrado" con textura de imagen
+                if (type === "square" || type === "cuadrado") {
+                    const geometry = new THREE.PlaneGeometry(width, height);
+                    const textureLoader = new THREE.TextureLoader();
+
+                    let material;
+                    if (texture) {
+                        const tex = textureLoader.load(
+                            texture,
+                            () => { },
+                            () => { },
+                            () => { console.error(`No se pudo cargar textura: ${texture}`); }
+                        );
+                        material = new THREE.MeshBasicMaterial({
+                            map: tex,
+                            side: THREE.DoubleSide,
+                            transparent: true
+                        });
+                    } else {
+                        material = new THREE.MeshBasicMaterial({
+                            color: 0xffffff,
+                            side: THREE.DoubleSide,
+                            transparent: true
+                        });
+                    }
+
+                    const squareMesh = new THREE.Mesh(geometry, material);
+                    squareMesh.position.set(position.x, position.y, position.z);
+                    squareMesh.rotation.y = THREE.MathUtils.degToRad(rotation);
+
+                    this.scene.add(squareMesh);
+
+                    // Colisión: caja ajustada al cuadrado
+                    const box = new THREE.Box3().setFromObject(squareMesh);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+
+                    const colliderHeight = Math.max(size.y, 1);
+                    const colliderWidth = Math.max(size.x, 1);
+                    const colliderDepth = Math.max(size.z, 0.1);
+
+                    const collisionBox = new THREE.Box3(
+                        new THREE.Vector3(
+                            center.x - colliderWidth / 2,
+                            center.y - colliderHeight / 2,
+                            center.z - colliderDepth / 2
+                        ),
+                        new THREE.Vector3(
+                            center.x + colliderWidth / 2,
+                            center.y + colliderHeight / 2,
+                            center.z + colliderDepth / 2
+                        )
                     );
-                    material = new THREE.MeshBasicMaterial({
-                        map: tex,
-                        side: THREE.DoubleSide,
-                        transparent: true
-                    });
-                } else {
-                    material = new THREE.MeshBasicMaterial({
-                        color: 0xffffff,
-                        side: THREE.DoubleSide,
-                        transparent: true
-                    });
+
+                    squareMesh.userData.boundingBox = collisionBox;
+                    squareMesh.userData.isStatic = true;
+                    squareMesh.userData.type = 'staticModel';
+                    this.walls.push(squareMesh);
+                    this.staticModels.push(squareMesh);
+
+                    console.log(`Objeto decorativo cuadrado cargado: ${texture || "sin textura"} en (${position.x}, ${position.y}, ${position.z})`);
+                    continue; // Saltar al siguiente modelo
                 }
 
-                const squareMesh = new THREE.Mesh(geometry, material);
-                squareMesh.position.set(position.x, position.y, position.z);
-                squareMesh.rotation.y = THREE.MathUtils.degToRad(rotation);
+                // Código original para modelos OBJ (se mantiene igual)
+                let finalObject = null;
+                const basePath = path.substring(0, path.lastIndexOf("/"));
+                const mtlPath = path.replace(".obj", ".mtl");
+                const jpgPath = path.replace(".obj", ".jpg");
 
-                this.scene.add(squareMesh);
-
-                // Colisión: caja ajustada al cuadrado
-                const box = new THREE.Box3().setFromObject(squareMesh);
-                const size = box.getSize(new THREE.Vector3());
-                const center = box.getCenter(new THREE.Vector3());
-
-                const colliderHeight = Math.max(size.y, 1);
-                const colliderWidth = Math.max(size.x, 1);
-                const colliderDepth = Math.max(size.z, 0.1);
-
-                const collisionBox = new THREE.Box3(
-                    new THREE.Vector3(
-                        center.x - colliderWidth / 2,
-                        center.y - colliderHeight / 2,
-                        center.z - colliderDepth / 2
-                    ),
-                    new THREE.Vector3(
-                        center.x + colliderWidth / 2,
-                        center.y + colliderHeight / 2,
-                        center.z + colliderDepth / 2
-                    )
-                );
-
-                squareMesh.userData.boundingBox = collisionBox;
-                squareMesh.userData.isStatic = true;
-                squareMesh.userData.type = 'staticModel';
-                this.walls.push(squareMesh);
-                this.staticModels.push(squareMesh);
-
-                console.log(`Objeto decorativo cuadrado cargado: ${texture || "sin textura"} en (${position.x}, ${position.y}, ${position.z})`);
-                continue; // Saltar al siguiente modelo
-            }
-
-            // Código original para modelos OBJ (se mantiene igual)
-            let finalObject = null;
-            const basePath = path.substring(0, path.lastIndexOf("/"));
-            const mtlPath = path.replace(".obj", ".mtl");
-            const jpgPath = path.replace(".obj", ".jpg");
-
-            try {
-                // Cargar materiales (.mtl) si existen
-                mtlLoader.setPath(basePath + "/");
-                let materials = null;
                 try {
-                    materials = await mtlLoader.loadAsync(mtlPath);
-                    materials.preload();
-                    objLoader.setMaterials(materials);
+                    // Cargar materiales (.mtl) si existen
+                    mtlLoader.setPath(basePath + "/");
+                    let materials = null;
+                    try {
+                        materials = await mtlLoader.loadAsync(mtlPath);
+                        materials.preload();
+                        objLoader.setMaterials(materials);
+                    } catch (err) {
+                        console.log(`No se encontró .mtl para ${path}, se usará textura básica`);
+                    }
+
+                    objLoader.setPath(basePath + "/");
+                    finalObject = await objLoader.loadAsync(path);
+
+                    // Aplicar textura JPG si no hay .mtl
+                    if (!materials) {
+                        finalObject.traverse(child => {
+                            if (child.isMesh) {
+                                const texture = new THREE.TextureLoader().load(jpgPath);
+                                child.material = new THREE.MeshStandardMaterial({
+                                    map: texture,
+                                    side: THREE.DoubleSide
+                                });
+                            }
+                        });
+                    }
+
+                    finalObject.scale.set(scale, scale, scale);
+                    finalObject.position.set(position.x, position.y, position.z);
+                    finalObject.rotation.y = THREE.MathUtils.degToRad(rotation);
+
+                    this.scene.add(finalObject);
+
+                    // Colisión: caja ajustada al modelo
+                    const box = new THREE.Box3().setFromObject(finalObject);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+
+                    const colliderHeight = Math.max(size.y, 10);
+                    const colliderWidth = Math.max(size.x, 5);
+                    const colliderDepth = Math.max(size.z, 5);
+
+                    const collisionBox = new THREE.Box3(
+                        new THREE.Vector3(
+                            center.x - colliderWidth / 2,
+                            center.y - colliderHeight / 2,
+                            center.z - colliderDepth / 2
+                        ),
+                        new THREE.Vector3(
+                            center.x + colliderWidth / 2,
+                            center.y + colliderHeight / 2,
+                            center.z + colliderDepth / 2
+                        )
+                    );
+
+                    finalObject.userData.boundingBox = collisionBox;
+                    finalObject.userData.isStatic = true;
+                    finalObject.userData.type = 'staticModel';
+                    this.walls.push(finalObject);
+                    this.staticModels.push(finalObject);
+
+                    console.log(`Modelo 3D cargado: ${path} en (${position.x}, ${position.y}, ${position.z})`);
+
                 } catch (err) {
-                    console.log(`No se encontró .mtl para ${path}, se usará textura básica`);
+                    console.error(`Error cargando modelo 3D: ${path}`, err);
                 }
-
-                objLoader.setPath(basePath + "/");
-                finalObject = await objLoader.loadAsync(path);
-
-                // Aplicar textura JPG si no hay .mtl
-                if (!materials) {
-                    finalObject.traverse(child => {
-                        if (child.isMesh) {
-                            const texture = new THREE.TextureLoader().load(jpgPath);
-                            child.material = new THREE.MeshStandardMaterial({
-                                map: texture,
-                                side: THREE.DoubleSide
-                            });
-                        }
-                    });
-                }
-
-                finalObject.scale.set(scale, scale, scale);
-                finalObject.position.set(position.x, position.y, position.z);
-                finalObject.rotation.y = THREE.MathUtils.degToRad(rotation);
-
-                this.scene.add(finalObject);
-
-                // Colisión: caja ajustada al modelo
-                const box = new THREE.Box3().setFromObject(finalObject);
-                const size = box.getSize(new THREE.Vector3());
-                const center = box.getCenter(new THREE.Vector3());
-
-                const colliderHeight = Math.max(size.y, 10);
-                const colliderWidth = Math.max(size.x, 5);
-                const colliderDepth = Math.max(size.z, 5);
-
-                const collisionBox = new THREE.Box3(
-                    new THREE.Vector3(
-                        center.x - colliderWidth / 2,
-                        center.y - colliderHeight / 2,
-                        center.z - colliderDepth / 2
-                    ),
-                    new THREE.Vector3(
-                        center.x + colliderWidth / 2,
-                        center.y + colliderHeight / 2,
-                        center.z + colliderDepth / 2
-                    )
-                );
-
-                finalObject.userData.boundingBox = collisionBox;
-                finalObject.userData.isStatic = true;
-                finalObject.userData.type = 'staticModel';
-                this.walls.push(finalObject);
-                this.staticModels.push(finalObject);
-
-                console.log(`Modelo 3D cargado: ${path} en (${position.x}, ${position.y}, ${position.z})`);
-
-            } catch (err) {
-                console.error(`Error cargando modelo 3D: ${path}`, err);
             }
+        } catch (err) {
+            console.warn(`No hay archivo de modelos 3D para el mapa ${mapName} o error de carga`, err);
         }
-    } catch (err) {
-        console.warn(`No hay archivo de modelos 3D para el mapa ${mapName} o error de carga`, err);
     }
-}
 
     createDoorsFromMap() {
         this.doorMeshes = [];
@@ -698,9 +719,9 @@ export class World {
         return this.staticModels || [];
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [LIMPIEZA DE RECURSOS] Método para liberar memoria y limpiar recursos del mundo*/
+
+    // *-- Limpieza de Recursos
     dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
@@ -729,5 +750,3 @@ export class World {
         this.ammoMeshes = [];
     }
 }
-
-/*[Fin de sección]*/

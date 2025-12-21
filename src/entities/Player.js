@@ -1,4 +1,4 @@
-/*sección [IMPORTACIONES Y CONSTRUCTOR] Imports y configuración inicial del jugador*/
+// *-- Importaciones y Constructor
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, WEAPONS_DATA } from '../Constants.js';
 import { WeaponSystem } from './Weapon.js';
@@ -9,7 +9,7 @@ export class Player {
 
 
 
-        constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
+    constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
         this.controls = new PointerLockControls(camera, domElement);
         this.camera = camera;
         this.audioManager = audioManager;
@@ -31,7 +31,7 @@ export class Player {
         this.radius = 2.0;
 
         camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
-        
+
         // NUEVA ESTRUCTURA: Inicializar debugState con bulletLog antes de crear WeaponSystem
         this.debugState = {
             godMode: false,
@@ -41,15 +41,15 @@ export class Player {
             speedMultiplier: 1.0,
             bulletLog: true  // Valor por defecto
         };
-        
+
         this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this, scene);
         this.isShooting = false;
 
         this.initEvents(domElement);
     }
-    /*[Fin de sección]*/
 
-    /*sección [TELETRANSPORTE] Método de teletransporte del jugador*/
+
+    // *-- Teletransporte
     teleport(position, rotation = 0) {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
@@ -61,9 +61,9 @@ export class Player {
         this.camera.updateMatrixWorld(true);
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [SISTEMA DE EVENTOS E INPUT] Gestión de eventos de teclado, ratón y controles*/
+
+    // *-- Sistema de Eventos e Input
     initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
@@ -157,9 +157,9 @@ export class Player {
         }
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [COMBATE Y DAÑO] Sistema de disparo, daño, recolección y retroceso*/
+
+    // *-- Combate y Daño
     onMouseDown() {
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
@@ -231,10 +231,10 @@ export class Player {
         this.velocity.z += strength;
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [BUCLE DE ACTUALIZACIÓN] Actualización del estado del jugador cada frame*/
-        update(delta) {
+
+    // *-- Bucle de Actualización
+    update(delta) {
         if (!this.controls.isLocked) return;
         if (this.isShooting) {
             this.weaponSystem.tryShoot(() => {
@@ -337,9 +337,9 @@ export class Player {
         });
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [SISTEMA DE COLISIONES] Detección de colisiones con muros y puertas*/
+
+    // *-- Sistema de Colisiones
     checkCollisions(oldPosition) {
         const playerPos = this.camera.position;
         const offset = CONFIG.PLAYER_COLLISION_OFFSET;
@@ -427,4 +427,3 @@ export class Player {
         return this.camera.position;
     }
 }
-/*[Fin de sección]*/

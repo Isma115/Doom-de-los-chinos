@@ -1,4 +1,4 @@
-/*sección [IMPORTACIONES Y CONSTRUCTOR] Imports y configuración inicial del juego*/
+// *-- Importaciones y Constructor
 import { World } from './core/World.js';
 import { Player } from './entities/Player.js'; //
 import { EnemyManager } from './entities/EnemyManager.js';
@@ -81,10 +81,9 @@ class Game { //
         this.restartListener = handleRestart;
     }
 
-    /*[Fin de sección]*/
 
-    /*sección [INICIALIZACIÓN DEL JUEGO] Carga de mapa, jugador, enemigos y eventos*/
-            async initGame(mapName) {
+    // *-- Inicialización de Audio y Mundo
+    async initGame(mapName) {
         await this.audioManager.init();
         this.world = new World(this.scene);
         await this.world.init(mapName);
@@ -98,6 +97,7 @@ class Game { //
         this.enemyManager = new EnemyManager(this.scene, this.world, this.audioManager);
         this.enemyManager.spawnPoints = this.world.getEnemySpawns();
 
+        // *-- Configuración del Jugador
         this.player = new Player(
             this.scene,
             this.camera,
@@ -107,7 +107,7 @@ class Game { //
             this.audioManager,
             this
         );
-        
+
         const playerSpawn = this.world.getPlayerSpawn();
         const playerRotation = this.world.getPlayerRotation();
 
@@ -126,6 +126,7 @@ class Game { //
             this.isPaused = true;
         });
 
+        // *-- Configuración de Eventos y UI
         this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
         await this.eventManager.loadEventsForMap(mapName);
 
@@ -142,12 +143,13 @@ class Game { //
         this.animate();
     } //
 
-    /*[Fin de sección]*/
 
-    /*sección [BUCLE DE ANIMACIÓN Y ACTUALIZACIÓN] Renderizado, spawns y actualización de entidades*/
+
+    // *-- Bucle de Animación y Actualización
     animate() {
         requestAnimationFrame(() => this.animate());
 
+        // *-- Control de Pausa
         if (this.isPaused) {
             this.renderer.render(this.scene, this.camera);
             return;
@@ -156,6 +158,7 @@ class Game { //
         const time = performance.now();
         const delta = (time - this.prevTime) / 1000;
 
+        // *-- Actualización de Lógica
         if (this.player && !this.player.isGameOver) {
             this.player.update(delta);
 
@@ -204,6 +207,8 @@ class Game { //
         }
 
         this.prevTime = time;
+
+        // *-- Renderizado
         this.renderer.render(this.scene, this.camera);
 
 
@@ -247,9 +252,9 @@ class Game { //
     }
 }
 
-/*[Fin de sección]*/
 
-/*sección [SELECTOR DE MAPAS] Interfaz de selección de mapas al inicio*/
+
+// *-- Selector de Mapas
 // Lógica del selector de mapas
 function createMapSelector() {
     const selectorDiv = document.createElement('div');
@@ -278,4 +283,3 @@ function createMapSelector() {
 }
 
 createMapSelector();
-/*[Fin de sección]*/
