@@ -1,5 +1,7 @@
+/* *-- Global */
 body { margin: 0;
 overflow: hidden; font-family: 'Arial', sans-serif; background-color: #000;}
+/* *-- HUD */
 #ui-layer {
     position: absolute;
     top: 0; left: 0; width: 100%;
@@ -25,6 +27,7 @@ pointer-events: none;
 color: #ffcc00;
     text-shadow: 2px 2px 2px #000;
 }
+/* *-- Mensajes y Countdown */
 /* Estilo para mensajes de eventos */
 #event-message {
     position: absolute;
@@ -67,6 +70,7 @@ color: #ffcc00;
     margin-bottom: 10px;
 }
 
+/* *-- Barra de Vida */
 /* Barra de vida gráfica */
 #health-bar-container {
     position: absolute;
@@ -80,7 +84,6 @@ color: #ffcc00;
     pointer-events: none;
     z-index: 100;
 }
-
 
 #coordinates-display {
     position: absolute;
@@ -137,6 +140,7 @@ color: #ffcc00;
         transform: scale(1.1);
     }
 }
+/* *-- Crosshair */
 #crosshair {
     position: absolute;
     top: 50%; 
@@ -157,6 +161,7 @@ color: #ffcc00;
     background: #ff0000;
     transform: translate(-50%, -50%);
 }
+/* *-- Pantalla de Inicio */
 #start-screen {
     position: absolute;
 top: 0; left: 0; width: 100%; height: 100%;
@@ -169,7 +174,7 @@ top: 0; left: 0; width: 100%; height: 100%;
 pointer-events: auto;
     z-index: 10;
 }
-
+/* *-- Selector de Mapas */
 /* Estilos para el selector de mapas */
 #map-selector {
     position: absolute;
@@ -213,7 +218,6 @@ pointer-events: auto;
     background: #ff0000;
     color: #000;
     border-color: #ff3333;
-    box-shadow: 0 0 15px #ff0000;
     transform: scale(1.05);
 }
 
@@ -239,8 +243,7 @@ p { font-size: 20px;
     font-size: 22px;
     color: #ffcc00;
     margin-bottom: 10px;
-}
-
+}/* *-- Menú de Pausa */
 /* Botones del menú de pausa */
 #pause-buttons {
     display: none; /* Ocultos por defecto, visibles solo en pausa */
@@ -272,10 +275,9 @@ p { font-size: 20px;
     background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
     color: #fff;
     border-color: #ff3333;
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
     transform: scale(1.05);
 }
-
+/* *-- Menú de Ajustes */
 /* ⚙️ MENÚ DE AJUSTES */
 .settings-overlay {
     position: fixed;
@@ -361,13 +363,11 @@ p { font-size: 20px;
     border: 3px solid #ff6666;
     border-radius: 50%;
     cursor: pointer;
-    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.2s;
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
     transform: scale(1.15);
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
 }
 
 .volume-slider::-moz-range-thumb {
@@ -377,7 +377,6 @@ p { font-size: 20px;
     border: 3px solid #ff6666;
     border-radius: 50%;
     cursor: pointer;
-    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
 }
 
 .settings-btn {
@@ -400,9 +399,10 @@ p { font-size: 20px;
     background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
     color: #fff;
     border-color: #ff3333;
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
     transform: scale(1.02);
 }
+
+/* *-- Panel Debug */
 .debug-panel {
     position: fixed;
     top: 50%;

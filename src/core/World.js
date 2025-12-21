@@ -115,8 +115,6 @@ export class World {
             tileMaterial = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
         }
 
-
-
         const floorGroup = new THREE.Group();
         const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
 
@@ -186,8 +184,6 @@ export class World {
     getDoorMeshes() {
         return this.doorMeshes;
     }
-
-
 
     getFoodMeshes() {
         return this.foodMeshes;
@@ -704,7 +700,6 @@ export class World {
             });
         });
     }
-
 
     getStaticModels() {
         return this.staticModels || [];

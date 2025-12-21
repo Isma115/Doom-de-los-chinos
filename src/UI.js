@@ -58,9 +58,6 @@ export class UIManager {
         document.getElementById('ammo-display').innerText = "Munición: " + ammoText;
     }
 
-
-
-
     static updateAngle(angleDegrees) {
         let el = document.getElementById('angle-display');
         if (!el) {
@@ -80,7 +77,6 @@ export class UIManager {
         }
         el.innerText = `Ángulo: ${angleDegrees.toFixed(0)}°`;
     }
-
 
     static updateCoordinates(x, y, z) {
         let coordsEl = document.getElementById('coordinates-display');
@@ -194,7 +190,6 @@ export class SettingsManager {
         this.sfxSlider = document.getElementById('sfx-volume');
         this.musicValueEl = document.getElementById('music-volume-value');
         this.sfxValueEl = document.getElementById('sfx-volume-value');
-
 
         if (typeof AUDIO_CONFIG === 'undefined') {
             window.AUDIO_CONFIG = {
@@ -586,7 +581,6 @@ export class DebugPanel {
         } else {
             this.show();
         }
-
 
         const startScreen = document.getElementById('start-screen');
         if (startScreen && this.isVisible) {

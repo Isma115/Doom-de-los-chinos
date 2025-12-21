@@ -208,7 +208,6 @@ export class MapLoader {
                     }
                         break;
 
-
                     case ".":
                     case " ":
                         validFloors.push(position);

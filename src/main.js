@@ -38,7 +38,6 @@ class Game { //
         this.audioManager = new AudioManager();
         this.initGame(mapName);
 
-
         this.setupGlobalRestartListener();
     }
 
@@ -213,7 +212,6 @@ class Game { //
         // *-- Renderizado
         this.renderer.render(this.scene, this.camera);
 
-
     } //
 
     // *-- Actualización de Entidades Main
@@ -229,7 +227,6 @@ class Game { //
             const distance = playerPos.distanceTo(foodMesh.position);
             if (distance < 2.0) {
                 this.player.collectFood(foodMesh.userData.healAmount);
-
 
                 foodMesh.userData.collected
                     = true; //

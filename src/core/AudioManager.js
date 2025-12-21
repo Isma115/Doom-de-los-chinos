@@ -118,7 +118,7 @@ export class AudioManager {
             return null;
         }
     }
-// *-- Reproducción Música Audio
+    // *-- Reproducción Música Audio
     playMusic(musicName, volume = 1.0) {
         if (!this.initialized || !this.music[musicName]) {
             return null;
@@ -162,7 +162,7 @@ export class AudioManager {
             }
         }
     }
-// *-- Control de Volumen Audio
+    // *-- Control de Volumen Audio
     setMusicVolume(volume) {
         if (this.musicGain) {
             // Aumentamos el límite máximo permitido para que al 100% realmente suene mucho más alto

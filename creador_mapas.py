@@ -52,9 +52,7 @@ class MapEditor:
             "IMG": {"name": "Imagen Decorativa", "color": "#FFD700"},  # NUEVA ESTRUCTURA: Imagen decorativa
             " ": {"name": "Vacío", "color": "#222222"}
         }
-        
-        
-        
+
         # Inicializar grid del mapa
         self.map_grid = [["." for _ in range(self.grid_width)] for _ in range(self.grid_height)]
         

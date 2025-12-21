@@ -9,8 +9,6 @@ import { PointerLockControls } from '../../node_modules/three/examples/jsm/contr
 // *-- Constructor Player
 export class Player {
 
-
-
     constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
         this.controls = new PointerLockControls(camera, domElement);
         this.camera = camera;

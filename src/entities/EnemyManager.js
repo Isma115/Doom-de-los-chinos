@@ -54,7 +54,6 @@ export class EnemyManager {
         this.projectileGeometry = new THREE.SphereGeometry(0.3, 8, 8);
         this.projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 
-
         this.activeSoundSources = [];
     }
 

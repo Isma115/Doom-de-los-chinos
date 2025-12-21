@@ -248,7 +248,6 @@ export class WeaponSystem {
         this.weaponMesh.scale.set(1.4, 1.4, 1);
         this.weaponMesh.position.set(0.5, -0.25, -1.1);
 
-
         this.weaponMesh.frustumCulled = false;
 
         this.camera.add(this.weaponMesh);
