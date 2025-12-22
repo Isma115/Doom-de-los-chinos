@@ -1,6 +1,9 @@
-//  Importaciones Constants
+// #region Importaciones Constants
+// Descripción: Módulo de constantes globales del juego.
 import * as THREE from '../node_modules/three/build/three.module.js';
-//  Constantes Globales
+// #endregion
+// #region Configuración Global Constants
+// Descripción: Parámetros generales de física, gameplay y configuración del mundo.
 export const CONFIG = {
     GRAVITY: 30.0,
     JUMP_FORCE: 15.0,
@@ -28,17 +31,21 @@ export const CONFIG = {
 
     DEBUG_SHOW_HITBOXES: false
 };
+// #endregion
 
 
 
-//  Mapas Disponibles
+// #region Mapas Disponibles Constants
+// Descripción: Lista de mapas jugables y sus identificadores.
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
     { id: 'mapa1', name: 'La Fortaleza' },
     { id: 'mapa2', name: 'Arena de Sangre' }
 ];
+// #endregion
 
-//  Configuración de Audio
+// #region Configuración de Audio Constants
+// Descripción: Ajustes de volumen y parámetros de sonido espacial y ambiental.
 export const AUDIO_CONFIG = {
     MUSIC_VOLUME: 0.6,
     SFX_VOLUME: 0.8,
@@ -48,9 +55,15 @@ export const AUDIO_CONFIG = {
     MAX_SIMULTANEOUS_ENEMY_SOUNDS: 10,
     MAX_VOLUME_MULTIPLIER: 3.0
 };
+// #endregion
+// #region Geometrías de Armas Constants
+// Descripción: Geometrías base reutilizables para las armas.
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);
-//  Datos de Armas
+// #endregion
+
+// #region Datos de Armas Constants
+// Descripción: Definición de estadísticas y propiedades visuales de las armas.
 export const WEAPONS_DATA = [
     {
         name: "PISTOLA TÁCTICA",
@@ -89,8 +102,23 @@ export const WEAPONS_DATA = [
         sprite: 'knife.png',
         flash: 'knife.png',
         isMelee: true
+    },
+    {
+        name: "ESCOPETA",
+        color: 0xffff00,
+        damage: 80,
+        delay: 650,               // cadencia aumentada un poco más (antes 900 → 750 → ahora 650 ms entre disparos)
+        ammo: 50,
+        maxAmmo: 50,
+        geo: pistolGeometry,      // reutilizamos geometría temporalmente hasta tener modelo
+        shootSound: 'shotgun',    // ahora usa el sonido real de escopeta
+        sprite: 'shotgun.png',
+        flash: 'shotgun_flash.png',
+        isMelee: false
     }
-];//  Tipos de Enemigos
+];
+// #endregion// #region Tipos de Enemigos Constants
+// Descripción: Configuración y estadísticas de cada tipo de enemigo.
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
@@ -228,8 +256,10 @@ export const ENEMY_TYPES = [
         isMelee: true  // Es cuerpo a cuerpo como charo1
     }
 ];
+// #endregion
 
-//  Bloques de Mapa
+// #region Bloques de Mapa Constants
+// Descripción: Propiedades de los bloques que componen el nivel.
 export const MAP_BLOCKS = {
     '#': { type: 'wall', color: 0x888888, height: CONFIG.BLOCK_SIZE, solid: true },
     'B': { type: 'bush', color: 0x336633, height: CONFIG.BLOCK_SIZE * 0.6, solid: true },
@@ -252,3 +282,4 @@ export const MAP_BLOCKS = {
     'SMuni': { type: 'ammo_spawner', color: 0x0000ff, height: 0, solid: false },
     'SComida': { type: 'food_spawner', color: 0x00ff00, height: 0, solid: false }
 };
+// #endregion

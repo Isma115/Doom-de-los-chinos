@@ -517,14 +517,18 @@ export class Player {
         this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
         this.direction.normalize();
 
+        // Detectar si el jugador está intentando moverse (presiona teclas de movimiento)
+        const isTryingToMove = this.moveFlags.fwd || this.moveFlags.bwd || this.moveFlags.left || this.moveFlags.right;
+
+        // Guardar posición antes de aplicar movimiento para detectar colisión posterior
+        const oldPosition = this.camera.position.clone();
+
         if (this.moveFlags.fwd || this.moveFlags.bwd) {
             this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
         }
         if (this.moveFlags.left || this.moveFlags.right) {
             this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
         }
-
-        const oldPosition = this.camera.position.clone();
 
         this.controls.moveRight(-this.velocity.x * delta);
         this.controls.moveForward(-this.velocity.z * delta);
@@ -550,8 +554,33 @@ export class Player {
             this.camera.position.z
         );
 
+        // Variable para detectar si hubo colisión con pared (bloqueo de movimiento)
+        let wallSliding = false;
+
         if (!this.debugState.noClip) {
+            const previousPosition = this.camera.position.clone();
+
             this.checkCollisions(oldPosition);
+
+            // Si después de checkCollisions la posición volvió a oldPosition → movimiento completamente bloqueado
+            // Si la posición cambió pero es muy cercana a oldPosition → estamos rozando pared (slide parcial)
+            const distanceMoved = previousPosition.distanceTo(this.camera.position);
+            const expectedMoveDistance = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z) * delta;
+
+            // Si intentábamos movernos pero apenas avanzamos → estamos rozando pared
+            if (isTryingToMove && expectedMoveDistance > 0.5 && distanceMoved < expectedMoveDistance * 0.4) {
+                wallSliding = true;
+            }
+        }
+
+        // Ajuste de velocidad cuando se roza pared:
+        // - Normal: 1.0 × speedMultiplier
+        // - Rozando pared: 1.15 × speedMultiplier (un poco más rápido que normal)
+        // - Pero aún más lento que caminar libremente sin rozar (el efecto natural de colisión ya lo ralentiza)
+        if (wallSliding && isTryingToMove) {
+            const wallSlideBoost = 1.15; // Aumenta ligeramente la velocidad cuando se roza
+            this.controls.moveRight(-this.velocity.x * delta * (wallSlideBoost - 1.0));
+            this.controls.moveForward(-this.velocity.z * delta * (wallSlideBoost - 1.0));
         }
 
         this.checkAmmoItems();
@@ -561,7 +590,7 @@ export class Player {
             this.updateRay();
         }
     }
-    // #endregion
+// #endregion
 
     // #region Gestión de Game Over Player
     // Descripción: Maneja el estado de fin de juego, desbloqueando controles y mostrando la pantalla final.
@@ -669,6 +698,6 @@ export class Player {
         this.velocity.x = 0;
         this.velocity.z = 0;
     }
-    // #endregion
+// #endregion
 }
 // #endregion

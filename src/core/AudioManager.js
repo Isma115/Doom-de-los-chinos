@@ -1,6 +1,9 @@
-//  Importaciones AudioManager.js
+// #region Importaciones AudioManager
+// Descripción: Importación de constantes de configuración de audio.
 import { AUDIO_CONFIG } from '../Constants.js';
-//  Constructor AudioManager
+// #endregion
+// #region Constructor AudioManager
+// Descripción: Inicialización del gestor de audio y sus propiedades.
 export class AudioManager {
     constructor() {
         this.sounds = {};
@@ -11,7 +14,9 @@ export class AudioManager {
         this.sfxGain = null;
         this.initialized = false;
     }
-    //  Inicialización y Contexto Audio
+    // #endregion
+    // #region Inicialización y Contexto Audio
+    // Descripción: Configuración del contexto de audio y carga inicial de sonidos.
     async init() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -43,12 +48,16 @@ export class AudioManager {
             });
         }
     }
+    // #endregion
 
-    //  Carga de Assets Audio
+    // #region Carga de Assets Audio
+    // Descripción: Carga asíncrona de archivos de sonido y música.
     async loadAllSounds() {
         const soundFiles = {
             pistol: 'assets/sound/weapons/pistol.mp3',
             machinegun: 'assets/sound/weapons/ametra.mp3',
+            shotgun: 'assets/sound/weapons/shotgun.mp3',
+            out_of_ammo: 'assets/sound/weapons/out_of_ammo.wav',
             enemyDeath: 'assets/sound/enemy_death.mp3',
             enemyHit: 'assets/sound/enemy_hit.mp3',
             playerScream: 'assets/sound/misc/gas.mp3',
@@ -91,8 +100,10 @@ export class AudioManager {
             return null;
         }
     }
+// #endregion
 
-    //  Reproducción SFX Audio
+    // #region Reproducción SFX Audio
+    // Descripción: Métodos para reproducir efectos de sonido puntuales.
     playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
         if (!this.initialized || !this.sounds[soundName]) {
             return null;
@@ -118,7 +129,9 @@ export class AudioManager {
             return null;
         }
     }
-    //  Reproducción Música Audio
+    // #endregion
+    // #region Reproducción Música Audio
+    // Descripción: Gestión de la música de fondo, incluyendo loops y cambio de pistas.
     playMusic(musicName, volume = 1.0) {
         if (!this.initialized || !this.music[musicName]) {
             return null;
@@ -162,7 +175,9 @@ export class AudioManager {
             }
         }
     }
-    //  Control de Volumen Audio
+    // #endregion
+    // #region Control de Volumen Audio
+    // Descripción: Ajuste dinámico del volumen de música y efectos.
     setMusicVolume(volume) {
         if (this.musicGain) {
             // Aumentamos el límite máximo permitido para que al 100% realmente suene mucho más alto
@@ -176,7 +191,9 @@ export class AudioManager {
             const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
             this.sfxGain.gain.value = clampedVolume;
         }
-    }    //  Utilidades de Sonido Audio
+    }
+    // #endregion    // #region Utilidades de Sonido Audio
+    // Descripción: Funciones auxiliares para sonido aleatorio y audio posicional 3D.
     playRandomEnemySound(enemyType) {
         if (!enemyType.sounds || enemyType.sounds.length === 0) return;
         const randomSound = enemyType.sounds[Math.floor(Math.random() * enemyType.sounds.length)];
@@ -198,8 +215,10 @@ export class AudioManager {
 
         return this.playSound(soundName, finalVolume);
     }
+    // #endregion
 
-    //  Limpieza Audio
+    // #region Limpieza Audio
+    // Descripción: Liberación de recursos del contexto de audio.
     dispose() {
         this.stopMusic();
         if (this.audioContext) {
@@ -210,4 +229,5 @@ export class AudioManager {
         this.music = {};
         this.initialized = false;
     }
+    // #endregion
 }

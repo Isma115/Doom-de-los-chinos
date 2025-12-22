@@ -5,7 +5,6 @@ import { WEAPONS_DATA } from '../Constants.js';
 import { UIManager } from '../UI.js';
 // #endregion
 
-// #region Clase WeaponSystem
 // Descripción: Sistema que gestiona las armas del jugador, incluyendo lógica de disparo, munición y efectos visuales.
 export class WeaponSystem {
 
@@ -234,19 +233,32 @@ export class WeaponSystem {
         const loader = new THREE.TextureLoader();
         const weapon = this.getCurrentWeapon();
 
-        this.weaponTexture = loader.load(
-            'assets/weapons/' + weapon.sprite,
-            () => { },
-            () => { },
-            () => { console.error("No se pudo cargar el sprite del arma"); }
-        );
+        // Cargar sprite solo si existe, si no, usar textura transparente/vacía
+        if (weapon.sprite) {
+            this.weaponTexture = loader.load(
+                'assets/weapons/' + weapon.sprite,
+                () => { },
+                () => { },
+                () => { console.error("No se pudo cargar el sprite del arma"); }
+            );
+        } else {
+            // Textura vacía para armas sin sprite
+            this.weaponTexture = new THREE.Texture();
+            console.warn(`Arma "${weapon.name}" sin sprite definido`);
+        }
 
-        this.weaponFlashTexture = loader.load(
-            'assets/weapons/' + (weapon.flash || weapon.sprite),
-            () => { },
-            () => { },
-            () => { console.error("No se pudo cargar el sprite de ataque"); }
-        );
+        // Cargar flash: usar el mismo que sprite si no tiene propio, o vacío si ninguno
+        const flashPath = weapon.flash ? 'assets/weapons/' + weapon.flash : (weapon.sprite ? 'assets/weapons/' + weapon.sprite : null);
+        if (flashPath) {
+            this.weaponFlashTexture = loader.load(
+                flashPath,
+                () => { },
+                () => { },
+                () => { console.error("No se pudo cargar el sprite de ataque"); }
+            );
+        } else {
+            this.weaponFlashTexture = this.weaponTexture; // fallback al sprite (aunque sea vacío)
+        }
 
         // El arma NO debe escribirse en el depth buffer ni respetar profundidad de paredes
         const material = new THREE.SpriteMaterial({
@@ -260,8 +272,24 @@ export class WeaponSystem {
         });
 
         this.weaponMesh = new THREE.Sprite(material);
-        this.weaponMesh.scale.set(1.4, 1.4, 1);
-        this.weaponMesh.position.set(0.5, -0.25, -1.1);
+
+        // Ajuste de escala y posición según el arma
+        let scale = 1.4;        // tamaño base para pistola y ametralladora
+        let posY = -0.25;       // posición vertical base
+        let posX = 0.5;         // posición horizontal (puedes ajustar si quieres centrar más/menos)
+
+        if (weapon.name === "CUCHILLO") {
+            scale = 1.0;        // más pequeño como ya ajustamos antes
+            posY = -0.5;        // bajar mucho más para que no se corte por abajo
+            posX = 0.6;         // mantener el cuchillo desplazado a la derecha (como estaba originalmente)
+        } else if (weapon.name === "ESCOPETA") {
+            scale = 1.0;        // más pequeño como ya ajustamos antes
+            posY = -0.5;        // bajar mucho más para que no se corte por abajo
+            posX = 0.0;         // escopeta centrada horizontalmente en la pantalla (eje X = 0)
+        }
+
+        this.weaponMesh.scale.set(scale, scale, 1);
+        this.weaponMesh.position.set(posX, posY, -1.1);
 
         this.weaponMesh.frustumCulled = false;
 
@@ -274,48 +302,47 @@ export class WeaponSystem {
     // #region Lógica de Disparo WeaponSystem
     // Descripción: Gestiona el disparo, cooldowns, gasto de munición y animación de disparo.
     tryShoot(scoreCallback) {
-        const now = performance.now();
-        const weapon = this.getCurrentWeapon();
+        const weapon = WEAPONS_DATA[this.currentIndex];
 
-        if (now - this.lastShotTime < weapon.delay) return;
-
-        if (!this.debugState.infiniteAmmo) {
-            if (weapon.ammo <= 0) return;
-
-            if (!weapon.isMelee) {
-                weapon.ammo--;
-                UIManager.updateAmmo(weapon.ammo);
-            } else {
-                UIManager.updateAmmo("∞");
+        // Cuchillo tiene munición infinita siempre
+        if (weapon.isMelee) {
+            this.performRaycast(weapon, scoreCallback);
+            if (this.audioManager) {
+                this.audioManager.playSound(weapon.shootSound, 0.8);
             }
-        } else {
-            UIManager.updateAmmo("∞");
+            this.player.applyRecoil(0.8);
+            return;
+        }
+
+        // Comprobar munición (salvo modo infinito)
+        if (!this.player.debugState.infiniteAmmo && weapon.ammo <= 0) {
+            // Reproducir sonido de sin munición si existe
+            if (this.audioManager && this.audioManager.sounds['out_of_ammo']) {
+                this.audioManager.playSound('out_of_ammo', 0.6);
+            }
+            return;
+        }
+
+        const now = performance.now();
+        if (now - this.lastShotTime < weapon.delay) {
+            return;
         }
 
         this.lastShotTime = now;
 
-        if (this.audioManager && weapon.shootSound) {
-            this.audioManager.playSound(weapon.shootSound);
-        }
-
-        if (weapon.name === "AMETRALLADORA") {
-            this.player.applyRecoil(7);
-        }
-
-        if (this.weaponMesh && this.weaponFlashTexture) {
-            this.weaponMesh.material.map = this.weaponFlashTexture;
-            this.weaponMesh.material.needsUpdate = true;
-
-            setTimeout(() => {
-                if (this.weaponMesh && this.weaponTexture) {
-                    this.weaponMesh.material.map = this.weaponTexture;
-                    this.weaponMesh.material.needsUpdate = true;
-                }
-            }, 80);
+        // Consumir munición (solo si no es infinita)
+        if (!this.player.debugState.infiniteAmmo) {
+            weapon.ammo--;
+            UIManager.updateAmmo(weapon.ammo);
         }
 
         this.performRaycast(weapon, scoreCallback);
-        this.animateRecoil();
+
+        if (this.audioManager) {
+            this.audioManager.playSound(weapon.shootSound, 0.8);
+        }
+
+        this.player.applyRecoil(0.6);
     }
     // #endregion
 
@@ -425,14 +452,15 @@ export class WeaponSystem {
                 }
             }, swingDuration + 50);
         } else {
-            // ARMAS A DISTANCIA: Retroceso tradicional
-            this.weaponMesh.position.z += 0.2;
-            this.weaponMesh.position.y -= 0.05;
+            // ARMAS A DISTANCIA: Retroceso tradicional REDUCIDO para la ametralladora
+            // Valores originales: z += 0.2, y -= 0.05 → ahora más suave y corto
+            this.weaponMesh.position.z += 0.1;   // Mitad de retroceso hacia atrás
+            this.weaponMesh.position.y -= 0.02; // Mitad de bajada
 
             setTimeout(() => {
                 if (this.weaponMesh) {
-                    this.weaponMesh.position.z -= 0.2;
-                    this.weaponMesh.position.y += 0.05;
+                    this.weaponMesh.position.z -= 0.1;
+                    this.weaponMesh.position.y += 0.02;
                 }
             }, 80);
         }
@@ -453,4 +481,3 @@ export class WeaponSystem {
     }
     // #endregion
 }
-// #endregion
