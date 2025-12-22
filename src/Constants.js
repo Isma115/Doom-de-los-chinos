@@ -98,7 +98,7 @@ export const WEAPONS_DATA = [
         range: 5.6,               // rango duplicado
         ammo: Infinity,
         maxAmmo: Infinity,
-        shootSound: 'knife',
+        shootSound: 'knife',      // ← SE HA CAMBIADO: ahora usa el sonido knife
         sprite: 'knife.png',
         flash: 'knife.png',
         isMelee: true
