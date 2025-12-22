@@ -1,14 +1,19 @@
-
-//  Importaciones Player.js
+// #region Importaciones Player
+// Descripción: Importa las librerías necesarias (Three.js), datos de configuración, y clases dependientes (WeaponSystem, UIManager, Door).
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, WEAPONS_DATA } from '../Constants.js';
 import { WeaponSystem } from './Weapon.js';
 import { UIManager } from '../UI.js';
 import { Door } from '../entities/Door.js';
 import { PointerLockControls } from '../../node_modules/three/examples/jsm/controls/PointerLockControls.js';
-//  Constructor Player
+// #endregion
+
+// #region Clase Player
+// Descripción: Gestiona toda la lógica relacionada con el jugador: movimiento, interacción, combate, salud y sistema de cámara.
 export class Player {
 
+    // #region Constructor Player
+    // Descripción: Inicializa los controles, la cámara, los sistemas de física, salud, y el sistema de armas del jugador.
     constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
         this.controls = new PointerLockControls(camera, domElement);
         this.camera = camera;
@@ -53,7 +58,11 @@ export class Player {
         this.isShooting = false;
 
         this.initEvents(domElement);
-    }    //  Teletransporte Player
+    }
+    // #endregion
+
+    // #region Teletransporte Player
+    // Descripción: Mueve instantáneamente al jugador a una posición y rotación específicas, reseteando su velocidad.
     teleport(position, rotation = 0) {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
@@ -64,7 +73,10 @@ export class Player {
 
         this.camera.updateMatrixWorld(true);
     }
-    //  Inicialización de Eventos Player
+    // #endregion
+
+    // #region Inicialización de Eventos Player
+    // Descripción: Configura los listeners del DOM para teclado, ratón y elementos de la interfaz (como la pantalla de inicio).
     initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
@@ -89,7 +101,11 @@ export class Player {
         if (screamButton) {
             screamButton.addEventListener('click', () => this.scream());
         }
-    }    //  Getters y Utilidades Player
+    }
+    // #endregion
+
+    // #region Getters y Utilidades Player
+    // Descripción: Métodos auxiliares para obtener información del mundo o del estado del jugador.
     getWorldWalls() {
         if (this.world && this.world.getWalls) {
             return this.world.getWalls();
@@ -97,8 +113,13 @@ export class Player {
         return [];
     }
 
+    getPosition() {
+        return this.camera.position;
+    }
+    // #endregion
 
-    //  Control de Input (Teclado) Player
+    // #region Control de Input (Teclado) Player
+    // Descripción: Procesa las pulsaciones de teclas para movimiento, salto, interacción con puertas y habilidades especiales.
     onKey(event, isDown) {
         switch (event.code) {
             case 'ArrowUp':
@@ -155,8 +176,10 @@ export class Player {
                 break;
         }
     }
+    // #endregion
 
-    //  Sistema de Rayo Azul Player
+    // #region Sistema de Rayo Azul Player
+    // Descripción: Implementación de la habilidad especial "Rayo Azul", incluyendo activación, raycasting y visualización de impacto.
     toggleRay() {
         if (this.rayActive) {
             this.deactivateRay();
@@ -288,8 +311,10 @@ export class Player {
             }
         }, 500);
     }
+    // #endregion
 
-    //  Interacciones Player
+    // #region Interacciones Player
+    // Descripción: Lógica para acciones del jugador como gritar o pulsar botones del ratón (disparar).
     scream() {
         if (this.audioManager && this.controls.isLocked && !this.isGameOver) {
             this.audioManager.playSound('playerScream', 1.0, false, 0.9 + Math.random() * 0.2);
@@ -367,7 +392,10 @@ export class Player {
     onMouseUp() {
         this.isShooting = false;
     }
-    //  Sistema de Salud Player
+    // #endregion
+
+    // #region Sistema de Salud Player
+    // Descripción: Administra la vida del jugador, incluyendo la lógica de recibir daño y curarse.
     takeDamage(damageAmount = 1) {
         if (this.isGameOver) return;
 
@@ -407,9 +435,10 @@ export class Player {
             this.audioManager.playSound('collectItem', 0.5);
         }
     }
+    // #endregion
 
-
-    //  Sistema de Munición Player
+    // #region Sistema de Munición Player
+    // Descripción: Lógica para la recolección de munición y recarga de armas.
     collectAmmo(amount, weaponIndex) {
         if (this.isGameOver) return;
         this.weaponSystem.addAmmo(amount, weaponIndex);
@@ -419,11 +448,39 @@ export class Player {
         }
     }
 
+    checkAmmoItems() {
+        const ammoItems = this.world.getAmmoMeshes();
+        const playerPos = this.getPosition();
+
+        ammoItems.forEach(ammoMesh => {
+            if (ammoMesh.userData.collected) return;
+
+            const distance = playerPos.distanceTo(ammoMesh.position);
+            if (distance < CONFIG.PICKUP_DISTANCE) {
+                const ammoAmount = ammoMesh.userData.ammoAmount;
+                const weaponIndex = ammoMesh.userData.weaponIndex;
+
+                // Check if ammo is full
+                const weapon = WEAPONS_DATA[weaponIndex];
+                if (weapon && weapon.ammo >= weapon.maxAmmo) {
+                    return; // Don't collect if full
+                }
+
+                this.collectAmmo(ammoAmount, weaponIndex);
+
+                ammoMesh.userData.collected = true;
+                this.world.scene.remove(ammoMesh);
+            }
+        });
+    }
+    // #endregion
+
+    // #region Físicas Player
+    // Descripción: Aplica fuerzas físicas al jugador, como retroceso por disparo.
     /**
      * Aplica retroceso al jugador en dirección opuesta a donde está mirando
      * @param {number} strength - Fuerza del retroceso (valor recomendado: 0.5 - 1.5)
      */
-    //  Físicas Player
     applyRecoil(strength = 0.5) {
         if (this.isGameOver || !this.controls.isLocked) return;
 
@@ -432,7 +489,10 @@ export class Player {
         // el retroceso en la dirección correcta según el ángulo actual
         this.velocity.z += strength;
     }
-    //  Bucle Principal Player
+    // #endregion
+
+    // #region Bucle Principal Player
+    // Descripción: Actualiza el estado del jugador frame a frame: movimiento, gravedad, colisiones y UI.
     update(delta) {
         if (!this.controls.isLocked) return;
         if (this.isShooting) {
@@ -501,8 +561,10 @@ export class Player {
             this.updateRay();
         }
     }
+    // #endregion
 
-    //  Gestión de Game Over Player
+    // #region Gestión de Game Over Player
+    // Descripción: Maneja el estado de fin de juego, desbloqueando controles y mostrando la pantalla final.
     gameOver() {
         if (this.isGameOver) return;
         this.isGameOver = true;
@@ -520,33 +582,10 @@ export class Player {
             this.deactivateRay();
         }
     }
+    // #endregion
 
-    checkAmmoItems() {
-        const ammoItems = this.world.getAmmoMeshes();
-        const playerPos = this.getPosition();
-
-        ammoItems.forEach(ammoMesh => {
-            if (ammoMesh.userData.collected) return;
-
-            const distance = playerPos.distanceTo(ammoMesh.position);
-            if (distance < CONFIG.PICKUP_DISTANCE) {
-                const ammoAmount = ammoMesh.userData.ammoAmount;
-                const weaponIndex = ammoMesh.userData.weaponIndex;
-
-                // Check if ammo is full
-                const weapon = WEAPONS_DATA[weaponIndex];
-                if (weapon && weapon.ammo >= weapon.maxAmmo) {
-                    return; // Don't collect if full
-                }
-
-                this.collectAmmo(ammoAmount, weaponIndex);
-
-                ammoMesh.userData.collected = true;
-                this.world.scene.remove(ammoMesh);
-            }
-        });
-    }
-    //  Sistema de Colisiones Player
+    // #region Sistema de Colisiones Player
+    // Descripción: Detecta colisiones con muros y puertas, impidiendo que el jugador atraviese objetos sólidos.
     checkCollisions(oldPosition) {
         const playerPos = this.camera.position;
         const offset = CONFIG.PLAYER_COLLISION_OFFSET;
@@ -630,7 +669,6 @@ export class Player {
         this.velocity.x = 0;
         this.velocity.z = 0;
     }
-    getPosition() {
-        return this.camera.position;
-    }
+    // #endregion
 }
+// #endregion

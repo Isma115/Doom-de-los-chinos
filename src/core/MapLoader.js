@@ -8,7 +8,7 @@ export class MapLoader {
         this.blockSize = CONFIG.BLOCK_SIZE || 10;
     }
 
-    //  Carga de Mapa
+    //#region Carga de Mapa
     async loadMapFile(mapName = 'default') {
         try {
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
@@ -25,6 +25,7 @@ export class MapLoader {
             return this.getDefaultMap();
         }
     }
+    //#endregion
 
     //  Parseo de Mapa
     parseMap(mapText) {

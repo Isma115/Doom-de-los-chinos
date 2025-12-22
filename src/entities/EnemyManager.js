@@ -1,11 +1,12 @@
-// *-- Importaciones EnemyManager
+// #region Importaciones EnemyManager
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, ENEMY_TYPES, AUDIO_CONFIG } from '../Constants.js';
+// #endregion
 
-// *-- Clase EnemyManager
+// #region Clase EnemyManager
 export class EnemyManager {
 
-    // *-- Constructor EnemyManager
+    // #region Constructor EnemyManager
     constructor(scene, world, audioManager) {
         this.scene = scene;
         this.world = world;
@@ -56,8 +57,9 @@ export class EnemyManager {
 
         this.activeSoundSources = [];
     }
+    // #endregion
 
-    // *-- Sistema de Partículas
+    // #region Sistema de Partículas EnemyManager
     createBloodParticles(enemy, hitPosition) {
         const existingParticles = this.bloodParticles.get(enemy);
 
@@ -287,7 +289,9 @@ export class EnemyManager {
 
         this.bloodParticles.delete(enemy);
     }
+    // #endregion
 
+    // #region Helpers EnemyManager
     getRandomEnemyType() {
         const weightedTypes = [];
         ENEMY_TYPES.forEach(enemyType => {
@@ -297,8 +301,9 @@ export class EnemyManager {
         });
         return weightedTypes[Math.floor(Math.random() * weightedTypes.length)];
     }
+    // #endregion
 
-    // *-- Pool de Enemigos
+    // #region Pool de Enemigos EnemyManager
     getEnemyFromPool(enemyType = null) {
         const type = enemyType ||
             this.getRandomEnemyType();
@@ -456,8 +461,10 @@ export class EnemyManager {
             if (enemy.parent) this.scene.remove(enemy);
         }
     }
+    // #endregion
 
-    // *-- Sistema de Spawning
+    // #region Sistema de Spawning EnemyManager
+    // Descripción: Lógica para instanciar enemigos en el juego, controlando tipos, posiciones y límites de población.
     spawn(time, specificType = null, specificPosition = null) {
         if (specificPosition || time - this.lastSpawnTime > CONFIG.ENEMY_SPAWN_RATE) {
             const enemyType = specificType ||
@@ -507,8 +514,10 @@ export class EnemyManager {
             }
         }
     }
+    // #endregion
 
-    // *-- Sistema de Proyectiles
+    // #region Sistema de Proyectiles EnemyManager
+    // Descripción: Gestiona el disparo de proyectiles por parte de los enemigos, configurando su dirección, velocidad y daño.
     shootProjectile(enemy, targetPos) {
         const size = enemy.userData.projectileSize ||
             0.3;
@@ -549,8 +558,10 @@ export class EnemyManager {
             }
         }, 700);
     }
+    // #endregion
 
-    // Limpiar sonidos terminados del array
+    // #region Gestión de Sonidos EnemyManager
+    // Descripción: Limpia los recursos de audio que han terminado de reproducirse para evitar fugas de memoria.
     cleanupFinishedSounds() {
         this.activeSoundSources = this.activeSoundSources.filter(source => {
             // Verificar si el sonido aún está reproduciéndose
@@ -565,8 +576,10 @@ export class EnemyManager {
             return true;
         });
     }
+    // #endregion
 
-    // *-- Update Loop EnemyManager
+    // #region Bucle Principal EnemyManager
+    // Descripción: Actualiza el estado de todos los enemigos, proyectiles y partículas en cada frame.
     update(delta, playerPos, onHitPlayer) {
         const tempEnemyBox = new THREE.Box3();
         const now = performance.now();
@@ -736,7 +749,10 @@ export class EnemyManager {
             this.updateBloodParticles(enemy, delta);
         }
     }
+    // #endregion
 
+    // #region Eliminación de Enemigos EnemyManager
+    // Descripción: Elimina un enemigo de la escena, gestionando la limpieza de sus partículas y sonido de muerte.
     removeEnemy(enemy) {
         this.clearBloodParticles(enemy);
 
@@ -749,8 +765,10 @@ export class EnemyManager {
         this.activeEnemies.delete(enemy);
         this.returnEnemyToPool(enemy);
     }
+    // #endregion
 
-    // *-- Limpieza EnemyManager
+    // #region Limpieza de Recursos EnemyManager
+    // Descripción: Libera todos los recursos utilizados por el gestor de enemigos al finalizar el juego o reiniciar.
     dispose() {
         this.bloodParticles.forEach((particles, enemy) => {
             this.clearBloodParticles(enemy);
@@ -781,4 +799,6 @@ export class EnemyManager {
         // Limpiar sonidos activos
         this.activeSoundSources = [];
     }
+    // #endregion
 }
+// #endregion

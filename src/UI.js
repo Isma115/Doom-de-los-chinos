@@ -1,8 +1,12 @@
+// #region Importaciones UI
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { WEAPONS_DATA } from './Constants.js';
+// #endregion
 
-//  Gestión de UI
+// #region Clase UIManager
+// Descripción: Clase estática para gestionar la interfaz de usuario del juego (HUD), incluyendo salud, munición y mensajes.
 export class UIManager {
+    // #region Métodos de HUD UIManager
     static updateHealth(amount) {
         let container = document.getElementById('health-bar-container');
         if (!container) {
@@ -88,7 +92,9 @@ export class UIManager {
         }
         coordsEl.innerText = `X: ${x.toFixed(1)}  Y: ${y.toFixed(1)}  Z: ${z.toFixed(1)}`;
     }
+    // #endregion
 
+    // #region Mensajes y Eventos UIManager
     static showEventMessage(text, duration = 3000) {
         let msgEl = document.getElementById('event-message');
         if (!msgEl) {
@@ -132,7 +138,9 @@ export class UIManager {
             }, 300);
         }
     }
+    // #endregion
 
+    // #region Pantallas de Estado UIManager
     static showGameOver() {
         document.querySelector('#start-screen h1').innerText = "GAME OVER";
         document.querySelector('#start-screen p').innerText = "Pulsa la tecla R para reiniciar";
@@ -176,10 +184,15 @@ export class UIManager {
             if (coordsDisplay) coordsDisplay.style.display = 'none';
         }
     }
+    // #endregion
 }
+// #endregion
 
 //  Gestor de Ajustes
+// #region Clase SettingsManager
+// Descripción: Gestiona la configuración de audio y las interacciones con el menú de ajustes.
 export class SettingsManager {
+    // #region Constructor SettingsManager
     constructor(audioManager) {
         this.audioManager = audioManager;
         this.settingsMenu = document.getElementById('settings-menu');
@@ -206,7 +219,9 @@ export class SettingsManager {
         this.loadSettings();
         this.setupEventListeners();
     }
+    // #endregion
 
+    // #region Persistencia SettingsManager
     loadSettings() {
         const savedSettings = localStorage.getItem('gameAudioSettings');
         if (savedSettings) {
@@ -226,7 +241,9 @@ export class SettingsManager {
         };
         localStorage.setItem('gameAudioSettings', JSON.stringify(settings));
     }
+    // #endregion
 
+    // #region Eventos SettingsManager
     setupEventListeners() {
         if (this.settingsBtn) {
             this.settingsBtn.addEventListener('click', (e) => {
@@ -288,7 +305,9 @@ export class SettingsManager {
             this.audioManager.setSFXVolume(normalizedVolume);
         }
     }
+    // #endregion
 
+    // #region Control de Menu SettingsManager
     toggleMenu() {
         if (this.isOpen()) {
             this.closeMenu();
@@ -317,11 +336,16 @@ export class SettingsManager {
         this.toggleBtn.classList.remove('visible');
         this.closeMenu();
     }
+    // #endregion
 }
+// #endregion
 
 //  Panel Debug - Constructor y Creación
 
+// #region Clase DebugPanel
+// Descripción: Panel de depuración para desarrolladores con trucos (God Mode, Ammo infinita) y teletransporte.
 export class DebugPanel {
+    // #region Constructor DebugPanel
     constructor(player, weaponSystem) {
         this.player = player;
         this.weaponSystem = weaponSystem;
@@ -353,7 +377,9 @@ export class DebugPanel {
         this.setupEventListeners();
         this.setupPauseMenuIntegration();
     }
+    // #endregion
 
+    // #region Creación de Interfaz DebugPanel
     createDebugPanel() {
         // Limpiar panel existente si hay alguno para evitar duplicados e IDs repetidos
         const existingPanel = document.getElementById('debug-panel');
@@ -454,10 +480,9 @@ export class DebugPanel {
         };
         localStorage.setItem('gameDebugSettings', JSON.stringify(settings));
     }
+    // #endregion
 
-
-
-    //  Panel Debug - Eventos
+    // #region Eventos DebugPanel
     setupEventListeners() {
         document.getElementById('debug-close-btn').addEventListener('click', () => {
             this.hide();
@@ -534,10 +559,9 @@ export class DebugPanel {
             this.player.teleport(x, y, z);
         });
     }
+    // #endregion
 
-
-
-    //  Panel Debug - Visibilidad y Actualización
+    // #region Visibilidad y Actualización DebugPanel
     show() {
         this.isVisible = true;
         this.panel.classList.add('active');
@@ -621,4 +645,6 @@ export class DebugPanel {
             });
         }
     }
+    // #endregion
 }
+// #endregion

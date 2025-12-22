@@ -1,8 +1,13 @@
-//  Clase Door
+// #region Clase Door
+// Descripción: Clase que representa una puerta en el juego, gestionando su estado (abierta/cerrada), animación y lógica de interacción.
 export class Door {
-    // Array estático para guardar todas las puertas activas
+    // #region Propiedades Estáticas Door
+    // Descripción: Almacena referencias a todas las puertas instanciadas para gestión global.
     static instances = [];
+    // #endregion
 
+    // #region Constructor Door
+    // Descripción: Inicializa la puerta con su malla 3D y estado inicial cerrado.
     constructor(doorMesh) {
         this.mesh = doorMesh;
         this.isOpen = false;
@@ -12,10 +17,10 @@ export class Door {
         // Agregar esta instancia a la lista global de puertas
         Door.instances.push(this);
     }
+    // #endregion
 
-    // Método estático para intentar abrir la puerta más cercana
-
-    //  Métodos Estáticos Door
+    // #region Métodos Estáticos Door
+    // Descripción: Métodos para controlar todas las puertas o buscar interacciones cercanas sin referencia directa a una instancia.
     static tryOpenNearest(playerPosition) {
         let opened = false;
         Door.instances.forEach(door => {
@@ -27,16 +32,17 @@ export class Door {
         return opened;
     }
 
-    // Método estático para actualizar todas las puertas
     static updateAll(delta, playerPosition) {
         Door.instances.forEach(door => door.update(delta, playerPosition));
     }
 
-    // Método estático para limpiar referencias al cambiar de mapa
     static clearAll() {
         Door.instances = [];
     }
-    //  Métodos de Instancia Door
+    // #endregion
+
+    // #region Métodos de Instancia Door
+    // Descripción: Lógica de apertura, cierre, actualización de animación y detección de proximidad del jugador.
     open() {
         if (this.isOpen) return;
         this.isOpen = true;
@@ -79,4 +85,6 @@ export class Door {
     isPlayerNear(playerPosition) {
         return playerPosition.distanceTo(this.mesh.position) < 8; // Reducir distancia de apertura
     }
+    // #endregion
 }
+// #endregion

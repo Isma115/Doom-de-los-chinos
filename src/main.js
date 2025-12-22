@@ -1,18 +1,19 @@
-//  Importaciones Main.js
+// #region Importaciones Main
+// Descripción: Importa los módulos y constantes necesarios para el funcionamiento del juego, incluyendo entidades, gestores y librerías gráficas.
 import { World } from './core/World.js';
-import { Player } from './entities/Player.js'; //
+import { Player } from './entities/Player.js';
 import { EnemyManager } from './entities/EnemyManager.js';
 import { Door } from './entities/Door.js';
-
 import { UIManager, SettingsManager, DebugPanel } from './UI.js';
-import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js'; //
+import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js';
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { AudioManager } from './core/AudioManager.js';
-
 import { EventManager } from './core/EventManager.js';
+// #endregion
 
-//  Clase Game y Constructor Main
-class Game { //
+class Game {
+    // #region Constructor Game
+    // Descripción: Inicializa la instancia del juego, configurando la escena, cámara, renderizador, y los gestores básicos de estado y audio.
     constructor(mapName) {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -40,9 +41,10 @@ class Game { //
 
         this.setupGlobalRestartListener();
     }
+    // #endregion
 
-
-    //  Gestión de Estado del Juego Main
+    // #region Gestión de Estado Game
+    // Descripción: Controla el reinicio del juego, limpieza de la escena y observadores de eventos globales para el control de flujo (como reiniciar al morir).
     restartGame() {
         // Limpiar escena
         while (this.scene.children.length > 0) {
@@ -81,9 +83,10 @@ class Game { //
         // Guardamos referencia para poder removerlo si fuera necesario (opcional)
         this.restartListener = handleRestart;
     }
+    // #endregion
 
-
-    //  Inicialización Main
+    // #region Inicialización Game
+    // Descripción: Configura el mundo, carga el mapa, e instancia las entidades principales como el jugador, enemigos, puertas y paneles de interfaz.
     async initGame(mapName) {
         await this.audioManager.init();
         this.world = new World(this.scene);
@@ -142,11 +145,11 @@ class Game { //
 
         UIManager.togglePauseScreen(false, false);
         this.animate();
-    } //
+    }
+    // #endregion
 
-
-
-    //  Bucle de Animación Main
+    // #region Bucle Principal Game
+    // Descripción: Maneja el bucle de renderizado y actualización lógica frame a frame, gestionando el tiempo delta y el estado de pausa.
     animate() {
         requestAnimationFrame(() => this.animate());
 
@@ -212,12 +215,14 @@ class Game { //
         //  Renderizado
         this.renderer.render(this.scene, this.camera);
 
-    } //
+    }
+    // #endregion
 
-    //  Actualización de Entidades Main
+    // #region Actualización de Entidades Game
+    // Descripción: Gestiona la lógica específica de entidades secundarias como items de curación (rotación y recolección).
     updateFoodItems(delta) {
         const foodMeshes = this.world.getFoodMeshes();
-        const playerPos = this.player.getPosition(); //
+        const playerPos = this.player.getPosition();
 
         foodMeshes.forEach(foodMesh => {
             if (foodMesh.userData.collected) return;
@@ -229,34 +234,38 @@ class Game { //
                 this.player.collectFood(foodMesh.userData.healAmount);
 
                 foodMesh.userData.collected
-                    = true; //
+                    = true;
                 this.scene.remove(foodMesh);
             }
         });
-    } //
+    }
+    // #endregion
 
-    //  Manejo de Ventana Main
+    // #region Manejo de Ventana Game
+    // Descripción: Ajusta la cámara y el renderizador cuando cambia el tamaño de la ventana del navegador.
     onWindowResize() {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight); //
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
+    // #endregion
 
-    //  Limpieza Periódica Main
+    // #region Limpieza Game
+    // Descripción: Realiza tareas de mantenimiento periódico, como eliminar enemigos inactivos de la memoria.
     performPeriodicCleanup(time) {
         if (time - this.lastCleanupTime > 30000) {
             if (this.enemyManager.enemies.length === 0 && this.enemyManager.enemyPool.length > 5) {
                 const excess = this.enemyManager.enemyPool.length - 5;
-                this.enemyManager.enemyPool.splice(0, excess); //
+                this.enemyManager.enemyPool.splice(0, excess);
             }
             this.lastCleanupTime = time;
-        } //
+        }
     }
+    // #endregion
 }
 
-
-
-//  UI Selector de Mapas Main
+// #region Selector de Mapas UI Game
+// Descripción: Crea e inserta en el DOM la interfaz gráfica para la selección inicial de misiones/mapas.
 function createMapSelector() {
     const selectorDiv = document.createElement('div');
     selectorDiv.id = 'map-selector';
@@ -284,3 +293,4 @@ function createMapSelector() {
 }
 
 createMapSelector();
+// #endregion

@@ -1,11 +1,16 @@
-//  Importaciones WeaponSystem
+// #region Importaciones WeaponSystem
+// Descripción: Importaciones de librerías y dependencias necesarias para WeaponSystem.
 import * as THREE from '../../node_modules/three/build/three.module.js';
-import { WEAPONS_DATA } from '../Constants.js'; //
+import { WEAPONS_DATA } from '../Constants.js';
 import { UIManager } from '../UI.js';
-//  Clase WeaponSystem
+// #endregion
+
+// #region Clase WeaponSystem
+// Descripción: Sistema que gestiona las armas del jugador, incluyendo lógica de disparo, munición y efectos visuales.
 export class WeaponSystem {
 
-    //  Constructor WeaponSystem
+    // #region Constructor WeaponSystem
+    // Descripción: Inicializa el sistema de armas, carga materiales, texturas de impacto y configura el estado inicial.
     constructor(camera, enemyManager, audioManager, player, scene) {
         this.camera = camera;
         this.enemyManager = enemyManager;
@@ -55,13 +60,44 @@ export class WeaponSystem {
 
         this.updateVisuals();
     }
+    // #endregion
+
+    // #region Helpers WeaponSystem
+    // Descripción: Métodos de utilidad para obtener el arma actual y los objetos sólidos del entorno.
     getCurrentWeapon() {
         return WEAPONS_DATA[this.currentIndex];
-    } //
+    }
 
+    getSolidObjects() {
+        const solidObjects = [];
 
+        // Obtener muros del mundo
+        if (this.player && this.player.world && this.player.world.getWalls) {
+            const walls = this.player.world.getWalls();
+            solidObjects.push(...walls);
+        }
 
-    //  Efectos Visuales
+        // Obtener puertas cerradas
+        if (window.Door && Door.instances) {
+            Door.instances.forEach(door => {
+                if (!door.isOpen && door.mesh) {
+                    solidObjects.push(door.mesh);
+                }
+            });
+        }
+
+        // Obtener modelos estáticos 3D que sean sólidos
+        if (this.player && this.player.world && this.player.world.getStaticModels) {
+            const staticModels = this.player.world.getStaticModels();
+            solidObjects.push(...staticModels);
+        }
+
+        return solidObjects;
+    }
+    // #endregion
+
+    // #region Efectos Visuales WeaponSystem
+    // Descripción: Creación de efectos de impacto en muros y fogonazos de las armas.
     createWallImpactEffect(hitPoint, hitNormal) {
         // ──────────────────────────────────────────────────────────────
         // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
@@ -117,32 +153,6 @@ export class WeaponSystem {
         setTimeout(fadeOut, 300);
     }
 
-    getSolidObjects() {
-        const solidObjects = [];
-
-        // Obtener muros del mundo
-        if (this.player && this.player.world && this.player.world.getWalls) {
-            const walls = this.player.world.getWalls();
-            solidObjects.push(...walls);
-        }
-
-        // Obtener puertas cerradas
-        if (window.Door && Door.instances) {
-            Door.instances.forEach(door => {
-                if (!door.isOpen && door.mesh) {
-                    solidObjects.push(door.mesh);
-                }
-            });
-        }
-
-        // Obtener modelos estáticos 3D que sean sólidos
-        if (this.player && this.player.world && this.player.world.getStaticModels) {
-            const staticModels = this.player.world.getStaticModels();
-            solidObjects.push(...staticModels);
-        }
-
-        return solidObjects;
-    }
     showMuzzleFlash() {
         if (!this.weaponFlashTexture) return;
 
@@ -184,8 +194,10 @@ export class WeaponSystem {
         };
         setTimeout(fadeOut, 50);
     }
+    // #endregion
 
-    //  Gestión de Munición
+    // #region Gestión de Munición WeaponSystem
+    // Descripción: Lógica para añadir munición y cambiar entre las armas disponibles.
     addAmmo(amount, weaponIndex = null) {
         if (weaponIndex !== null) {
             const weapon = WEAPONS_DATA[weaponIndex];
@@ -199,16 +211,19 @@ export class WeaponSystem {
             UIManager.updateAmmo(weapon.ammo);
         }
     }
+
     switchWeapon(direction) {
         if (direction > 0) {
             this.currentIndex = (this.currentIndex + 1) % WEAPONS_DATA.length;
-        } else { //
+        } else {
             this.currentIndex = (this.currentIndex - 1 + WEAPONS_DATA.length) % WEAPONS_DATA.length;
-        } //
+        }
         this.updateVisuals();
     }
+    // #endregion
 
-    //  Visuales Arma
+    // #region Visuales Arma WeaponSystem
+    // Descripción: Actualiza el sprite del arma visible en pantalla según el arma seleccionada.
     updateVisuals() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
@@ -253,9 +268,11 @@ export class WeaponSystem {
         this.camera.add(this.weaponMesh);
 
         UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
-    } //
+    }
+    // #endregion
 
-    //  Lógica de Disparo
+    // #region Lógica de Disparo WeaponSystem
+    // Descripción: Gestiona el disparo, cooldowns, gasto de munición y animación de disparo.
     tryShoot(scoreCallback) {
         const now = performance.now();
         const weapon = this.getCurrentWeapon();
@@ -300,8 +317,10 @@ export class WeaponSystem {
         this.performRaycast(weapon, scoreCallback);
         this.animateRecoil();
     }
+    // #endregion
 
-    //  Sistema Raycast
+    // #region Sistema Raycast WeaponSystem
+    // Descripción: Lógica de detección de impactos mediante Raycasting para determinar aciertos en enemigos o entornos.
     performRaycast(weapon, scoreCallback) {
         this.raycaster.setFromCamera(this.rayOrigin, this.camera);
 
@@ -371,7 +390,10 @@ export class WeaponSystem {
             console.log(`Última bala disparada se detuvo en X: ${lastBulletStopPosition.x.toFixed(2)}, Y: ${lastBulletStopPosition.y.toFixed(2)}, Z: ${lastBulletStopPosition.z.toFixed(2)}`);
         }
     }
+    // #endregion
 
+    // #region Animación Recoil WeaponSystem
+    // Descripción: Animación de retroceso del arma al disparar.
     animateRecoil() {
         if (!this.weaponMesh) return;
 
@@ -415,7 +437,10 @@ export class WeaponSystem {
             }, 80);
         }
     }
+    // #endregion
 
+    // #region Limpieza WeaponSystem
+    // Descripción: Liberación de recursos y geometrías del sistema de armas.
     dispose() {
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
@@ -425,5 +450,7 @@ export class WeaponSystem {
 
         this.weaponMaterials.forEach(mat => mat.dispose());
         this.weaponMaterials = [];
-    } //
+    }
+    // #endregion
 }
+// #endregion

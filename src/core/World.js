@@ -1,13 +1,18 @@
-// *-- Importaciones World.js
+// #region Importaciones World
+// Descripción: Importa las dependencias externas (Three.js, Loaders) y módulos internos necesarios para la construcción del mundo.
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG } from '../Constants.js';
 import { MapLoader } from './MapLoader.js';
 
 import { OBJLoader } from '../../node_modules/three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from '../../node_modules/three/examples/jsm/loaders/MTLLoader.js';
+// #endregion
 
-// *-- Constructor World
+// #region Clase World
+// Descripción: Clase principal que gestiona la creación y renderizado del entorno del juego (mapa), incluyendo suelos, paredes, modelos 3D y spawners.
 export class World {
+    // #region Constructor World
+    // Descripción: Inicializa las estructuras de datos para almacenar geometrías, materiales y referencias a objetos del mundo como paredes y spawners.
     constructor(scene) {
         this.scene = scene;
         this.sharedMaterials = {};
@@ -20,19 +25,21 @@ export class World {
         this.doorMeshes = [];
         this.foodMeshes = [];
         this.ammoMeshes = [];
-        this.staticModels = []; // Almacenar modelos 3D estáticos
+        this.staticModels = [];
     }
+    // #endregion
 
-    // *-- Inicialización World
+    // #region Inicialización World
+    // Descripción: Carga los datos del mapa, configura el skybox (cielo), iluminación, genera el suelo y crea los objetos iniciales del nivel.
     async init(mapName = 'default') {
-        // *-- Carga de Datos
+        // Carga de Datos
         this.mapData = await this.mapLoader.loadMapFile(mapName);
         this.enemySpawns = this.mapData.enemySpawns;
         this.genericSpawners = this.mapData.genericSpawners;
         this.ammoSpawners = this.mapData.ammoSpawners || [];
         this.foodSpawners = this.mapData.foodSpawners || [];
 
-        // *-- Configuración de Skybox
+        // Configuración de Skybox
         const textureLoader = new THREE.TextureLoader();
         let skyTexture = null;
 
@@ -72,7 +79,7 @@ export class World {
             this.scene.fog = new THREE.Fog(skyColor, 120, 350);
         }
 
-        // *-- Iluminación
+        // Iluminación
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
         hemiLight.position.set(0, 20, 0);
         this.scene.add(hemiLight);
@@ -85,7 +92,7 @@ export class World {
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
         const floorSize = Math.max(mapWidth, mapHeight, CONFIG.ARENA_SIZE);
 
-        // *-- Generación de Suelo World
+        // Generación de Suelo
         const tileSize = 20;
         const tilesX = Math.ceil((floorSize * 1.5) / tileSize) + 2;
         const tilesZ = Math.ceil((floorSize * 1.5) / tileSize) + 2;
@@ -135,7 +142,7 @@ export class World {
 
         this.scene.add(floorGroup);
 
-        // *-- Generación de Objetos Inicial World
+        // Generación de Objetos Inicial
         this.createWallsFromMap();
         this.createDoorsFromMap();
         this.createFoodItemsFromMap();
@@ -144,9 +151,10 @@ export class World {
         // Cargar modelos 3D desde JSON externo
         await this.load3DModelsFromJSON(mapName);
     }
+    // #endregion
 
-
-    // *-- Getters de Objetos World
+    // #region Getters de Objetos World
+    // Descripción: Proporciona acceso a las listas de objetos colisionables, spawners y mallas del mundo.
     getSolidObjects() {
         const solidObjects = [];
 
@@ -172,7 +180,6 @@ export class World {
         return this.walls;
     }
 
-    // *-- Getters de Spawners World
     getEnemySpawns() {
         return this.enemySpawns;
     }
@@ -204,7 +211,16 @@ export class World {
     getFoodSpawners() {
         return this.foodSpawners || [];
     }
-    // *-- Creación de Items (Runtime) World
+    getStaticModels() {
+        return this.staticModels || [];
+    }
+    getPlayerRotation() {
+        return this.mapData ? this.mapData.playerRotation : 0;
+    }
+    // #endregion
+
+    // #region Creación de Items (Runtime) World
+    // Descripción: Métodos para instanciar objetos dinámicamente durante el juego, como paquetes de comida y munición.
     spawnFood(position) {
         const textureLoader = new THREE.TextureLoader();
         const foodTexture = textureLoader.load(
@@ -227,7 +243,7 @@ export class World {
 
         foodSprite.userData = {
             type: 'food',
-            healAmount: CONFIG.FOOD_HEAL_AMOUNT,   // ← Ahora usa la constante modificada (50)
+            healAmount: CONFIG.FOOD_HEAL_AMOUNT,
             collected: false,
             rotationSpeed: 2.0
         };
@@ -285,10 +301,10 @@ export class World {
         this.ammoMeshes.push(ammoSprite);
         return ammoSprite;
     }
+    // #endregion
 
-
-
-    // *-- Creación de Items (Map Data) World
+    // #region Creación de Items (Map Data) World
+    // Descripción: Métodos para instanciar items definidos en los datos del mapa durante la carga inicial.
     createAmmoItemsFromMap() {
         this.ammoMeshes = [];
 
@@ -379,9 +395,10 @@ export class World {
             this.foodMeshes.push(foodSprite);
         });
     }
+    // #endregion
 
-
-    // *-- Carga de Modelos 3D World
+    // #region Carga de Modelos 3D World
+    // Descripción: Descarga y procesa archivos JSON de modelos 3D y utiliza loaders (OBJ/MTL) para instanciar geometría compleja en la escena.
     async load3DModelsFromJSON(mapName) {
         try {
             const response = await fetch(`modelos/${mapName}_models.json`);
@@ -541,8 +558,10 @@ export class World {
             console.warn(`No hay archivo de modelos 3D para el mapa ${mapName} o error de carga`, err);
         }
     }
+    // #endregion
 
-    // *-- Creación de Puertas World
+    // #region Creación de Puertas World
+    // Descripción: Instancia mallas para las puertas en las posiciones definidas por el mapa.
     createDoorsFromMap() {
         this.doorMeshes = [];
 
@@ -605,12 +624,10 @@ export class World {
             this.doorMeshes.push(doorMesh);
         });
     }
+    // #endregion
 
-    getPlayerRotation() {
-        return this.mapData ? this.mapData.playerRotation : 0;
-    }
-
-    // *-- Creación de Muros World
+    // #region Creación de Muros World
+    // Descripción: Itera sobre los datos del mapa para crear bloques de muros, arbustos y ladrillos con sus respectivas colisiones.
     createWallsFromMap() {
         this.walls = [];
 
@@ -700,14 +717,10 @@ export class World {
             });
         });
     }
+    // #endregion
 
-    getStaticModels() {
-        return this.staticModels || [];
-    }
-
-
-
-    // *-- Limpieza de Recursos World
+    // #region Limpieza de Recursos World
+    // Descripción: Libera la memoria de geometrías, materiales y elimina objetos de la escena al destruir el mundo o recargar el mapa.
     dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
@@ -735,4 +748,6 @@ export class World {
         this.foodMeshes = [];
         this.ammoMeshes = [];
     }
+    // #endregion
 }
+// #endregion
