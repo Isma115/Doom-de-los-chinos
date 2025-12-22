@@ -302,47 +302,48 @@ export class WeaponSystem {
     // #region Lógica de Disparo WeaponSystem
     // Descripción: Gestiona el disparo, cooldowns, gasto de munición y animación de disparo.
     tryShoot(scoreCallback) {
-        const weapon = WEAPONS_DATA[this.currentIndex];
-
-        // Cuchillo tiene munición infinita siempre
-        if (weapon.isMelee) {
-            this.performRaycast(weapon, scoreCallback);
-            if (this.audioManager) {
-                this.audioManager.playSound(weapon.shootSound, 0.8);
-            }
-            this.player.applyRecoil(0.8);
-            return;
-        }
-
-        // Comprobar munición (salvo modo infinito)
-        if (!this.player.debugState.infiniteAmmo && weapon.ammo <= 0) {
-            // Reproducir sonido de sin munición si existe
-            if (this.audioManager && this.audioManager.sounds['out_of_ammo']) {
-                this.audioManager.playSound('out_of_ammo', 0.6);
-            }
-            return;
-        }
-
         const now = performance.now();
-        if (now - this.lastShotTime < weapon.delay) {
-            return;
+        const weapon = this.getCurrentWeapon();
+
+        if (now - this.lastShotTime < weapon.delay) return;
+
+        if (!this.debugState.infiniteAmmo) {
+            if (weapon.ammo <= 0) return;
+
+            if (!weapon.isMelee) {
+                weapon.ammo--;
+                UIManager.updateAmmo(weapon.ammo);
+            } else {
+                UIManager.updateAmmo("∞");
+            }
+        } else {
+            UIManager.updateAmmo("∞");
         }
 
         this.lastShotTime = now;
 
-        // Consumir munición (solo si no es infinita)
-        if (!this.player.debugState.infiniteAmmo) {
-            weapon.ammo--;
-            UIManager.updateAmmo(weapon.ammo);
+        if (this.audioManager && weapon.shootSound) {
+            this.audioManager.playSound(weapon.shootSound);
+        }
+
+        if (weapon.name === "AMETRALLADORA") {
+            this.player.applyRecoil(7);
+        }
+
+        if (this.weaponMesh && this.weaponFlashTexture) {
+            this.weaponMesh.material.map = this.weaponFlashTexture;
+            this.weaponMesh.material.needsUpdate = true;
+
+            setTimeout(() => {
+                if (this.weaponMesh && this.weaponTexture) {
+                    this.weaponMesh.material.map = this.weaponTexture;
+                    this.weaponMesh.material.needsUpdate = true;
+                }
+            }, 80);
         }
 
         this.performRaycast(weapon, scoreCallback);
-
-        if (this.audioManager) {
-            this.audioManager.playSound(weapon.shootSound, 0.8);
-        }
-
-        this.player.applyRecoil(0.6);
+        this.animateRecoil();
     }
     // #endregion
 
