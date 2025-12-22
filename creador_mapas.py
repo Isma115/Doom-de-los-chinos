@@ -1,23 +1,23 @@
-# *-- Importaciones MapEditor
+#  Importaciones MapEditor
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import json
 
-# *-- Clase e Inicialización MapEditor
+#  Clase e Inicialización MapEditor
 class MapEditor:
     def __init__(self, root):
         self.root = root
         
-        # *-- Configuración de Ventana
+        #  Configuración de Ventana
         self.root.title("Doom Map Editor")
         self.root.geometry("1200x800")
         
-        # *-- Configuración del Grid
+        #  Configuración del Grid
         self.grid_width = 40
         self.grid_height = 30
         self.cell_size = 20
         
-        # *-- Inicialización de Estado
+        #  Inicialización de Estado
         self.selected_block = "."
         
         # Historial para hacer/deshacer
@@ -29,7 +29,7 @@ class MapEditor:
         self.properties_dialog = None
         self.editing_cell = None
         
-        # *-- Definición de Bloques
+        #  Definición de Bloques
         self.block_types = {
             "#": {"name": "Muro", "color": "#888888"},
             "D": {"name": "Puerta", "color": "#00FFFF"},
@@ -61,14 +61,14 @@ class MapEditor:
 
 
 
-# *-- Configuración de Interfaz MapEditor
+#  Configuración de Interfaz MapEditor
     def create_ui(self):
-        # *-- Configuración de Layout Principal
+        #  Configuración de Layout Principal
         # Frame principal
         main_frame = tk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # *-- Panel de Leyenda
+        #  Panel de Leyenda
         legend_frame = tk.Frame(main_frame, width=200, bg="#333333")
         legend_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         
@@ -79,7 +79,7 @@ class MapEditor:
         # Crear botones de la leyenda
         self.create_legend(legend_frame)
         
-        # *-- Panel de Controles
+        #  Panel de Controles
         # Frame derecho para el canvas y controles
         right_frame = tk.Frame(main_frame)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -136,7 +136,7 @@ class MapEditor:
         self.selected_label = tk.Label(controls_frame, text=f"Seleccionado: {self.block_types[self.selected_block]['name']}", font=("Arial", 10), bg="white", padx=10)
         self.selected_label.pack(side=tk.LEFT, padx=20)
         
-        # *-- Canvas y Scrollbars
+        #  Canvas y Scrollbars
         canvas_frame = tk.Frame(right_frame)
         canvas_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         
@@ -165,7 +165,7 @@ class MapEditor:
         # Dibujar grid inicial
         self.draw_grid()
         
-        # *-- Eventos Globales
+        #  Eventos Globales
         self.canvas.bind("<Button-1>", self.paint_block)
         self.canvas.bind("<B1-Motion>", self.paint_block)
         self.canvas.bind("<ButtonRelease-1>", self.stop_painting)
@@ -181,9 +181,9 @@ class MapEditor:
         
 
 
-# *-- Diálogo de Propiedades MapEditor
+#  Diálogo de Propiedades MapEditor
     def open_properties_dialog(self, event):
-        # *-- Cálculos de Posición
+        #  Cálculos de Posición
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
         
@@ -219,7 +219,7 @@ class MapEditor:
         if self.properties_dialog:
             self.properties_dialog.destroy()
         
-        # *-- Configuración de Ventana Modal
+        #  Configuración de Ventana Modal
         
         self.properties_dialog = tk.Toplevel(self.root)
         self.properties_dialog.title(f"Propiedades: {self.block_types.get(block_type, {}).get('name', block_type)}")
@@ -227,7 +227,7 @@ class MapEditor:
         self.properties_dialog.transient(self.root)
         self.properties_dialog.grab_set()
         
-        # *-- Campos de Edición
+        #  Campos de Edición
         main_frame = tk.Frame(self.properties_dialog, padx=20, pady=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -292,7 +292,7 @@ class MapEditor:
             self.spawn_rate_var = None
         
         
-        # *-- Botones de Acción
+        #  Botones de Acción
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(side=tk.BOTTOM, pady=15)
         
@@ -320,7 +320,7 @@ class MapEditor:
         )
         btn_cancel.pack(side=tk.LEFT, padx=5)
 
-# *-- Lógica de Propiedades MapEditor
+#  Lógica de Propiedades MapEditor
     def apply_properties(self):
         if not self.editing_cell:
             return
@@ -389,7 +389,7 @@ class MapEditor:
 
 
 
-# *-- Sistema de Leyenda MapEditor
+#  Sistema de Leyenda MapEditor
     def create_legend(self, parent):
         # Frame para el buscador
         search_frame = tk.Frame(parent, bg="#333333")
@@ -526,14 +526,14 @@ class MapEditor:
         if legend_canvas:
             legend_canvas.configure(scrollregion=legend_canvas.bbox("all"))
 
-# *-- Selección de Bloques MapEditor
+#  Selección de Bloques MapEditor
     def select_block(self, block_type):
         self.selected_block = block_type
         self.selected_label.config(text=f"Seleccionado: {self.block_types[block_type]['name']}")
 
 
 
-# *-- Sistema de Historial MapEditor
+#  Sistema de Historial MapEditor
     def add_to_history(self):
         """Agrega el estado actual al historial"""
         # Crear una copia profunda del grid actual
@@ -568,12 +568,12 @@ class MapEditor:
 
 
 
-# *-- Sistema de Dibujado MapEditor
+#  Sistema de Dibujado MapEditor
     def draw_grid(self):
-        # *-- Limpieza y Configuración
+        #  Limpieza y Configuración
         self.canvas.delete("all")
         
-        # *-- Renderizado de Celdas
+        #  Renderizado de Celdas
         for y in range(self.grid_height):
             for x in range(self.grid_width):
                 x1 = x * self.cell_size
@@ -603,7 +603,7 @@ class MapEditor:
                     tags=f"cell_{x}_{y}"
                 )
                 
-                # *-- Renderizado de Etiquetas
+                #  Renderizado de Etiquetas
                 if block_type != ".":
                     display_text = block_type
                     font_size = 8
@@ -630,7 +630,7 @@ class MapEditor:
         
         self.canvas.config(scrollregion=(0, 0, self.grid_width * self.cell_size, self.grid_height * self.cell_size))
         
-# *-- Lógica de Pintado MapEditor
+#  Lógica de Pintado MapEditor
     def stop_painting(self, event):
         """Reinicia la bandera de pintado al soltar el mouse"""
         if hasattr(self, '_painting'):
@@ -684,7 +684,7 @@ class MapEditor:
 
 
 
-# *-- Sistema de Archivos MapEditor
+#  Sistema de Archivos MapEditor
     def save_map(self):
         filename = filedialog.asksaveasfilename(
             defaultextension=".txt",
@@ -780,7 +780,7 @@ class MapEditor:
             except Exception as e:
                 messagebox.showerror("Error", f"Error al cargar el mapa:\n{str(e)}")
         
-# *-- Gestión del Mapa MapEditor
+#  Gestión del Mapa MapEditor
     def clear_map(self):
         if messagebox.askyesno("Confirmar", "¿Estás seguro de que quieres limpiar el mapa?"):
             # Agregar estado actual al historial antes de limpiar
@@ -792,7 +792,7 @@ class MapEditor:
 
 
 
-# *-- Redimensionado MapEditor
+#  Redimensionado MapEditor
     def resize_map(self):
         """Redimensiona el mapa al tamaño especificado"""
         try:

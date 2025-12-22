@@ -1,6 +1,6 @@
-// *-- Importaciones AudioManager.js
+//  Importaciones AudioManager.js
 import { AUDIO_CONFIG } from '../Constants.js';
-// *-- Constructor AudioManager
+//  Constructor AudioManager
 export class AudioManager {
     constructor() {
         this.sounds = {};
@@ -11,7 +11,7 @@ export class AudioManager {
         this.sfxGain = null;
         this.initialized = false;
     }
-    // *-- Inicialización y Contexto Audio
+    //  Inicialización y Contexto Audio
     async init() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -44,7 +44,7 @@ export class AudioManager {
         }
     }
 
-    // *-- Carga de Assets Audio
+    //  Carga de Assets Audio
     async loadAllSounds() {
         const soundFiles = {
             pistol: 'assets/sound/weapons/pistol.mp3',
@@ -92,7 +92,7 @@ export class AudioManager {
         }
     }
 
-    // *-- Reproducción SFX Audio
+    //  Reproducción SFX Audio
     playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
         if (!this.initialized || !this.sounds[soundName]) {
             return null;
@@ -118,7 +118,7 @@ export class AudioManager {
             return null;
         }
     }
-    // *-- Reproducción Música Audio
+    //  Reproducción Música Audio
     playMusic(musicName, volume = 1.0) {
         if (!this.initialized || !this.music[musicName]) {
             return null;
@@ -162,7 +162,7 @@ export class AudioManager {
             }
         }
     }
-    // *-- Control de Volumen Audio
+    //  Control de Volumen Audio
     setMusicVolume(volume) {
         if (this.musicGain) {
             // Aumentamos el límite máximo permitido para que al 100% realmente suene mucho más alto
@@ -176,7 +176,7 @@ export class AudioManager {
             const clampedVolume = Math.max(0, Math.min(AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER, volume));
             this.sfxGain.gain.value = clampedVolume;
         }
-    }    // *-- Utilidades de Sonido Audio
+    }    //  Utilidades de Sonido Audio
     playRandomEnemySound(enemyType) {
         if (!enemyType.sounds || enemyType.sounds.length === 0) return;
         const randomSound = enemyType.sounds[Math.floor(Math.random() * enemyType.sounds.length)];
@@ -199,7 +199,7 @@ export class AudioManager {
         return this.playSound(soundName, finalVolume);
     }
 
-    // *-- Limpieza Audio
+    //  Limpieza Audio
     dispose() {
         this.stopMusic();
         if (this.audioContext) {

@@ -1,12 +1,12 @@
 
-// *-- Importaciones Player.js
+//  Importaciones Player.js
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, WEAPONS_DATA } from '../Constants.js';
 import { WeaponSystem } from './Weapon.js';
 import { UIManager } from '../UI.js';
 import { Door } from '../entities/Door.js';
 import { PointerLockControls } from '../../node_modules/three/examples/jsm/controls/PointerLockControls.js';
-// *-- Constructor Player
+//  Constructor Player
 export class Player {
 
     constructor(scene, camera, domElement, enemyManager, world, audioManager, gameInstance) {
@@ -53,7 +53,7 @@ export class Player {
         this.isShooting = false;
 
         this.initEvents(domElement);
-    }    // *-- Teletransporte Player
+    }    //  Teletransporte Player
     teleport(position, rotation = 0) {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
@@ -64,7 +64,7 @@ export class Player {
 
         this.camera.updateMatrixWorld(true);
     }
-// *-- Inicialización de Eventos Player
+    //  Inicialización de Eventos Player
     initEvents(domElement) {
         const startScreen = document.getElementById('start-screen');
         startScreen.addEventListener('click', () => {
@@ -89,7 +89,7 @@ export class Player {
         if (screamButton) {
             screamButton.addEventListener('click', () => this.scream());
         }
-    }    // *-- Getters y Utilidades Player
+    }    //  Getters y Utilidades Player
     getWorldWalls() {
         if (this.world && this.world.getWalls) {
             return this.world.getWalls();
@@ -98,7 +98,7 @@ export class Player {
     }
 
 
-    // *-- Control de Input (Teclado) Player
+    //  Control de Input (Teclado) Player
     onKey(event, isDown) {
         switch (event.code) {
             case 'ArrowUp':
@@ -156,7 +156,7 @@ export class Player {
         }
     }
 
-    // *-- Sistema de Rayo Azul Player
+    //  Sistema de Rayo Azul Player
     toggleRay() {
         if (this.rayActive) {
             this.deactivateRay();
@@ -289,7 +289,7 @@ export class Player {
         }, 500);
     }
 
-    // *-- Interacciones Player
+    //  Interacciones Player
     scream() {
         if (this.audioManager && this.controls.isLocked && !this.isGameOver) {
             this.audioManager.playSound('playerScream', 1.0, false, 0.9 + Math.random() * 0.2);
@@ -297,7 +297,7 @@ export class Player {
         }
     }
 
-    // *-- Control de Input (Ratón) Player
+    //  Control de Input (Ratón) Player
     onMouseDown() {
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
@@ -367,7 +367,7 @@ export class Player {
     onMouseUp() {
         this.isShooting = false;
     }
-// *-- Sistema de Salud Player
+    //  Sistema de Salud Player
     takeDamage(damageAmount = 1) {
         if (this.isGameOver) return;
 
@@ -409,7 +409,7 @@ export class Player {
     }
 
 
-    // *-- Sistema de Munición Player
+    //  Sistema de Munición Player
     collectAmmo(amount, weaponIndex) {
         if (this.isGameOver) return;
         this.weaponSystem.addAmmo(amount, weaponIndex);
@@ -423,7 +423,7 @@ export class Player {
      * Aplica retroceso al jugador en dirección opuesta a donde está mirando
      * @param {number} strength - Fuerza del retroceso (valor recomendado: 0.5 - 1.5)
      */
-    // *-- Físicas Player
+    //  Físicas Player
     applyRecoil(strength = 0.5) {
         if (this.isGameOver || !this.controls.isLocked) return;
 
@@ -432,7 +432,7 @@ export class Player {
         // el retroceso en la dirección correcta según el ángulo actual
         this.velocity.z += strength;
     }
-    // *-- Bucle Principal Player
+    //  Bucle Principal Player
     update(delta) {
         if (!this.controls.isLocked) return;
         if (this.isShooting) {
@@ -502,7 +502,7 @@ export class Player {
         }
     }
 
-    // *-- Gestión de Game Over Player
+    //  Gestión de Game Over Player
     gameOver() {
         if (this.isGameOver) return;
         this.isGameOver = true;
@@ -546,7 +546,7 @@ export class Player {
             }
         });
     }
-    // *-- Sistema de Colisiones Player
+    //  Sistema de Colisiones Player
     checkCollisions(oldPosition) {
         const playerPos = this.camera.position;
         const offset = CONFIG.PLAYER_COLLISION_OFFSET;

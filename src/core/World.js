@@ -1,4 +1,4 @@
-// *-- Importaciones World.js
+//  Importaciones World.js
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG } from '../Constants.js';
 import { MapLoader } from './MapLoader.js';
@@ -6,7 +6,7 @@ import { MapLoader } from './MapLoader.js';
 import { OBJLoader } from '../../node_modules/three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from '../../node_modules/three/examples/jsm/loaders/MTLLoader.js';
 
-// *-- Constructor World
+//  Constructor World
 export class World {
     constructor(scene) {
         this.scene = scene;
@@ -23,16 +23,16 @@ export class World {
         this.staticModels = []; // Almacenar modelos 3D estáticos
     }
 
-    // *-- Inicialización World
+    //  Inicialización World
     async init(mapName = 'default') {
-        // *-- Carga de Datos
+        //  Carga de Datos
         this.mapData = await this.mapLoader.loadMapFile(mapName);
         this.enemySpawns = this.mapData.enemySpawns;
         this.genericSpawners = this.mapData.genericSpawners;
         this.ammoSpawners = this.mapData.ammoSpawners || [];
         this.foodSpawners = this.mapData.foodSpawners || [];
 
-        // *-- Configuración de Skybox
+        //  Configuración de Skybox
         const textureLoader = new THREE.TextureLoader();
         let skyTexture = null;
 
@@ -72,7 +72,7 @@ export class World {
             this.scene.fog = new THREE.Fog(skyColor, 120, 350);
         }
 
-        // *-- Iluminación
+        //  Iluminación
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
         hemiLight.position.set(0, 20, 0);
         this.scene.add(hemiLight);
@@ -85,7 +85,7 @@ export class World {
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
         const floorSize = Math.max(mapWidth, mapHeight, CONFIG.ARENA_SIZE);
 
-        // *-- Generación de Suelo World
+        //  Generación de Suelo World
         const tileSize = 20;
         const tilesX = Math.ceil((floorSize * 1.5) / tileSize) + 2;
         const tilesZ = Math.ceil((floorSize * 1.5) / tileSize) + 2;
@@ -135,7 +135,7 @@ export class World {
 
         this.scene.add(floorGroup);
 
-        // *-- Generación de Objetos Inicial World
+        //  Generación de Objetos Inicial World
         this.createWallsFromMap();
         this.createDoorsFromMap();
         this.createFoodItemsFromMap();
@@ -146,7 +146,7 @@ export class World {
     }
 
 
-    // *-- Getters de Objetos World
+    //  Getters de Objetos World
     getSolidObjects() {
         const solidObjects = [];
 
@@ -172,7 +172,7 @@ export class World {
         return this.walls;
     }
 
-    // *-- Getters de Spawners World
+    //  Getters de Spawners World
     getEnemySpawns() {
         return this.enemySpawns;
     }
@@ -204,7 +204,7 @@ export class World {
     getFoodSpawners() {
         return this.foodSpawners || [];
     }
-    // *-- Creación de Items (Runtime) World
+    //  Creación de Items (Runtime) World
     spawnFood(position) {
         const textureLoader = new THREE.TextureLoader();
         const foodTexture = textureLoader.load(
@@ -288,7 +288,7 @@ export class World {
 
 
 
-    // *-- Creación de Items (Map Data) World
+    //  Creación de Items (Map Data) World
     createAmmoItemsFromMap() {
         this.ammoMeshes = [];
 
@@ -381,7 +381,7 @@ export class World {
     }
 
 
-    // *-- Carga de Modelos 3D World
+    //  Carga de Modelos 3D World
     async load3DModelsFromJSON(mapName) {
         try {
             const response = await fetch(`modelos/${mapName}_models.json`);
@@ -541,7 +541,7 @@ export class World {
             console.warn(`No hay archivo de modelos 3D para el mapa ${mapName} o error de carga`, err);
         }
     }
-// *-- Creación de Puertas World
+    //  Creación de Puertas World
     createDoorsFromMap() {
         this.doorMeshes = [];
 
@@ -613,7 +613,7 @@ export class World {
     }
 
 
-    // *-- Creación de Muros World
+    //  Creación de Muros World
     createWallsFromMap() {
         this.walls = [];
 
@@ -710,7 +710,7 @@ export class World {
 
 
 
-    // *-- Limpieza de Recursos World
+    //  Limpieza de Recursos World
     dispose() {
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());

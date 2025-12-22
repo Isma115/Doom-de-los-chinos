@@ -6,7 +6,7 @@ scale_factor = 0.1
 obj_in = "assets/3D/10446_Palm_Tree_v1_max2010_iteration-2.obj"
 mtl_in = "assets/3D/10446_Palm_Tree_v1_max2010_iteration-2.mtl"
 
-# *-- Copias de Seguridad
+#  Copias de Seguridad
 backup_dir = "copias_seguridad"
 os.makedirs(backup_dir, exist_ok=True)
 
@@ -39,7 +39,7 @@ if mtl_backup:
     print("Copia MTL guardada en:", mtl_backup)
 
 
-# *-- Escalar OBJ
+#  Escalar OBJ
 
 with open(obj_in, "r") as f:
     obj_lines = f.readlines()
@@ -67,7 +67,7 @@ with open(obj_in, "w") as f:
 print("OBJ escalado guardado en:", obj_in)
 
 
-# *-- Escalar MTL
+#  Escalar MTL
 
 if os.path.exists(mtl_in):
     with open(mtl_in, "r") as f:

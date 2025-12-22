@@ -1,6 +1,6 @@
-// *-- Importaciones Constants
+//  Importaciones Constants
 import * as THREE from '../node_modules/three/build/three.module.js';
-// *-- Constantes Globales
+//  Constantes Globales
 export const CONFIG = {
     GRAVITY: 30.0,
     JUMP_FORCE: 15.0,
@@ -18,7 +18,7 @@ export const CONFIG = {
 
     // Pickups
     PICKUP_DISTANCE: 2.0,
-    FOOD_HEAL_AMOUNT: 50,          
+    FOOD_HEAL_AMOUNT: 50,
     PISTOL_AMMO_AMOUNT: 30,
     MACHINEGUN_AMMO_AMOUNT: 300,
 
@@ -31,14 +31,14 @@ export const CONFIG = {
 
 
 
-// *-- Mapas Disponibles
+//  Mapas Disponibles
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
     { id: 'mapa1', name: 'La Fortaleza' },
     { id: 'mapa2', name: 'Arena de Sangre' }
 ];
 
-// *-- Configuración de Audio
+//  Configuración de Audio
 export const AUDIO_CONFIG = {
     MUSIC_VOLUME: 0.6,
     SFX_VOLUME: 0.8,
@@ -50,7 +50,7 @@ export const AUDIO_CONFIG = {
 };
 const pistolGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
 const machineGunGeometry = new THREE.BoxGeometry(0.15, 0.15, 1.5);
-// *-- Datos de Armas
+//  Datos de Armas
 export const WEAPONS_DATA = [
     {
         name: "PISTOLA TÁCTICA",
@@ -90,7 +90,7 @@ export const WEAPONS_DATA = [
         flash: 'knife.png',
         isMelee: true
     }
-];// *-- Tipos de Enemigos
+];//  Tipos de Enemigos
 export const ENEMY_TYPES = [
     {
         id: 'pablo',
@@ -229,7 +229,7 @@ export const ENEMY_TYPES = [
     }
 ];
 
-// *-- Bloques de Mapa
+//  Bloques de Mapa
 export const MAP_BLOCKS = {
     '#': { type: 'wall', color: 0x888888, height: CONFIG.BLOCK_SIZE, solid: true },
     'B': { type: 'bush', color: 0x336633, height: CONFIG.BLOCK_SIZE * 0.6, solid: true },
