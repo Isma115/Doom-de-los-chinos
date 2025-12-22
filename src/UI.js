@@ -342,7 +342,6 @@ export class SettingsManager {
 
 //  Panel Debug - Constructor y Creación
 
-// #region Clase DebugPanel
 // Descripción: Panel de depuración para desarrolladores con trucos (God Mode, Ammo infinita) y teletransporte.
 export class DebugPanel {
     // #region Constructor DebugPanel
@@ -647,4 +646,3 @@ export class DebugPanel {
     }
     // #endregion
 }
-// #endregion

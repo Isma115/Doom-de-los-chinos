@@ -59,8 +59,8 @@ export class Door {
     update(delta, playerPosition) {
         const targetY = this.mesh.userData.targetY;
         const currentY = this.mesh.position.y;
-        // Velocidad reducida de 8 → 3 para que la apertura/cierre sea más lenta y suave
-        const speed = 3;
+        // Velocidad ajustada a 2.0 → más rápida que 1.2 pero todavía más suave y lenta que el original (3)
+        const speed = 2.0;
 
         if (Math.abs(currentY - targetY) > 0.1) {
             this.mesh.position.y += (targetY - currentY) * speed * delta;
@@ -85,6 +85,6 @@ export class Door {
     isPlayerNear(playerPosition) {
         return playerPosition.distanceTo(this.mesh.position) < 8; // Reducir distancia de apertura
     }
-    // #endregion
+// #endregion
 }
 // #endregion
