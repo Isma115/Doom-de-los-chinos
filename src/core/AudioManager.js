@@ -57,7 +57,7 @@ export class AudioManager {
             pistol: 'assets/sound/weapons/pistol.mp3',
             machinegun: 'assets/sound/weapons/ametra.mp3',
             shotgun: 'assets/sound/weapons/shotgun.mp3',
-            out_of_ammo: 'assets/sound/weapons/out_of_ammo.wav',
+            out_of_ammo: 'assets/sound/weapons/out_of_ammo.mp3',
             enemyDeath: 'assets/sound/enemy_death.mp3',
             enemyHit: 'assets/sound/enemy_hit.mp3',
             playerScream: 'assets/sound/misc/gas.mp3',
@@ -100,7 +100,7 @@ export class AudioManager {
             return null;
         }
     }
-// #endregion
+    // #endregion
 
     // #region Reproducción SFX Audio
     // Descripción: Métodos para reproducir efectos de sonido puntuales.

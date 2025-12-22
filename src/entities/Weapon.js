@@ -28,7 +28,8 @@ export class WeaponSystem {
             infiniteAmmo: false,
             bulletLog: (player && player.debugState && player.debugState.bulletLog !== undefined)
                 ? player.debugState.bulletLog
-                : true  // Por defecto activado
+                : true,  // Por defecto activado
+            fireRateMultiplier: 1.0
         };
 
         this.weaponMaterials = [];
@@ -59,7 +60,7 @@ export class WeaponSystem {
 
         this.updateVisuals();
     }
-    // #endregion
+// #endregion
 
     // #region Helpers WeaponSystem
     // Descripción: Métodos de utilidad para obtener el arma actual y los objetos sólidos del entorno.
@@ -96,7 +97,7 @@ export class WeaponSystem {
     // #endregion
 
     // #region Efectos Visuales WeaponSystem
-    // Descripción: Creación de efectos de impacto en muros y fogonazos de las armas.
+// Descripción: Creación de efectos de impacto en muros y fogonazos de las armas.
     createWallImpactEffect(hitPoint, hitNormal) {
         // ──────────────────────────────────────────────────────────────
         // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
@@ -193,7 +194,94 @@ export class WeaponSystem {
         };
         setTimeout(fadeOut, 50);
     }
-    // #endregion
+
+    tryShoot(onKillCallback) {
+        const currentWeapon = this.getCurrentWeapon();
+        const now = performance.now();
+
+        // Aplicar multiplicador de cadencia correctamente
+        // fireRateMultiplier > 1.0 → mayor cadencia (delay más corto)
+        // fireRateMultiplier < 1.0 → menor cadencia (delay más largo)
+        const fireRateMultiplier = this.debugState.fireRateMultiplier || 1.0;
+        const effectiveDelay = currentWeapon.delay / fireRateMultiplier;
+
+        if (now - this.lastShotTime < effectiveDelay) {
+            return false;
+        }
+
+        // Sin munición (excepto melee o infinite ammo)
+        if (!currentWeapon.isMelee && !this.debugState.infiniteAmmo && currentWeapon.ammo <= 0) {
+            // REPARACIÓN DEFINITIVA: Forzar reanudación del AudioContext antes de reproducir out_of_ammo
+            if (this.audioManager) {
+                // Reanudar contexto si está suspendido (políticas de autoplay)
+                if (this.audioManager.audioContext && this.audioManager.audioContext.state === 'suspended') {
+                    this.audioManager.audioContext.resume().then(() => {
+                        console.log("AudioContext reanudado para sonido out_of_ammo");
+                    });
+                }
+                // Reproducir el sonido con un pequeño retraso para dar tiempo a la reanudación
+                setTimeout(() => {
+                    this.audioManager.playSound('out_of_ammo', 0.6);
+                }, 50);
+            }
+            return false;
+        }
+
+        // Disparo válido
+        this.lastShotTime = now;
+        this.showMuzzleFlash();
+        this.audioManager.playSound(currentWeapon.shootSound, 0.8);
+
+        // Raycast y lógica de impacto
+        this.raycaster.setFromCamera(this.rayOrigin, this.camera);
+
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+        let hitEnemy = null;
+        let hitPoint = null;
+        let hitNormal = new THREE.Vector3(0, 0, 1);
+
+        for (const intersect of intersects) {
+            if (this.enemyManager.enemies.includes(intersect.object)) {
+                hitEnemy = intersect.object;
+                hitPoint = intersect.point;
+                hitNormal = intersect.face.normal;
+                break;
+            } else if (intersect.object.geometry && intersect.object.geometry.type.includes('Box')) {
+                hitPoint = intersect.point;
+                hitNormal = intersect.face.normal;
+                break;
+            }
+        }
+
+        if (hitEnemy) {
+            hitEnemy.userData.hp -= currentWeapon.damage;
+            if (hitEnemy.userData.hp <= 0) {
+                this.enemyManager.removeEnemy(hitEnemy);
+                if (onKillCallback) onKillCallback();
+            } else {
+                hitEnemy.userData.drawBlood(hitPoint);
+            }
+
+            if (this.debugState.bulletLog) {
+                console.log(`Impacto en enemigo: ${currentWeapon.damage} daño`);
+            }
+        } else if (hitPoint) {
+            this.createWallImpactEffect(hitPoint, hitNormal);
+
+            if (this.debugState.bulletLog) {
+                console.log(`Impacto en pared en ${hitPoint.x.toFixed(1)}, ${hitPoint.y.toFixed(1)}, ${hitPoint.z.toFixed(1)}`);
+            }
+        }
+
+        // Gastar munición
+        if (!currentWeapon.isMelee && !this.debugState.infiniteAmmo) {
+            currentWeapon.ammo--;
+            UIManager.updateWeapon(currentWeapon.name, currentWeapon.ammo);
+        }
+
+        return true;
+    }
+// #endregion
 
     // #region Gestión de Munición WeaponSystem
     // Descripción: Lógica para añadir munición y cambiar entre las armas disponibles.
@@ -305,7 +393,37 @@ export class WeaponSystem {
         const now = performance.now();
         const weapon = this.getCurrentWeapon();
 
-        if (now - this.lastShotTime < weapon.delay) return;
+        // CORRECCIÓN: Aplicar el multiplicador de cadencia de disparo
+        const fireRateMultiplier = this.debugState.fireRateMultiplier || 1.0;
+        const adjustedDelay = weapon.delay / fireRateMultiplier;
+
+        if (now - this.lastShotTime < adjustedDelay) return;
+
+        // Sin munición (excepto melee o infinite ammo)
+        if (!weapon.isMelee && !this.debugState.infiniteAmmo && weapon.ammo <= 0) {
+            // Cooldown separado para el sonido de "sin munición" (no depende de fireRateMultiplier)
+            const outOfAmmoDelay = 1000; // 1 segundo de cooldown para el sonido "sin munición"
+            
+            // Verificar si ha pasado suficiente tiempo desde el último sonido de "sin munición"
+            if (!this.lastOutOfAmmoTime || (now - this.lastOutOfAmmoTime) >= outOfAmmoDelay) {
+                // REPARACIÓN DEFINITIVA: Forzar reanudación del AudioContext antes de reproducir out_of_ammo
+                if (this.audioManager) {
+                    // Reanudar contexto si está suspendido (políticas de autoplay)
+                    if (this.audioManager.audioContext && this.audioManager.audioContext.state === 'suspended') {
+                        this.audioManager.audioContext.resume().then(() => {
+                            console.log("AudioContext reanudado para sonido out_of_ammo");
+                        });
+                    }
+                    // Reproducir el sonido con un pequeño retraso para dar tiempo a la reanudación
+                    setTimeout(() => {
+                        this.audioManager.playSound('out_of_ammo', 0.6);
+                    }, 50);
+                }
+                // Actualizar el tiempo del último sonido de "sin munición"
+                this.lastOutOfAmmoTime = now;
+            }
+            return false;
+        }
 
         if (!this.debugState.infiniteAmmo) {
             if (weapon.ammo <= 0) return;
@@ -344,8 +462,9 @@ export class WeaponSystem {
 
         this.performRaycast(weapon, scoreCallback);
         this.animateRecoil();
+        return true;
     }
-    // #endregion
+// #endregion
 
     // #region Sistema Raycast WeaponSystem
     // Descripción: Lógica de detección de impactos mediante Raycasting para determinar aciertos en enemigos o entornos.

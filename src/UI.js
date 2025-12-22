@@ -359,7 +359,9 @@ export class DebugPanel {
                 flyMode: settings.flyMode || false,
                 noClip: settings.noClip || false,
                 speedMultiplier: settings.speedMultiplier || 1.0,
-                bulletLog: settings.bulletLog !== undefined ? settings.bulletLog : true // NUEVA ESTRUCTURA: Cargar valor guardado
+                bulletLog: settings.bulletLog !== undefined ? settings.bulletLog : true,
+                // CORRECCIÓN: Cargar correctamente fireRateMultiplier, con fallback a 1.0
+                fireRateMultiplier: settings.fireRateMultiplier !== undefined ? settings.fireRateMultiplier : 1.0
             };
         } else {
             this.debugState = {
@@ -368,15 +370,19 @@ export class DebugPanel {
                 flyMode: false,
                 noClip: false,
                 speedMultiplier: 1.0,
-                bulletLog: true // NUEVA ESTRUCTURA: Por defecto activado
+                bulletLog: true,
+                fireRateMultiplier: 1.0
             };
         }
+
+        // Sincronizar el multiplicador de cadencia con el WeaponSystem
+        this.weaponSystem.debugState.fireRateMultiplier = this.debugState.fireRateMultiplier;
 
         this.createDebugPanel();
         this.setupEventListeners();
         this.setupPauseMenuIntegration();
     }
-    // #endregion
+// #endregion
 
     // #region Creación de Interfaz DebugPanel
     createDebugPanel() {
@@ -416,6 +422,11 @@ export class DebugPanel {
                         <input type="checkbox" id="debug-bullet-log" checked>
                         <span class="debug-toggle-label">Console Log de Impacto de Balas</span>
                     </label>
+
+                    <div class="debug-slider-container">
+                        <label>Cadencia de disparo: <span id="fire-rate-value">1.0x</span></label>
+                        <input type="range" id="debug-fire-rate" min="0.1" max="5.0" step="0.1" value="1.0">
+                    </div>
                 </div>
                 
                 <div class="debug-section">
@@ -475,11 +486,13 @@ export class DebugPanel {
             flyMode: this.debugState.flyMode,
             noClip: this.debugState.noClip,
             speedMultiplier: this.debugState.speedMultiplier,
-            bulletLog: this.debugState.bulletLog
+            bulletLog: this.debugState.bulletLog,
+            // CORRECCIÓN: Siempre guardar fireRateMultiplier, incluso si es 1.0
+            fireRateMultiplier: this.debugState.fireRateMultiplier ?? 1.0
         };
         localStorage.setItem('gameDebugSettings', JSON.stringify(settings));
     }
-    // #endregion
+// #endregion
 
     // #region Eventos DebugPanel
     setupEventListeners() {
@@ -534,6 +547,17 @@ export class DebugPanel {
             this.saveDebugSettings();
         });
 
+        document.getElementById('debug-fire-rate').addEventListener('input', (e) => {
+            this.debugState.fireRateMultiplier = parseFloat(e.target.value);
+            document.getElementById('fire-rate-value').textContent = this.debugState.fireRateMultiplier.toFixed(1) + 'x';
+            this.saveDebugSettings();
+
+            // CORRECCIÓN: Sincronizar inmediatamente con el WeaponSystem (crítico para que funcione en tiempo real)
+            if (this.weaponSystem && this.weaponSystem.debugState) {
+                this.weaponSystem.debugState.fireRateMultiplier = this.debugState.fireRateMultiplier;
+            }
+        });
+
         document.getElementById('debug-refill-ammo').addEventListener('click', () => {
             this.weaponSystem.refillAllAmmo();
         });
@@ -558,7 +582,7 @@ export class DebugPanel {
             this.player.teleport(x, y, z);
         });
     }
-    // #endregion
+// #endregion
 
     // #region Visibilidad y Actualización DebugPanel
     show() {
@@ -569,12 +593,20 @@ export class DebugPanel {
         document.getElementById('debug-infinite-ammo').checked = this.debugState.infiniteAmmo;
         document.getElementById('debug-fly-mode').checked = this.debugState.flyMode;
         document.getElementById('debug-noclip').checked = this.debugState.noClip;
-        document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog; // NUEVA ESTRUCTURA: Actualizar checkbox
+        document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog;
 
         const speedSlider = document.getElementById('debug-speed');
         if (speedSlider) {
             speedSlider.value = this.debugState.speedMultiplier;
             document.getElementById('speed-value').textContent = this.debugState.speedMultiplier.toFixed(1) + 'x';
+        }
+
+        // CORRECCIÓN: Restaurar correctamente el valor y texto del slider de cadencia
+        const fireRateSlider = document.getElementById('debug-fire-rate');
+        if (fireRateSlider) {
+            const value = this.debugState.fireRateMultiplier ?? 1.0;
+            fireRateSlider.value = value;
+            document.getElementById('fire-rate-value').textContent = value.toFixed(1) + 'x';
         }
 
         this.startInfoUpdate();
@@ -585,16 +617,24 @@ export class DebugPanel {
         this.panel.classList.remove('active');
         this.stopInfoUpdate();
 
+        // También actualizar los sliders al cerrar (por consistencia)
         document.getElementById('debug-god-mode').checked = this.debugState.godMode;
         document.getElementById('debug-infinite-ammo').checked = this.debugState.infiniteAmmo;
         document.getElementById('debug-fly-mode').checked = this.debugState.flyMode;
         document.getElementById('debug-noclip').checked = this.debugState.noClip;
-        document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog; // NUEVA ESTRUCTURA: Actualizar checkbox
+        document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog;
 
         const speedSlider = document.getElementById('debug-speed');
         if (speedSlider) {
             speedSlider.value = this.debugState.speedMultiplier;
             document.getElementById('speed-value').textContent = this.debugState.speedMultiplier.toFixed(1) + 'x';
+        }
+
+        const fireRateSlider = document.getElementById('debug-fire-rate');
+        if (fireRateSlider) {
+            const value = this.debugState.fireRateMultiplier ?? 1.0;
+            fireRateSlider.value = value;
+            document.getElementById('fire-rate-value').textContent = value.toFixed(1) + 'x';
         }
     }
 
@@ -639,10 +679,10 @@ export class DebugPanel {
         const debugBtn = document.getElementById('debug-btn');
         if (debugBtn) {
             debugBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Evitar que el clic cierre el menú de pausa
+                e.stopPropagation();
                 this.toggle();
             });
         }
     }
-    // #endregion
+// #endregion
 }
