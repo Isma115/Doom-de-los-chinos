@@ -1,0 +1,47 @@
+[
+    {
+        "type": "square",
+        "position": {
+            "x": -165,
+            "y": 0.1,
+            "z": -100
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 90,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/decoracion/carretera.jpg",
+        "collision": false
+    },
+    {
+        "type": "square",
+        "position": {
+            "x": -165,
+            "y": 0.1,
+            "z": -90
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 90,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/decoracion/carretera.jpg",
+        "collision": false
+    },
+    {
+        "type": "square",
+        "position": {
+            "x": -165,
+            "y": 0.1,
+            "z": -80
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 90,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/decoracion/carretera.jpg",
+        "collision": false
+    }
+]

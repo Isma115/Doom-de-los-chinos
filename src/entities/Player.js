@@ -590,7 +590,7 @@ export class Player {
             this.updateRay();
         }
     }
-// #endregion
+    // #endregion
 
     // #region Gestión de Game Over Player
     // Descripción: Maneja el estado de fin de juego, desbloqueando controles y mostrando la pantalla final.
@@ -698,6 +698,6 @@ export class Player {
         this.velocity.x = 0;
         this.velocity.z = 0;
     }
-// #endregion
+    // #endregion
 }
 // #endregion

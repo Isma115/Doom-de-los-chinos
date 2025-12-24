@@ -60,7 +60,7 @@ export class WeaponSystem {
 
         this.updateVisuals();
     }
-// #endregion
+    // #endregion
 
     // #region Helpers WeaponSystem
     // Descripción: Métodos de utilidad para obtener el arma actual y los objetos sólidos del entorno.
@@ -97,7 +97,7 @@ export class WeaponSystem {
     // #endregion
 
     // #region Efectos Visuales WeaponSystem
-// Descripción: Creación de efectos de impacto en muros y fogonazos de las armas.
+    // Descripción: Creación de efectos de impacto en muros y fogonazos de las armas.
     createWallImpactEffect(hitPoint, hitNormal) {
         // ──────────────────────────────────────────────────────────────
         // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
@@ -171,6 +171,7 @@ export class WeaponSystem {
         });
 
         this.flashMesh = new THREE.Sprite(flashMaterial);
+        this.flashMesh.renderOrder = 999;
         this.flashMesh.scale.set(1.6, 1.6, 1);
         this.flashMesh.position.set(0.5, -0.25, -1.1);
 
@@ -281,7 +282,7 @@ export class WeaponSystem {
 
         return true;
     }
-// #endregion
+    // #endregion
 
     // #region Gestión de Munición WeaponSystem
     // Descripción: Lógica para añadir munición y cambiar entre las armas disponibles.
@@ -360,6 +361,7 @@ export class WeaponSystem {
         });
 
         this.weaponMesh = new THREE.Sprite(material);
+        this.weaponMesh.renderOrder = 999;
 
         // Ajuste de escala y posición según el arma
         let scale = 1.4;        // tamaño base para pistola y ametralladora
@@ -403,7 +405,7 @@ export class WeaponSystem {
         if (!weapon.isMelee && !this.debugState.infiniteAmmo && weapon.ammo <= 0) {
             // Cooldown separado para el sonido de "sin munición" (no depende de fireRateMultiplier)
             const outOfAmmoDelay = 1000; // 1 segundo de cooldown para el sonido "sin munición"
-            
+
             // Verificar si ha pasado suficiente tiempo desde el último sonido de "sin munición"
             if (!this.lastOutOfAmmoTime || (now - this.lastOutOfAmmoTime) >= outOfAmmoDelay) {
                 // REPARACIÓN DEFINITIVA: Forzar reanudación del AudioContext antes de reproducir out_of_ammo
@@ -464,7 +466,7 @@ export class WeaponSystem {
         this.animateRecoil();
         return true;
     }
-// #endregion
+    // #endregion
 
     // #region Sistema Raycast WeaponSystem
     // Descripción: Lógica de detección de impactos mediante Raycasting para determinar aciertos en enemigos o entornos.

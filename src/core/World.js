@@ -422,7 +422,7 @@ export class World {
                 const { type = "obj", path, position, rotation = 0, scale = 1, texture, width = 10, height = 10 } = model;
 
                 // Soporte para archivos .3ds
-                if (type === "3ds" || path.endsWith(".3ds")) {
+                if (type === "3ds" || (path && path.endsWith(".3ds"))) {
                     try {
                         const basePath = path.substring(0, path.lastIndexOf("/") + 1);
                         tdsLoader.setResourcePath(basePath); // Texturas en la misma carpeta
@@ -497,38 +497,48 @@ export class World {
                     }
 
                     const squareMesh = new THREE.Mesh(geometry, material);
+                    console.log(`[World] Creating square mesh at ${JSON.stringify(position)} with size ${width}x${height}`);
                     squareMesh.position.set(position.x, position.y, position.z);
-                    squareMesh.rotation.y = THREE.MathUtils.degToRad(rotation);
+
+                    const { rotationX = 0, rotationY, rotationZ = 0, rotationOrder = 'XYZ' } = model;
+                    squareMesh.rotation.order = rotationOrder;
+                    squareMesh.rotation.x = THREE.MathUtils.degToRad(rotationX);
+                    squareMesh.rotation.y = THREE.MathUtils.degToRad(rotationY !== undefined ? rotationY : rotation);
+                    squareMesh.rotation.z = THREE.MathUtils.degToRad(rotationZ);
 
                     this.scene.add(squareMesh);
 
-                    // Colisión: caja ajustada al cuadrado
-                    const box = new THREE.Box3().setFromObject(squareMesh);
-                    const size = box.getSize(new THREE.Vector3());
-                    const center = box.getCenter(new THREE.Vector3());
+                    const hasCollision = model.collision !== false;
 
-                    const colliderHeight = Math.max(size.y, 1);
-                    const colliderWidth = Math.max(size.x, 1);
-                    const colliderDepth = Math.max(size.z, 0.1);
+                    if (hasCollision) {
+                        // Colisión: caja ajustada al cuadrado
+                        const box = new THREE.Box3().setFromObject(squareMesh);
+                        const size = box.getSize(new THREE.Vector3());
+                        const center = box.getCenter(new THREE.Vector3());
 
-                    const collisionBox = new THREE.Box3(
-                        new THREE.Vector3(
-                            center.x - colliderWidth / 2,
-                            center.y - colliderHeight / 2,
-                            center.z - colliderDepth / 2
-                        ),
-                        new THREE.Vector3(
-                            center.x + colliderWidth / 2,
-                            center.y + colliderHeight / 2,
-                            center.z + colliderDepth / 2
-                        )
-                    );
+                        const colliderHeight = Math.max(size.y, 1);
+                        const colliderWidth = Math.max(size.x, 1);
+                        const colliderDepth = Math.max(size.z, 0.1);
 
-                    squareMesh.userData.boundingBox = collisionBox;
-                    squareMesh.userData.isStatic = true;
-                    squareMesh.userData.type = 'staticModel';
-                    this.walls.push(squareMesh);
-                    this.staticModels.push(squareMesh);
+                        const collisionBox = new THREE.Box3(
+                            new THREE.Vector3(
+                                center.x - colliderWidth / 2,
+                                center.y - colliderHeight / 2,
+                                center.z - colliderDepth / 2
+                            ),
+                            new THREE.Vector3(
+                                center.x + colliderWidth / 2,
+                                center.y + colliderHeight / 2,
+                                center.z + colliderDepth / 2
+                            )
+                        );
+
+                        squareMesh.userData.boundingBox = collisionBox;
+                        squareMesh.userData.isStatic = true;
+                        squareMesh.userData.type = 'staticModel';
+                        this.walls.push(squareMesh);
+                        this.staticModels.push(squareMesh);
+                    }
 
                     console.log(`Objeto decorativo cuadrado cargado: ${texture || "sin textura"} en (${position.x}, ${position.y}, ${position.z})`);
                     continue; // Saltar al siguiente modelo
