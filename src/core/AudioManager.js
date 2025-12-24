@@ -61,6 +61,11 @@ export class AudioManager {
             out_of_ammo: 'assets/sound/weapons/out_of_ammo.mp3',
             enemyDeath: 'assets/sound/enemy_death.mp3',
             enemyHit: 'assets/sound/enemy_hit.mp3',
+            bloodSplat1: 'assets/sound/misc/blood-splat-1.wav',
+            bloodSplat2: 'assets/sound/misc/blood-splat-2.wav',
+            bloodSplat3: 'assets/sound/misc/blood-splat-3.mp3',
+            bloodSplat4: 'assets/sound/misc/blood-splat-4.mp3',
+            bloodSplat5: 'assets/sound/misc/blood-splat-5.mp3',
             playerScream: 'assets/sound/misc/gas.mp3',
             playerHurt: 'assets/sound/player_hurt.mp3',
             grunt1: 'assets/sound/enemy_grunt1.mp3',
@@ -101,7 +106,7 @@ export class AudioManager {
             return null;
         }
     }
-// #endregion
+    // #endregion
 
     // #region Reproducción SFX Audio
     // Descripción: Métodos para reproducir efectos de sonido puntuales.

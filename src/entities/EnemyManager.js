@@ -1,6 +1,7 @@
 // #region Importaciones EnemyManager
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { CONFIG, ENEMY_TYPES, AUDIO_CONFIG } from '../Constants.js';
+import { BloodDecalManager } from '../core/BloodDecalManager.js';
 // #endregion
 
 // #region Clase EnemyManager
@@ -56,6 +57,9 @@ export class EnemyManager {
         this.projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 
         this.activeSoundSources = [];
+
+        // Inicializar sistema de decals de sangre
+        this.bloodDecalManager = new BloodDecalManager(scene, world);
     }
     // #endregion
 
@@ -188,6 +192,127 @@ export class EnemyManager {
         this.bloodParticles.set(enemy, particles);
         return particles;
     }
+
+    // #region Sistema de Explosión Masiva EnemyManager
+    // Descripción: Genera múltiples sprites de sangre y partículas para una explosión visceral al morir.
+    spawnMassiveBloodSplash(enemy) {
+        const explosionCenter = enemy.position.clone();
+        explosionCenter.y += 1.0; // Centro del cuerpo
+
+        // 1. Crear múltiples sprites de sangre (5-8 sprites) - MÁS CANTIDAD
+        const spriteCount = 5 + Math.floor(Math.random() * 4);
+
+        // Cargar todas las texturas una sola vez
+        const textureLoader = new THREE.TextureLoader();
+        const splashTextures = [
+            textureLoader.load('assets/textures/blood_splash.png'),
+            textureLoader.load('assets/textures/blood_splash2.png'),
+            textureLoader.load('assets/textures/blood_splash3.png')
+        ];
+
+        for (let i = 0; i < spriteCount; i++) {
+            // Usar una textura inicial aleatoria
+            const initialTexture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
+
+            const splashMaterial = new THREE.SpriteMaterial({
+                map: initialTexture,
+                transparent: true,
+                opacity: 1.0,
+                depthTest: false,
+                depthWrite: false
+            });
+
+            const bloodSplash = new THREE.Sprite(splashMaterial);
+
+            // Posición aleatoria dispersa alrededor del enemigo
+            const randomOffset = new THREE.Vector3(
+                (Math.random() - 0.5) * 4.0, // Dispersión amplia
+                (Math.random() - 0.5) * 3.0,
+                (Math.random() - 0.5) * 4.0
+            );
+            bloodSplash.position.copy(explosionCenter).add(randomOffset);
+
+            // Tamaño MUY GRANDE (3x - 5x)
+            const scale = 3.0 + Math.random() * 2.5;
+            bloodSplash.scale.set(scale, scale, scale);
+
+            // Rotación aleatoria
+            bloodSplash.rotation.z = Math.random() * Math.PI * 2;
+
+            this.scene.add(bloodSplash);
+
+            // Animación: Intercalar sprites durante 300ms (flicker effect)
+            const startTime = performance.now();
+            const duration = 300; // Duración corta y furiosa (300ms)
+            let lastSwap = 0;
+            const swapInterval = 150; // Cambiar sprite cada 150ms (más lento)
+
+            const animateSplash = () => {
+                const now = performance.now();
+                const elapsed = now - startTime;
+
+                if (elapsed < duration) {
+                    if (bloodSplash.parent) {
+                        // Intercalar texturas periódicamente
+                        if (now - lastSwap > swapInterval) {
+                            const newTexture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
+                            bloodSplash.material.map = newTexture;
+                            // También rotación aleatoria para más caos
+                            bloodSplash.rotation.z = Math.random() * Math.PI * 2;
+                            lastSwap = now;
+                        }
+
+                        requestAnimationFrame(animateSplash);
+                    }
+                } else {
+                    // Fin de la animación: Desaparecer de golpe
+                    if (bloodSplash.parent) {
+                        this.scene.remove(bloodSplash);
+                        bloodSplash.material.dispose();
+                        // No hacemos dispose de las texturas aquí porque se comparten
+                    }
+                }
+            };
+            animateSplash();
+        }
+
+        // 2. Explosión adicional de partículas geométricas (cubos rojos)
+        const particleCount = 40; // Muchas partículas
+        const particles = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            const particle = new THREE.Mesh(this.bloodGeometry, this.bloodMaterial.clone());
+            particle.position.copy(explosionCenter);
+
+            // Velocidad explosiva en todas direcciones
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 15.0,
+                (Math.random() * 10.0) - 2.0,
+                (Math.random() - 0.5) * 15.0
+            );
+
+            particle.userData = {
+                life: 1.0,
+                velocity: velocity,
+                rotationSpeed: { x: Math.random() * 10, y: Math.random() * 10 }
+            };
+
+            // Tamaño variado
+            const s = 0.8 + Math.random() * 1.5;
+            particle.scale.set(s, s, s);
+
+            this.scene.add(particle);
+            particles.push(particle);
+        }
+
+        // Añadir al sistema de partículas existente para que se actualicen
+        if (!this.bloodParticles.has(enemy)) {
+            this.bloodParticles.set(enemy, []);
+        }
+        const existing = this.bloodParticles.get(enemy);
+        existing.push(...particles);
+    }
+    // #endregion    }
 
     updateBloodParticles(enemy, delta) {
         const particles = this.bloodParticles.get(enemy);
@@ -419,6 +544,9 @@ export class EnemyManager {
             actualHitPosition.add(forward);
             const particles = this.createBloodParticles(enemy, actualHitPosition);
             this.bloodParticles.set(enemy, particles);
+
+            // NUEVO: Crear charcos de sangre persistentes
+            this.bloodDecalManager.spawnBloodSplatter(actualHitPosition, forward);
         };
 
         enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
@@ -756,8 +884,19 @@ export class EnemyManager {
     removeEnemy(enemy) {
         this.clearBloodParticles(enemy);
 
+        // NUEVO: Explosión de sangre al morir (Decals en suelo/paredes/techo)
+        if (this.bloodDecalManager) {
+            this.bloodDecalManager.spawnBloodExplosion(enemy.position);
+        }
+
+        // NUEVO: Explosión de partículas masiva (Sprites gigantes y cubos)
+        this.spawnMassiveBloodSplash(enemy);
+
         if (this.audioManager) {
             this.audioManager.playSound('enemyDeath', 0.5);
+            // Sonido viscoso aleatorio (1-5)
+            const randomSplat = 'bloodSplat' + (1 + Math.floor(Math.random() * 5));
+            this.audioManager.playSound(randomSplat, 0.7);
         }
 
         this.scene.remove(enemy);
@@ -798,6 +937,11 @@ export class EnemyManager {
 
         // Limpiar sonidos activos
         this.activeSoundSources = [];
+
+        // Limpiar decals de sangre
+        if (this.bloodDecalManager) {
+            this.bloodDecalManager.dispose();
+        }
     }
     // #endregion
 }

@@ -6,6 +6,7 @@ import { MapLoader } from './MapLoader.js';
 
 import { OBJLoader } from '../../node_modules/three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from '../../node_modules/three/examples/jsm/loaders/MTLLoader.js';
+import { TDSLoader } from '../../node_modules/three/examples/jsm/loaders/TDSLoader.js';
 // #endregion
 
 // #region Clase World
@@ -141,6 +142,9 @@ export class World {
         }
 
         this.scene.add(floorGroup);
+
+        // Guardar referencia al suelo para raycasting
+        this.floorGroup = floorGroup;
 
         // Generación de Objetos Inicial
         this.createWallsFromMap();
@@ -412,9 +416,59 @@ export class World {
 
             const objLoader = new OBJLoader();
             const mtlLoader = new MTLLoader();
+            const tdsLoader = new TDSLoader();
 
             for (const model of modelsData) {
                 const { type = "obj", path, position, rotation = 0, scale = 1, texture, width = 10, height = 10 } = model;
+
+                // Soporte para archivos .3ds
+                if (type === "3ds" || path.endsWith(".3ds")) {
+                    try {
+                        const basePath = path.substring(0, path.lastIndexOf("/") + 1);
+                        tdsLoader.setResourcePath(basePath); // Texturas en la misma carpeta
+
+                        const object = await tdsLoader.loadAsync(path);
+
+                        object.position.set(position.x, position.y, position.z);
+                        object.rotation.x = -Math.PI / 2; // Corrección común para 3DS
+                        object.rotation.z = THREE.MathUtils.degToRad(rotation); // Rotación en Y del mundo suele ser Z en objetos rotados
+                        object.scale.set(scale, scale, scale);
+
+                        this.scene.add(object);
+
+                        // Colisión
+                        const box = new THREE.Box3().setFromObject(object);
+                        const size = box.getSize(new THREE.Vector3());
+                        const center = box.getCenter(new THREE.Vector3());
+
+                        const collisionBox = new THREE.Box3(
+                            new THREE.Vector3(
+                                center.x - size.x / 4, // Colisión más estrecha
+                                center.y - size.y / 2,
+                                center.z - size.z / 4
+                            ),
+                            new THREE.Vector3(
+                                center.x + size.x / 4,
+                                center.y + size.y / 2,
+                                center.z + size.z / 4
+                            )
+                        );
+
+                        object.userData.boundingBox = collisionBox;
+                        object.userData.isStatic = true;
+                        object.userData.type = 'staticModel';
+
+                        this.walls.push(object); // Agregar a colisionables
+                        this.staticModels.push(object);
+
+                        console.log(`Modelo 3DS cargado: ${path}`);
+                        continue;
+
+                    } catch (err) {
+                        console.error(`Error cargando modelo 3DS: ${path}`, err);
+                        continue;
+                    }
+                }
 
                 // NUEVA ESTRUCTURA: Manejo de objetos de tipo "cuadrado" con textura de imagen
                 if (type === "square" || type === "cuadrado") {
@@ -501,15 +555,35 @@ export class World {
                     objLoader.setPath(basePath + "/");
                     finalObject = await objLoader.loadAsync(path);
 
-                    // Aplicar textura JPG si no hay .mtl
+
+                    // Aplicar textura (prioridad: JSON > .mtl > .jpg automático > color base)
                     if (!materials) {
+                        const textureToLoad = texture || jpgPath; // Usa la del JSON si existe, si no busca el jpg homónimo
+
                         finalObject.traverse(child => {
                             if (child.isMesh) {
-                                const texture = new THREE.TextureLoader().load(jpgPath);
-                                child.material = new THREE.MeshStandardMaterial({
-                                    map: texture,
+                                let matConfig = {
                                     side: THREE.DoubleSide
-                                });
+                                };
+
+                                // Intentar cargar textura (ya sea del JSON o la automática)
+                                // Nota: Si textureToLoad apunta a un archivo que no existe, Three.js mostrará negro/vacío.
+                                // Para evitar invisibilidad total si falla la carga automática, podríamos verificar si 'texture' venía del JSON explícitamente.
+
+                                if (texture) {
+                                    const tex = new THREE.TextureLoader().load(texture);
+                                    matConfig.map = tex;
+                                    matConfig.color = 0xffffff;
+                                } else {
+                                    // Lógica legacy: intenta cargar el JPG homónimo
+                                    // Puesto que no podemos saber si existe, lo intentamos.
+                                    // Pero definimos un color base por si acaso.
+                                    const tex = new THREE.TextureLoader().load(jpgPath);
+                                    matConfig.map = tex;
+                                    matConfig.color = 0xaaaaaa; // Gris si la textura falla visualmente (aunque map tenga precedencia)
+                                }
+
+                                child.material = new THREE.MeshStandardMaterial(matConfig);
                             }
                         });
                     }

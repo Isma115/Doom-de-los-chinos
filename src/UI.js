@@ -49,17 +49,35 @@ export class UIManager {
     }
 
     static updateScore(score) {
-        document.getElementById('score-display').innerText = "Enemigos: " + score;
+        let el = document.getElementById('score-display');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'score-display';
+            document.getElementById('ui-layer').appendChild(el);
+        }
+        el.innerText = "Enemigos: " + score;
     }
 
     static updateWeapon(name, ammo) {
-        document.getElementById('weapon-name').innerText = "Arma: " + name;
+        let el = document.getElementById('weapon-name');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'weapon-name';
+            document.getElementById('ui-layer').appendChild(el);
+        }
+        el.innerText = "Arma: " + name;
         this.updateAmmo(ammo);
     }
 
     static updateAmmo(ammo) {
+        let el = document.getElementById('ammo-display');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'ammo-display';
+            document.getElementById('ui-layer').appendChild(el);
+        }
         const ammoText = (ammo === Infinity || ammo === "∞") ? "∞" : ammo;
-        document.getElementById('ammo-display').innerText = "Munición: " + ammoText;
+        el.innerText = "Munición: " + ammoText;
     }
 
     static updateAngle(angleDegrees) {
@@ -378,11 +396,21 @@ export class DebugPanel {
         // Sincronizar el multiplicador de cadencia con el WeaponSystem
         this.weaponSystem.debugState.fireRateMultiplier = this.debugState.fireRateMultiplier;
 
+        // Sincronización inicial con Player
+        if (this.player && this.player.debugState) {
+            this.player.debugState.godMode = this.debugState.godMode;
+            this.player.debugState.infiniteAmmo = this.debugState.infiniteAmmo;
+            this.player.debugState.flyMode = this.debugState.flyMode;
+            this.player.debugState.noClip = this.debugState.noClip;
+            this.player.debugState.speedMultiplier = this.debugState.speedMultiplier;
+            this.player.debugState.bulletLog = this.debugState.bulletLog;
+        }
+
         this.createDebugPanel();
         this.setupEventListeners();
         this.setupPauseMenuIntegration();
     }
-// #endregion
+    // #endregion
 
     // #region Creación de Interfaz DebugPanel
     createDebugPanel() {
@@ -492,7 +520,7 @@ export class DebugPanel {
         };
         localStorage.setItem('gameDebugSettings', JSON.stringify(settings));
     }
-// #endregion
+    // #endregion
 
     // #region Eventos DebugPanel
     setupEventListeners() {
@@ -502,11 +530,13 @@ export class DebugPanel {
 
         document.getElementById('debug-god-mode').addEventListener('change', (e) => {
             this.debugState.godMode = e.target.checked;
+            this.player.debugState.godMode = e.target.checked; // Sincronizar con Player
             this.saveDebugSettings();
         });
 
         document.getElementById('debug-infinite-ammo').addEventListener('change', (e) => {
             this.debugState.infiniteAmmo = e.target.checked;
+            this.player.debugState.infiniteAmmo = e.target.checked; // Sincronizar con Player
             this.saveDebugSettings();
 
             // NUEVA ESTRUCTURA: Sincronizar con weapon system
@@ -533,16 +563,19 @@ export class DebugPanel {
 
         document.getElementById('debug-fly-mode').addEventListener('change', (e) => {
             this.debugState.flyMode = e.target.checked;
+            this.player.debugState.flyMode = e.target.checked; // Sincronizar con Player
             this.saveDebugSettings();
         });
 
         document.getElementById('debug-noclip').addEventListener('change', (e) => {
             this.debugState.noClip = e.target.checked;
+            this.player.debugState.noClip = e.target.checked; // Sincronizar con Player
             this.saveDebugSettings();
         });
 
         document.getElementById('debug-speed').addEventListener('input', (e) => {
             this.debugState.speedMultiplier = parseFloat(e.target.value);
+            this.player.debugState.speedMultiplier = this.debugState.speedMultiplier; // Sincronizar con Player
             document.getElementById('speed-value').textContent = this.debugState.speedMultiplier.toFixed(1) + 'x';
             this.saveDebugSettings();
         });
@@ -582,7 +615,7 @@ export class DebugPanel {
             this.player.teleport(x, y, z);
         });
     }
-// #endregion
+    // #endregion
 
     // #region Visibilidad y Actualización DebugPanel
     show() {
@@ -684,5 +717,5 @@ export class DebugPanel {
             });
         }
     }
-// #endregion
+    // #endregion
 }
