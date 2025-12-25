@@ -58,6 +58,9 @@ export class EnemyManager {
 
         this.activeSoundSources = [];
 
+        // Sistema de proyectiles de sangre parabólicos
+        this.bloodProjectiles = [];
+
         // Inicializar sistema de decals de sangre
         this.bloodDecalManager = new BloodDecalManager(scene, world);
     }
@@ -312,7 +315,215 @@ export class EnemyManager {
         const existing = this.bloodParticles.get(enemy);
         existing.push(...particles);
     }
-    // #endregion    }
+
+    // #region Sistema de Proyectiles Parabólicos de Sangre EnemyManager
+    // Descripción: Genera proyectiles de sangre que siguen una trayectoria parabólica y manchan el suelo.
+    spawnBloodProjectiles(enemy) {
+        // Obtener altura del enemigo desde su collisionSize o escala
+        const enemyHeight = enemy.userData.collisionSize?.y || (enemy.scale.y * 2) || 2.0;
+
+        // Posición inicial: 0.8m por encima de la altura del enemigo (ajustado)
+        const spawnCenter = enemy.position.clone();
+        spawnCenter.y = enemyHeight + 0.8;
+
+        // Cargar texturas de sangre
+        const textureLoader = new THREE.TextureLoader();
+        const splashTextures = [
+            textureLoader.load('assets/textures/blood_splash.png'),
+            textureLoader.load('assets/textures/blood_splash2.png'),
+            textureLoader.load('assets/textures/blood_splash3.png')
+        ];
+
+        // Generar 12-18 proyectiles de sangre (un poco más para las ráfagas)
+        const projectileCount = 8 + Math.floor(Math.random() * 7);
+
+        // Número de ráfagas (direcciones principales de la explosión)
+        const streakCount = 2 + Math.floor(Math.random() * 3); // 2 a 4 ráfagas
+
+        for (let s = 0; s < streakCount; s++) {
+            // Ángulo base para esta ráfaga
+            const baseAngle = Math.random() * Math.PI * 2;
+            const particlesInStreak = Math.ceil(projectileCount / streakCount);
+
+            for (let p = 0; p < particlesInStreak; p++) {
+                if (this.bloodProjectiles.length >= projectileCount + 20) break; // Límite de seguridad
+
+                // Usar sprite con textura de sangre aleatoria
+                const texture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
+                const spriteMaterial = new THREE.SpriteMaterial({
+                    map: texture,
+                    transparent: true,
+                    opacity: 0.9,
+                    depthTest: true,
+                    depthWrite: false
+                });
+
+                const projectile = new THREE.Sprite(spriteMaterial);
+
+                // Tamaño variado
+                const scale = 0.3 + Math.random() * 0.5;
+                projectile.scale.set(scale, scale, scale);
+
+                projectile.position.copy(spawnCenter);
+                // Pequeña dispersión en el origen
+                projectile.position.x += (Math.random() - 0.5) * 0.4;
+                projectile.position.z += (Math.random() - 0.5) * 0.4;
+
+                projectile.material.rotation = Math.random() * Math.PI * 2;
+
+                // Ángulo con variación alrededor del ángulo base de la ráfaga
+                const angle = baseAngle + (Math.random() - 0.5) * 0.8;
+
+                // Velocidad vertical variada
+                const vy = 2.5 + Math.random() * 4.0;
+
+                // Velocidad horizontal MUY variada para evitar el círculo
+                const horizontalSpeed = 2.0 + Math.random() * 6.0; // 2-8 m/s
+
+                const vx = Math.cos(angle) * horizontalSpeed;
+                const vz = Math.sin(angle) * horizontalSpeed;
+
+                projectile.userData = {
+                    velocity: new THREE.Vector3(vx, vy, vz),
+                    creationTime: performance.now(),
+                    hasLanded: false,
+                    rotationSpeed: (Math.random() - 0.5) * 10,
+                    initialScale: scale,
+                    lastTrailTime: performance.now(),
+                    trailTexture: texture
+                };
+
+                this.scene.add(projectile);
+                this.bloodProjectiles.push(projectile);
+            }
+        }
+    }
+
+    // Crear partícula de estela
+    spawnTrailParticle(position, texture) {
+        const trailMaterial = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0.6,
+            depthTest: true,
+            depthWrite: false
+        });
+
+        const trail = new THREE.Sprite(trailMaterial);
+        trail.position.copy(position);
+
+        // Estela más pequeña
+        const scale = 0.15 + Math.random() * 0.15;
+        trail.scale.set(scale, scale, scale);
+        trail.material.rotation = Math.random() * Math.PI * 2;
+
+        // Datos para desvanecimiento
+        trail.userData = {
+            creationTime: performance.now(),
+            isTrail: true
+        };
+
+        this.scene.add(trail);
+        this.bloodProjectiles.push(trail);
+    }
+
+    updateBloodProjectiles(delta) {
+        const toRemove = [];
+        const now = performance.now();
+
+        for (let i = 0; i < this.bloodProjectiles.length; i++) {
+            const projectile = this.bloodProjectiles[i];
+            if (!projectile || !projectile.userData) {
+                toRemove.push(i);
+                continue;
+            }
+
+            const data = projectile.userData;
+
+            // Si es una partícula de estela, solo desvanecer
+            if (data.isTrail) {
+                const age = now - data.creationTime;
+                const lifeDuration = 400; // 400ms de vida para estela
+
+                if (age > lifeDuration) {
+                    toRemove.push(i);
+                } else {
+                    // Desvanecer gradualmente
+                    projectile.material.opacity = 0.6 * (1 - age / lifeDuration);
+                    // Encoger ligeramente
+                    const shrink = 1 - (age / lifeDuration) * 0.5;
+                    projectile.scale.multiplyScalar(0.98);
+                }
+                continue;
+            }
+
+            // Tiempo máximo de vida: 4 segundos
+            if (now - data.creationTime > 4000) {
+                toRemove.push(i);
+                continue;
+            }
+
+            if (!data.hasLanded) {
+                // Aplicar gravedad
+                data.velocity.y -= CONFIG.GRAVITY * delta;
+
+                // Actualizar posición
+                projectile.position.x += data.velocity.x * delta;
+                projectile.position.y += data.velocity.y * delta;
+                projectile.position.z += data.velocity.z * delta;
+
+                // Crear estela cada 50ms
+                if (now - data.lastTrailTime > 50) {
+                    this.spawnTrailParticle(projectile.position.clone(), data.trailTexture);
+                    data.lastTrailTime = now;
+                }
+
+                // Rotar mientras vuela
+                if (projectile.material && data.rotationSpeed) {
+                    projectile.material.rotation += data.rotationSpeed * delta;
+                }
+
+                // Efecto de estiramiento según velocidad
+                const velocityMag = data.velocity.length();
+                const stretchFactor = 1 + (velocityMag * 0.02);
+                projectile.scale.y = data.initialScale * stretchFactor;
+
+                // Detectar impacto con el suelo
+                if (projectile.position.y <= 0.02) {
+                    projectile.position.y = 0.02;
+                    data.hasLanded = true;
+
+                    // Crear mancha de sangre en el suelo
+                    if (this.bloodDecalManager) {
+                        this.bloodDecalManager.createFloorDecal(projectile.position);
+                    }
+
+                    // Marcar para eliminación inmediata
+                    toRemove.push(i);
+                }
+            }
+        }
+
+        // Eliminar proyectiles terminados (de atrás hacia adelante)
+        for (let i = toRemove.length - 1; i >= 0; i--) {
+            const index = toRemove[i];
+            const projectile = this.bloodProjectiles[index];
+
+            if (projectile) {
+                if (projectile.material) {
+                    // Solo disponer la textura si no es compartida (estela)
+                    if (!projectile.userData.isTrail && projectile.material.map) {
+                        projectile.material.map.dispose();
+                    }
+                    projectile.material.dispose();
+                }
+                this.scene.remove(projectile);
+            }
+
+            this.bloodProjectiles.splice(index, 1);
+        }
+    }
+    // #endregion
 
     updateBloodParticles(enemy, delta) {
         const particles = this.bloodParticles.get(enemy);
@@ -876,6 +1087,9 @@ export class EnemyManager {
         for (const enemy of allBloodKeys) {
             this.updateBloodParticles(enemy, delta);
         }
+
+        // Actualizar proyectiles de sangre parabólicos
+        this.updateBloodProjectiles(delta);
     }
     // #endregion
 
@@ -891,6 +1105,9 @@ export class EnemyManager {
 
         // NUEVO: Explosión de partículas masiva (Sprites gigantes y cubos)
         this.spawnMassiveBloodSplash(enemy);
+
+        // NUEVO: Proyectiles de sangre parabólicos que manchan el suelo
+        this.spawnBloodProjectiles(enemy);
 
         if (this.audioManager) {
             this.audioManager.playSound('enemyDeath', 0.5);
@@ -937,6 +1154,14 @@ export class EnemyManager {
 
         // Limpiar sonidos activos
         this.activeSoundSources = [];
+
+        // Limpiar proyectiles de sangre parabólicos
+        this.bloodProjectiles.forEach(p => {
+            if (p.geometry) p.geometry.dispose();
+            if (p.material) p.material.dispose();
+            this.scene.remove(p);
+        });
+        this.bloodProjectiles = [];
 
         // Limpiar decals de sangre
         if (this.bloodDecalManager) {

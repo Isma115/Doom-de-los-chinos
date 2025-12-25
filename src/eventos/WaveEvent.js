@@ -283,12 +283,30 @@ export class WaveEvent {
         console.log(`Spawning ammo at SMuni locations...`);
 
         this.ammoSpawners.forEach(spawner => {
+            // Sistema anti-duplicados: verificar si ya hay munición activa sin recoger
+            if (spawner.activeAmmo && !spawner.activeAmmo.userData.collected) {
+                console.log(`Spawner en (${spawner.position.x}, ${spawner.position.z}) ya tiene munición activa, saltando...`);
+                return;
+            }
+
             const spawnPos = spawner.position.clone();
             spawnPos.x += (Math.random() - 0.5) * 2;
             spawnPos.z += (Math.random() - 0.5) * 2;
 
-            const type = Math.random() > 0.5 ? 'pistol' : 'machinegun';
-            this.world.spawnAmmo(type, spawnPos);
+            // Incluir shotgun como tercer tipo de munición
+            const rand = Math.random();
+            let type;
+            if (rand < 0.33) {
+                type = 'pistol';
+            } else if (rand < 0.66) {
+                type = 'machinegun';
+            } else {
+                type = 'shotgun';
+            }
+
+            // Guardar referencia a la munición spawneada para el sistema anti-duplicados
+            const ammoSprite = this.world.spawnAmmo(type, spawnPos);
+            spawner.activeAmmo = ammoSprite;
         });
     }
 
@@ -298,11 +316,19 @@ export class WaveEvent {
         console.log(`Spawning food at SComida locations...`);
 
         this.foodSpawners.forEach(spawner => {
+            // Sistema anti-duplicados: verificar si ya hay comida activa sin recoger
+            if (spawner.activeFood && !spawner.activeFood.userData.collected) {
+                console.log(`Spawner de comida en (${spawner.position.x}, ${spawner.position.z}) ya tiene comida activa, saltando...`);
+                return;
+            }
+
             const spawnPos = spawner.position.clone();
             spawnPos.x += (Math.random() - 0.5) * 2;
             spawnPos.z += (Math.random() - 0.5) * 2;
 
-            this.world.spawnFood(spawnPos);
+            // Guardar referencia a la comida spawneada para el sistema anti-duplicados
+            const foodSprite = this.world.spawnFood(spawnPos);
+            spawner.activeFood = foodSprite;
         });
     }
 }

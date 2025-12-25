@@ -27,6 +27,7 @@ export class World {
         this.foodMeshes = [];
         this.ammoMeshes = [];
         this.staticModels = [];
+        this.decorativeMeshes = []; // Objetos decorativos (squares) para efectos de balas/sangre
     }
     // #endregion
 
@@ -218,6 +219,11 @@ export class World {
     getStaticModels() {
         return this.staticModels || [];
     }
+
+    getDecorativeMeshes() {
+        return this.decorativeMeshes || [];
+    }
+
     getPlayerRotation() {
         return this.mapData ? this.mapData.playerRotation : 0;
     }
@@ -267,6 +273,10 @@ export class World {
             texturePath = 'assets/textures/pistol_ammo.png';
             ammoAmount = CONFIG.PISTOL_AMMO_AMOUNT;
             weaponIndex = 0;
+        } else if (type === 'shotgun') {
+            texturePath = 'assets/textures/municion_escopeta.png';
+            ammoAmount = CONFIG.SHOTGUN_AMMO_AMOUNT;
+            weaponIndex = 3;
         } else {
             texturePath = 'assets/textures/municion_ametra.png';
             ammoAmount = CONFIG.MACHINEGUN_AMMO_AMOUNT;
@@ -510,6 +520,11 @@ export class World {
 
                     const hasCollision = model.collision !== false;
 
+                    // SIEMPRE agregar a decorativeMeshes para efectos de balas/sangre
+                    squareMesh.userData.isDecorative = true;
+                    squareMesh.userData.type = 'square';
+                    this.decorativeMeshes.push(squareMesh);
+
                     if (hasCollision) {
                         // Colisión: caja ajustada al cuadrado
                         const box = new THREE.Box3().setFromObject(squareMesh);
@@ -535,7 +550,6 @@ export class World {
 
                         squareMesh.userData.boundingBox = collisionBox;
                         squareMesh.userData.isStatic = true;
-                        squareMesh.userData.type = 'staticModel';
                         this.walls.push(squareMesh);
                         this.staticModels.push(squareMesh);
                     }

@@ -92,6 +92,14 @@ export class WeaponSystem {
             solidObjects.push(...staticModels);
         }
 
+        // Obtener objetos decorativos (squares) para efectos de impacto de balas
+        if (this.player && this.player.world && this.player.world.getDecorativeMeshes) {
+            const decoratives = this.player.world.getDecorativeMeshes();
+            console.log(`[DEBUG Weapon] Decoratives encontrados: ${decoratives.length}`);
+            solidObjects.push(...decoratives);
+        }
+
+        console.log(`[DEBUG Weapon] Total solidObjects: ${solidObjects.length}`);
         return solidObjects;
     }
     // #endregion
@@ -486,6 +494,11 @@ export class WeaponSystem {
         const allObjects = enemyMeshes.concat(solidObjects);
 
         const intersects = this.raycaster.intersectObjects(allObjects, false);
+
+        // DEBUG: Log de intersecciones
+        if (intersects.length > 0) {
+            console.log(`[DEBUG Raycast] Hit: ${intersects[0].object.userData?.type || 'unknown'}, geometry: ${intersects[0].object.geometry?.type}`);
+        }
 
         let lastBulletStopPosition = null;
 

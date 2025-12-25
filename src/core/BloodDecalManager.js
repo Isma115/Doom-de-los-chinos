@@ -242,6 +242,12 @@ export class BloodDecalManager {
             objects.push(...this.world.floorGroup.children);
         }
 
+        // Añadir objetos decorativos (squares) para efectos de sangre
+        if (this.world && this.world.getDecorativeMeshes) {
+            const decoratives = this.world.getDecorativeMeshes();
+            objects.push(...decoratives);
+        }
+
         return objects;
     }
     // #endregion
