@@ -43,5 +43,18 @@
         "height": 10,
         "texture": "assets/textures/decoracion/carretera.jpg",
         "collision": false
+    },
+    {
+        "type": "obj",
+        "path": "assets/3D/decoracion/pozo/pozo_doom.obj",
+        "position": {
+            "x": -140,
+            "y": -4,
+            "z": -110
+        },
+        "rotationX": -90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "scale": 2
     }
 ]

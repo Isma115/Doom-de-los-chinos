@@ -561,7 +561,8 @@ export class World {
                 // Código original para modelos OBJ (se mantiene igual)
                 let finalObject = null;
                 const basePath = path.substring(0, path.lastIndexOf("/"));
-                const mtlPath = path.replace(".obj", ".mtl");
+                const fileName = path.substring(path.lastIndexOf("/") + 1); // Solo el nombre del archivo
+                const mtlFileName = fileName.replace(".obj", ".mtl");
                 const jpgPath = path.replace(".obj", ".jpg");
 
                 try {
@@ -569,7 +570,7 @@ export class World {
                     mtlLoader.setPath(basePath + "/");
                     let materials = null;
                     try {
-                        materials = await mtlLoader.loadAsync(mtlPath);
+                        materials = await mtlLoader.loadAsync(mtlFileName);
                         materials.preload();
                         objLoader.setMaterials(materials);
                     } catch (err) {
@@ -577,7 +578,20 @@ export class World {
                     }
 
                     objLoader.setPath(basePath + "/");
-                    finalObject = await objLoader.loadAsync(path);
+                    finalObject = await objLoader.loadAsync(fileName);
+
+                    // Forzar DoubleSide en todos los materiales cargados (incluso si vienen de MTL)
+                    finalObject.traverse(child => {
+                        if (child.isMesh) {
+                            if (child.material) {
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(mat => mat.side = THREE.DoubleSide);
+                                } else {
+                                    child.material.side = THREE.DoubleSide;
+                                }
+                            }
+                        }
+                    });
 
 
                     // Aplicar textura (prioridad: JSON > .mtl > .jpg automático > color base)
@@ -614,7 +628,13 @@ export class World {
 
                     finalObject.scale.set(scale, scale, scale);
                     finalObject.position.set(position.x, position.y, position.z);
-                    finalObject.rotation.y = THREE.MathUtils.degToRad(rotation);
+
+                    // Support for full rotation (X, Y, Z)
+                    const { rotationX = 0, rotationY, rotationZ = 0 } = model;
+                    finalObject.rotation.x = THREE.MathUtils.degToRad(rotationX);
+                    // Use model.rotation as fallback for Y if rotationY not specified
+                    finalObject.rotation.y = THREE.MathUtils.degToRad(rotationY !== undefined ? rotationY : rotation);
+                    finalObject.rotation.z = THREE.MathUtils.degToRad(rotationZ);
 
                     this.scene.add(finalObject);
 
