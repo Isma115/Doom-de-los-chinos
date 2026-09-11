@@ -27,6 +27,7 @@ export class Player {
         this.velocity = new THREE.Vector3();
         this.direction = new THREE.Vector3();
         this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
+        this.isCrouching = false;
         this.canJump = false;
 
         this.health = 100;
@@ -169,11 +170,36 @@ export class Player {
                     this.scream();
                 }
                 break;
+            case 'KeyR':
+                if (isDown && this.controls.isLocked && !this.isGameOver) {
+                    this.weaponSystem.reloadCurrentWeapon();
+                }
+                break;
+            case 'ControlLeft':
+            case 'ControlRight':
+            case 'Control':
+                if (event.cancelable) event.preventDefault();
+                this.setCrouching(isDown);
+                break;
             case 'Digit1':
                 if (isDown) {
                     this.toggleRay();
                 }
                 break;
+        }
+    }
+
+    setCrouching(isCrouching) {
+        const nextState = Boolean(isCrouching);
+        if (this.isCrouching === nextState) return;
+
+        this.isCrouching = nextState;
+
+        // Cortar parte de la inercia al empezar a agacharse evita que
+        // conserve de golpe la velocidad de la marcha normal.
+        if (nextState) {
+            this.velocity.x *= CONFIG.CROUCH_SPEED_MULTIPLIER;
+            this.velocity.z *= CONFIG.CROUCH_SPEED_MULTIPLIER;
         }
     }
     // #endregion
@@ -396,7 +422,7 @@ export class Player {
 
     // #region Sistema de Salud Player
     // Descripción: Administra la vida del jugador, incluyendo la lógica de recibir daño y curarse.
-    takeDamage(damageAmount = 1) {
+    takeDamage(damageAmount = 1, damageSource = null) {
         if (this.isGameOver) return;
 
         if (this.debugState.godMode) {
@@ -406,6 +432,10 @@ export class Player {
 
         this.health -= damageAmount;
         UIManager.updateHealth(this.health);
+        UIManager.showDamageIndicator(
+            this.getDamageDirectionAngle(damageSource),
+            Math.max(0.35, Math.min(1, damageAmount / 35))
+        );
 
         if (this.audioManager) {
             this.audioManager.playSound('playerHurt', 0.6, false, 0.9 + Math.random() * 0.2);
@@ -426,13 +456,43 @@ export class Player {
         }
     }
 
-    collectFood(amount) {
+    getDamageDirectionAngle(damageSource) {
+        if (!damageSource) return 0;
+
+        const incoming = new THREE.Vector3(
+            damageSource.x - this.camera.position.x,
+            0,
+            damageSource.z - this.camera.position.z
+        );
+        if (incoming.lengthSq() < 0.0001) return 0;
+        incoming.normalize();
+
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+        forward.y = 0;
+        if (forward.lengthSq() < 0.0001) return 0;
+        forward.normalize();
+
+        const signedCross = forward.x * incoming.z - forward.z * incoming.x;
+        return Math.atan2(signedCross, forward.dot(incoming)) * 180 / Math.PI;
+    }
+
+    collectFood(amount, foodName = 'Comida') {
         if (this.isGameOver) return;
+
+        const previousHealth = this.health;
         this.health = Math.min(100, this.health + amount);
         UIManager.updateHealth(this.health);
 
         if (this.audioManager) {
             this.audioManager.playSound('collectItem', 0.5);
+        }
+
+        const recovered = this.health - previousHealth;
+        if (recovered > 0 && foodName) {
+            UIManager.showEventMessage(
+                `${foodName}: +${Math.floor(recovered)} SALUD`,
+                1500
+            );
         }
     }
     // #endregion
@@ -503,12 +563,20 @@ export class Player {
         }
 
         const speedMultiplier = this.debugState.speedMultiplier || 1.0;
+        const crouchSpeedMultiplier = this.isCrouching
+            ? CONFIG.CROUCH_SPEED_MULTIPLIER
+            : 1.0;
+        const movementMultiplier = speedMultiplier * crouchSpeedMultiplier;
 
         this.velocity.x -= this.velocity.x * 12.0 * delta;
         this.velocity.z -= this.velocity.z * 12.0 * delta;
 
         if (!this.debugState.flyMode) {
-            this.velocity.y -= CONFIG.GRAVITY * delta;
+            if (!this.canJump) {
+                this.velocity.y -= CONFIG.GRAVITY * delta;
+            } else {
+                this.velocity.y = 0;
+            }
         } else {
             this.velocity.y -= this.velocity.y * 12.0 * delta;
         }
@@ -524,10 +592,10 @@ export class Player {
         const oldPosition = this.camera.position.clone();
 
         if (this.moveFlags.fwd || this.moveFlags.bwd) {
-            this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+            this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * movementMultiplier;
         }
         if (this.moveFlags.left || this.moveFlags.right) {
-            this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * speedMultiplier;
+            this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * movementMultiplier;
         }
 
         this.controls.moveRight(-this.velocity.x * delta);
@@ -535,17 +603,25 @@ export class Player {
         this.camera.position.y += (this.velocity.y * delta);
 
         if (!this.debugState.flyMode) {
-            if (this.camera.position.y < CONFIG.PLAYER_HEIGHT) {
+            const targetHeight = this.isCrouching
+                ? CONFIG.CROUCH_HEIGHT
+                : CONFIG.PLAYER_HEIGHT;
+
+            if (!this.canJump && this.camera.position.y < targetHeight) {
                 this.velocity.y = 0;
-                this.camera.position.y = CONFIG.PLAYER_HEIGHT;
+                this.camera.position.y = targetHeight;
                 this.canJump = true;
+            } else if (this.canJump) {
+                // Cambiar de altura de forma suave al pulsar o soltar Ctrl.
+                const heightDelta = targetHeight - this.camera.position.y;
+                const maxStep = CONFIG.CROUCH_TRANSITION_SPEED * delta;
+                if (Math.abs(heightDelta) <= maxStep) {
+                    this.camera.position.y = targetHeight;
+                } else {
+                    this.camera.position.y += Math.sign(heightDelta) * maxStep;
+                }
             }
         }
-
-        const angleRadians = this.camera.rotation.y;
-        let angleDegrees = (angleRadians * 180) / Math.PI;
-        if (angleDegrees < 0) angleDegrees += 360;
-        UIManager.updateAngle(angleDegrees);
 
         // NUEVA ESTRUCTURA: Actualizar las coordenadas del jugador
         UIManager.updateCoordinates(

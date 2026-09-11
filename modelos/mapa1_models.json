@@ -1,60 +1,615 @@
 [
     {
         "type": "square",
+        "id": "park_path_1",
         "position": {
-            "x": -165,
-            "y": 0.1,
-            "z": -100
+            "x": -155,
+            "y": 0.02,
+            "z": -105
         },
         "rotationX": 90,
         "rotationY": 0,
-        "rotationZ": 90,
+        "rotationZ": 0,
         "width": 10,
         "height": 10,
-        "texture": "assets/textures/decoracion/carretera.jpg",
-        "collision": false
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
     },
     {
         "type": "square",
+        "id": "park_path_2",
         "position": {
-            "x": -165,
-            "y": 0.1,
-            "z": -90
+            "x": -145,
+            "y": 0.02,
+            "z": -105
         },
         "rotationX": 90,
         "rotationY": 0,
-        "rotationZ": 90,
+        "rotationZ": 0,
         "width": 10,
         "height": 10,
-        "texture": "assets/textures/decoracion/carretera.jpg",
-        "collision": false
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
     },
     {
         "type": "square",
+        "id": "park_path_3",
         "position": {
-            "x": -165,
-            "y": 0.1,
-            "z": -80
+            "x": -135,
+            "y": 0.02,
+            "z": -105
         },
         "rotationX": 90,
         "rotationY": 0,
-        "rotationZ": 90,
+        "rotationZ": 0,
         "width": 10,
         "height": 10,
-        "texture": "assets/textures/decoracion/carretera.jpg",
-        "collision": false
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_4",
+        "position": {
+            "x": -125,
+            "y": 0.02,
+            "z": -105
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_5",
+        "position": {
+            "x": -115,
+            "y": 0.02,
+            "z": -105
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_6",
+        "position": {
+            "x": -115,
+            "y": 0.02,
+            "z": -95
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_7",
+        "position": {
+            "x": -115,
+            "y": 0.02,
+            "z": -85
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_8",
+        "position": {
+            "x": -115,
+            "y": 0.02,
+            "z": -75
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_9",
+        "position": {
+            "x": -105,
+            "y": 0.02,
+            "z": -75
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_10",
+        "position": {
+            "x": -95,
+            "y": 0.02,
+            "z": -75
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_11",
+        "position": {
+            "x": -85,
+            "y": 0.02,
+            "z": -75
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_12",
+        "position": {
+            "x": -75,
+            "y": 0.02,
+            "z": -75
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_13",
+        "position": {
+            "x": -65,
+            "y": 0.02,
+            "z": -75
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_14",
+        "position": {
+            "x": -55,
+            "y": 0.02,
+            "z": -75
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_15",
+        "position": {
+            "x": -55,
+            "y": 0.02,
+            "z": -65
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_16",
+        "position": {
+            "x": -55,
+            "y": 0.02,
+            "z": -55
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_17",
+        "position": {
+            "x": -55,
+            "y": 0.02,
+            "z": -45
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_path_18",
+        "position": {
+            "x": -55,
+            "y": 0.02,
+            "z": -35
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 10,
+        "height": 10,
+        "texture": "assets/textures/park/park_path.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_tree_west",
+        "position": {
+            "x": -145,
+            "y": 5.8,
+            "z": -65
+        },
+        "rotationX": 0,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 8.5,
+        "height": 12.5,
+        "texture": "assets/textures/park/park_tree.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "square",
+        "id": "park_tree_north_west",
+        "position": {
+            "x": -125,
+            "y": 5.8,
+            "z": 45
+        },
+        "rotationX": 0,
+        "rotationY": 10,
+        "rotationZ": 0,
+        "width": 8.5,
+        "height": 12.5,
+        "texture": "assets/textures/park/park_tree.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "square",
+        "id": "park_tree_north",
+        "position": {
+            "x": -70,
+            "y": 5.8,
+            "z": 45
+        },
+        "rotationX": 0,
+        "rotationY": -8,
+        "rotationZ": 0,
+        "width": 8.5,
+        "height": 12.5,
+        "texture": "assets/textures/park/park_tree.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "square",
+        "id": "park_tree_north_east",
+        "position": {
+            "x": -5,
+            "y": 5.8,
+            "z": 50
+        },
+        "rotationX": 0,
+        "rotationY": 5,
+        "rotationZ": 0,
+        "width": 8.5,
+        "height": 12.5,
+        "texture": "assets/textures/park/park_tree.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "square",
+        "id": "park_tree_east",
+        "position": {
+            "x": 28,
+            "y": 5.8,
+            "z": -55
+        },
+        "rotationX": 0,
+        "rotationY": -12,
+        "rotationZ": 0,
+        "width": 8.5,
+        "height": 12.5,
+        "texture": "assets/textures/park/park_tree.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "square",
+        "id": "park_tree_south_west",
+        "position": {
+            "x": -150,
+            "y": 5.8,
+            "z": 15
+        },
+        "rotationX": 0,
+        "rotationY": 6,
+        "rotationZ": 0,
+        "width": 8.5,
+        "height": 12.5,
+        "texture": "assets/textures/park/park_tree.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "3ds",
+        "id": "park_fountain",
+        "path": "assets/3D/decoracion/Fountain_08_3ds/Fountain 8 (3ds).3DS",
+        "position": {
+            "x": -55,
+            "y": 1,
+            "z": -35
+        },
+        "rotation": 0,
+        "scale": 0.002,
+        "collisionWidth": 7,
+        "collisionHeight": 3.2,
+        "collisionDepth": 7,
+        "collision": true,
+        "bulletImpact": true
     },
     {
         "type": "obj",
-        "path": "assets/3D/decoracion/pozo/pozo_doom.obj",
+        "id": "park_bench_west",
+        "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
         "position": {
-            "x": -140,
-            "y": -4,
-            "z": -110
+            "x": -85,
+            "y": 0,
+            "z": -35
         },
-        "rotationX": -90,
+        "scale": 1,
+        "rotationX": 0,
+        "rotationY": 90,
+        "rotationZ": 0,
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "obj",
+        "id": "park_bench_east",
+        "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
+        "position": {
+            "x": -25,
+            "y": 0,
+            "z": -35
+        },
+        "scale": 1,
+        "rotationX": 0,
+        "rotationY": -90,
+        "rotationZ": 0,
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "obj",
+        "id": "park_bench_north",
+        "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
+        "position": {
+            "x": -55,
+            "y": 0,
+            "z": -5
+        },
+        "scale": 1,
+        "rotationX": 0,
         "rotationY": 0,
         "rotationZ": 0,
-        "scale": 2
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "square",
+        "id": "park_picnic_table",
+        "position": {
+            "x": -105,
+            "y": 1.35,
+            "z": -15
+        },
+        "rotationX": 0,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 8,
+        "height": 4.5,
+        "texture": "assets/textures/park/park_picnic_table.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "flower_pot_3d",
+        "id": "park_flower_bed_west",
+        "position": {
+            "x": -145,
+            "y": 0,
+            "z": -25
+        },
+        "rotationY": 0,
+        "scale": 1,
+        "width": 8.5,
+        "height": 3.5,
+        "depth": 2.4,
+        "texture": "assets/textures/park/park_flower_pot.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "flower_pot_3d",
+        "id": "park_flower_bed_north",
+        "position": {
+            "x": -85,
+            "y": 0,
+            "z": 20
+        },
+        "rotationY": -5,
+        "scale": 1,
+        "width": 8.5,
+        "height": 3.5,
+        "depth": 2.4,
+        "texture": "assets/textures/park/park_flower_pot.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "flower_pot_3d",
+        "id": "park_flower_bed_east",
+        "position": {
+            "x": -10,
+            "y": 0,
+            "z": 25
+        },
+        "rotationY": 5,
+        "scale": 1,
+        "width": 8.5,
+        "height": 3.5,
+        "depth": 2.4,
+        "texture": "assets/textures/park/park_flower_pot.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "flower_pot_3d",
+        "id": "park_flower_bed_south",
+        "position": {
+            "x": 15,
+            "y": 0,
+            "z": -75
+        },
+        "rotationY": 90,
+        "scale": 1,
+        "width": 8.5,
+        "height": 3.5,
+        "depth": 2.4,
+        "texture": "assets/textures/park/park_flower_pot.png",
+        "collision": true,
+        "bulletImpact": true
+    },
+    {
+        "type": "square",
+        "id": "park_sand_playground",
+        "position": {
+            "x": 35,
+            "y": 0.03,
+            "z": 30
+        },
+        "rotationX": 90,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 24,
+        "height": 16,
+        "texture": "assets/textures/park/park_sand.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "square",
+        "id": "park_sandcastle",
+        "position": {
+            "x": 42,
+            "y": 0.72,
+            "z": 35
+        },
+        "rotationX": 0,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "width": 3,
+        "height": 2.8,
+        "texture": "assets/textures/park/park_sandcastle.png",
+        "collision": false,
+        "bulletImpact": false
+    },
+    {
+        "type": "swing",
+        "id": "park_swing",
+        "position": {
+            "x": 35,
+            "y": 0,
+            "z": 30
+        },
+        "rotationY": 0,
+        "scale": 1,
+        "width": 8,
+        "height": 6.5,
+        "depth": 3.8,
+        "collisionCubeSize": 6.5,
+        "seatWidth": 2.6,
+        "seatDepth": 0.75,
+        "seatHeight": 2.1,
+        "texture": "assets/textures/park/park_swing.png",
+        "collision": true,
+        "bulletImpact": true
     }
 ]

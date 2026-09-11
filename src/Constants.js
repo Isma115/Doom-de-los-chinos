@@ -8,6 +8,9 @@ export const CONFIG = {
     GRAVITY: 30.0,
     JUMP_FORCE: 15.0,
     PLAYER_HEIGHT: 2.0,
+    CROUCH_HEIGHT: 1.2,
+    CROUCH_SPEED_MULTIPLIER: 0.45,
+    CROUCH_TRANSITION_SPEED: 8.0,
     PLAYER_SPEED: 400.0,
     ARENA_SIZE: 200,
     ENEMY_SPAWN_RATE: 5000,
@@ -34,14 +37,49 @@ export const CONFIG = {
 };
 // #endregion
 
+// #region Tipos de Comida Constants
+// Descripción: Pickups de curación disponibles en los mapas y spawners.
+export const FOOD_TYPES = [
+    {
+        id: 'kebab',
+        name: 'Kebab',
+        texture: 'assets/textures/kebab.png',
+        healAmount: CONFIG.FOOD_HEAL_AMOUNT,
+        scale: 3
+    },
+    {
+        id: 'ham_tapa',
+        name: 'Tapa de jamón',
+        texture: 'assets/textures/food_ham_tapa.png',
+        healAmount: 20,
+        scale: 2.7
+    },
+    {
+        id: 'paella',
+        name: 'Paella',
+        texture: 'assets/textures/food_paella.png',
+        healAmount: 40,
+        scale: 2.8
+    },
+    {
+        id: 'cocido',
+        name: 'Cuenco de cocido',
+        texture: 'assets/textures/food_cocido.png',
+        healAmount: 60,
+        scale: 2.8
+    }
+];
+// #endregion
+
 
 
 // #region Mapas Disponibles Constants
 // Descripción: Lista de mapas jugables y sus identificadores.
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
-    { id: 'mapa1', name: 'La Fortaleza' },
-    { id: 'mapa2', name: 'Arena de Sangre' }
+    { id: 'mapa1', name: 'Parque' },
+    { id: 'mapa2', name: 'Arena de Sangre' },
+    { id: 'pruebas_alien', name: 'Pruebas: Alien' }
 ];
 // #endregion
 
@@ -107,7 +145,7 @@ export const WEAPONS_DATA = [
     {
         name: "ESCOPETA",
         color: 0xffff00,
-        damage: 80,
+        damage: 18,
         delay: 650,               // cadencia aumentada un poco más (antes 900 → 750 → ahora 650 ms entre disparos)
         ammo: 50,
         maxAmmo: 50,
@@ -115,7 +153,9 @@ export const WEAPONS_DATA = [
         shootSound: 'shotgun',    // ahora usa el sonido real de escopeta
         sprite: 'shotgun.png',
         flash: 'shotgun_flash.png',
-        isMelee: false
+        isMelee: false,
+        pelletCount: 9,
+        spread: 0.085
     }
 ];
 // #endregion// #region Tipos de Enemigos Constants
@@ -255,6 +295,37 @@ export const ENEMY_TYPES = [
         projectileSize: 0.25,
         sounds: ['grunt2', 'hiss1', 'growl1'],
         isMelee: true  // Es cuerpo a cuerpo como charo1
+    },
+    {
+        id: 'alien',
+        speed: 6.5,
+        damage: 12,
+        hp: 180,
+        texture: 'assets/enemies/alien.png',
+        spriteSheet: {
+            columns: 4,
+            rows: 5,
+            frameWidth: 256,
+            frameHeight: 256,
+            animations: {
+                idle: { row: 0, frames: 4, fps: 4, loop: true },
+                walk: { row: 1, frames: 4, fps: 8, loop: true },
+                attack: { row: 2, frames: 4, fps: 10, loop: false },
+                hurt: { row: 3, frames: 4, fps: 12, loop: false },
+                death: { row: 4, frames: 4, fps: 7, loop: false }
+            }
+        },
+        spawnWeight: 0, // Se incorpora de forma explícita desde la ronda 4
+        width: 2.24,
+        height: 3.52,
+        // Separación visual respecto al plano: mantiene la colisión en el suelo
+        // y evita que los últimos píxeles de los pies queden ocultos por él.
+        spriteOffsetY: 0.05,
+        projectileSize: 0.3,
+        sounds: ['hiss1', 'growl2', 'roar1'],
+        isMelee: true,
+        bloodType: 'white',
+        bloodColor: 0xffffff
     }
 ];
 // #endregion

@@ -12,7 +12,7 @@ export class BloodDecalManager {
         this.scene = scene;
         this.world = world;
         this.decals = [];
-        this.maxDecals = 150; // Límite de decals para mantener rendimiento
+        this.maxDecals = 720; // Triple de manchas persistentes antes de retirar las más antiguas
 
         // Cargar texturas de charcos de sangre
         const textureLoader = new THREE.TextureLoader();
@@ -20,8 +20,20 @@ export class BloodDecalManager {
             textureLoader.load('assets/textures/blood_puddle_1.png'),
             textureLoader.load('assets/textures/blood_splash.png'),
             textureLoader.load('assets/textures/blood_splash2.png'),
-            textureLoader.load('assets/textures/blood_splash3.png')
+            textureLoader.load('assets/textures/blood_splash3.png'),
+            textureLoader.load('assets/textures/blood_splash4.png'),
+            textureLoader.load('assets/textures/blood_droplets.png'),
+            textureLoader.load('assets/textures/blood_streak.png')
         ];
+        this.bloodTextures.forEach(texture => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.needsUpdate = true;
+        });
+
+        // El alien utiliza una salpicadura propia de sangre blanca.
+        this.whiteBloodTexture = textureLoader.load('assets/textures/white_blood_splash.png');
+        this.whiteBloodTexture.colorSpace = THREE.SRGBColorSpace;
+        this.whiteBloodTexture.needsUpdate = true;
 
         // Raycaster para detectar superficies
         this.raycaster = new THREE.Raycaster();
@@ -30,26 +42,26 @@ export class BloodDecalManager {
 
     // #region Sistema de Spawning BloodDecalManager
     // Descripción: Crea múltiples decals aleatorios alrededor del punto de impacto.
-    spawnBloodSplatter(hitPosition, hitNormal) {
-        // Número reducido de charcos (3-5)
-        const decalCount = 3 + Math.floor(Math.random() * 3);
+    spawnBloodSplatter(hitPosition, hitNormal, bloodType = 'red') {
+        // Cada impacto deja una mancha principal y un abanico de salpicaduras.
+        const decalCount = 6 + Math.floor(Math.random() * 5);
 
         for (let i = 0; i < decalCount; i++) {
             // Posición aleatoria alrededor del punto de impacto - MÁS DISPERSIÓN
             const randomOffset = new THREE.Vector3(
-                (Math.random() - 0.5) * 4.0, // Mayor dispersión horizontal
+                (Math.random() - 0.5) * 5.0, // Mayor dispersión horizontal
                 0,
-                (Math.random() - 0.5) * 4.0
+                (Math.random() - 0.5) * 5.0
             );
 
             const decalPosition = hitPosition.clone().add(randomOffset);
 
             // SIEMPRE crear decals en el suelo
-            this.createFloorDecal(decalPosition);
+            this.createFloorDecal(decalPosition, bloodType);
 
-            // Crear decals en paredes cercanas (40% probabilidad) - REDUCIDO para priorizar suelo
-            if (Math.random() > 0.6) {
-                this.createWallDecal(decalPosition);
+            // Una parte de la salpicadura también alcanza paredes cercanas.
+            if (Math.random() > 0.5) {
+                this.createWallDecal(decalPosition, bloodType);
             }
         }
     }
@@ -57,25 +69,25 @@ export class BloodDecalManager {
 
     // #region Sistema de Explosión de Sangre BloodDecalManager
     // Descripción: Genera una explosión masiva de sangre al morir un enemigo.
-    spawnBloodExplosion(position) {
-        // Cantidad exagerada de charcos (25-40)
-        const decalCount = 25 + Math.floor(Math.random() * 15);
+    spawnBloodExplosion(position, bloodType = 'red') {
+        // La muerte deja una huella amplia y con densidad variable.
+        const decalCount = 45 + Math.floor(Math.random() * 26);
 
         // Crear decals centrales (grandes)
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 8; i++) {
             const randomOffset = new THREE.Vector3(
                 (Math.random() - 0.5) * 2.0,
                 0,
                 (Math.random() - 0.5) * 2.0
             );
-            this.createFloorDecal(position.clone().add(randomOffset));
+            this.createFloorDecal(position.clone().add(randomOffset), bloodType);
         }
 
         // Crear decals dispersos (explosión)
         for (let i = 0; i < decalCount; i++) {
-            // Dispersión muy amplia (hasta 8 unidades)
+            // Dispersión muy amplia (hasta 10 unidades)
             const angle = Math.random() * Math.PI * 2;
-            const distance = 1.0 + Math.random() * 7.0;
+            const distance = 1.0 + Math.random() * 9.0;
 
             const offset = new THREE.Vector3(
                 Math.cos(angle) * distance,
@@ -86,11 +98,11 @@ export class BloodDecalManager {
             const decalPos = position.clone().add(offset);
 
             // Suelo (siempre)
-            this.createFloorDecal(decalPos);
+            this.createFloorDecal(decalPos, bloodType);
 
             // Paredes (muy probable en explosión)
-            if (Math.random() > 0.2) { // 80% probabilidad
-                this.createWallDecal(decalPos);
+            if (Math.random() > 0.15) { // 85% probabilidad
+                this.createWallDecal(decalPos, bloodType);
             }
         }
     }
@@ -98,7 +110,7 @@ export class BloodDecalManager {
 
     // #region Creación de Decals en Suelo BloodDecalManager
     // Descripción: Crea un charco de sangre en el suelo cerca del punto especificado.
-    createFloorDecal(position) {
+    createFloorDecal(position, bloodType = 'red') {
         // Raycast hacia abajo para encontrar el suelo - desde MÁS ALTO
         const downDirection = new THREE.Vector3(0, -1, 0);
         // Comenzar desde 10 unidades arriba para asegurar que detecte el suelo
@@ -124,7 +136,8 @@ export class BloodDecalManager {
         }
 
         // Seleccionar textura aleatoria
-        const texture = this.bloodTextures[Math.floor(Math.random() * this.bloodTextures.length)];
+        const bloodTextures = this.getBloodTextures(bloodType);
+        const texture = bloodTextures[Math.floor(Math.random() * bloodTextures.length)];
 
         // SIEMPRE crear el decal (incluso si el raycast falló, usamos Y=0.05)
         this.createDecal(floorPoint, floorNormal, texture, 'floor');
@@ -133,7 +146,7 @@ export class BloodDecalManager {
 
     // #region Creación de Decals en Paredes BloodDecalManager
     // Descripción: Crea salpicaduras de sangre en paredes cercanas al punto de impacto.
-    createWallDecal(position) {
+    createWallDecal(position, bloodType = 'red') {
         // Intentar en 4 direcciones cardinales
         const directions = [
             new THREE.Vector3(1, 0, 0),   // Este
@@ -154,8 +167,10 @@ export class BloodDecalManager {
             const wallNormal = intersects[0].face.normal.clone();
             wallNormal.transformDirection(intersects[0].object.matrixWorld);
 
-            // Usar texturas de splash para paredes
-            const splashTextures = this.bloodTextures.slice(1); // Excluir blood_puddle_1
+            // Usar texturas de splash para paredes; la sangre blanca solo tiene una textura.
+            const splashTextures = bloodType === 'white'
+                ? [this.whiteBloodTexture]
+                : this.bloodTextures.slice(1); // Excluir blood_puddle_1
             const texture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
 
             this.createDecal(wallPoint, wallNormal, texture, 'wall');
@@ -166,11 +181,16 @@ export class BloodDecalManager {
     // #region Creación de Decal Individual BloodDecalManager
     // Descripción: Crea un mesh de plano con textura de sangre orientado según la superficie.
     createDecal(position, normal, texture, type) {
-        // Tamaño aleatorio del decal - MÁS GRANDE
-        const size = 1.0 + Math.random() * 1.5; // Entre 1.0 y 2.5
+        // Mantener los decals contenidos evita que las manchas tapen grandes
+        // zonas del escenario, sin perder variación de forma.
+        const baseSize = type === 'floor'
+            ? 0.35 + Math.random() * 0.75
+            : 0.3 + Math.random() * 0.65;
+        const width = baseSize * (0.65 + Math.random() * 0.6);
+        const height = baseSize * (0.65 + Math.random() * 0.6);
 
         // Crear geometría de plano
-        const geometry = new THREE.PlaneGeometry(size, size);
+        const geometry = new THREE.PlaneGeometry(width, height);
 
         // Material con la textura de sangre
         const material = new THREE.MeshBasicMaterial({
@@ -179,8 +199,9 @@ export class BloodDecalManager {
             opacity: 0.8 + Math.random() * 0.2, // Opacidad variable
             side: THREE.DoubleSide,
             depthWrite: false, // Evitar problemas de z-fighting
-            blending: THREE.MultiplyBlending, // Mejor mezcla con superficies
-            premultipliedAlpha: true // Requerido para MultiplyBlending
+            depthTest: true,
+            alphaTest: 0.02,
+            blending: THREE.NormalBlending
         });
 
         const decalMesh = new THREE.Mesh(geometry, material);
@@ -216,12 +237,16 @@ export class BloodDecalManager {
 
         // Limpieza si excedemos el límite
         if (this.decals.length > this.maxDecals) {
-            this.removeOldestDecalIfExpired();
+            this.removeOldestDecal();
         }
     }
     // #endregion
 
     // #region Helpers BloodDecalManager
+    getBloodTextures(bloodType = 'red') {
+        return bloodType === 'white' ? [this.whiteBloodTexture] : this.bloodTextures;
+    }
+
     // Descripción: Métodos auxiliares para obtener objetos sólidos del mundo.
     getSolidObjects() {
         const objects = [];
@@ -336,6 +361,9 @@ export class BloodDecalManager {
         this.bloodTextures.forEach(texture => {
             texture.dispose();
         });
+        if (this.whiteBloodTexture) {
+            this.whiteBloodTexture.dispose();
+        }
     }
     // #endregion
 }

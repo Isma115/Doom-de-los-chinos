@@ -19,7 +19,7 @@ export class MapLoader {
             }
 
             const mapText = await response.text();
-            return this.parseMap(mapText);
+            return this.parseMap(mapText, mapName);
         } catch (error) {
             console.error('Error loading map:', error);
             return this.getDefaultMap();
@@ -28,7 +28,7 @@ export class MapLoader {
     //#endregion
 
     //  Parseo de Mapa
-    parseMap(mapText) {
+    parseMap(mapText, mapName = 'default') {
         const lines = mapText.trim().replace(/\r\n/g, '\n').split('\n');
         const height = lines.length;
 
@@ -50,6 +50,18 @@ export class MapLoader {
         };
 
         const width = lines.length > 0 ? countBlocks(lines[0]) : 0;
+        const worldLayouts = {
+            // Estos mapas se han recortado por los lados alejados del spawn.
+            // Su rejilla conserva el mismo origen mundial para no mover al jugador.
+            mapa1: { width: 36, height: 26, offsetX: 0, offsetY: 0 },
+            mapa2: { width: 36, height: 26, offsetX: 0, offsetY: 3 }
+        };
+        const worldLayout = worldLayouts[mapName] || {
+            width,
+            height,
+            offsetX: 0,
+            offsetY: 0
+        };
 
         const walls = [];
         const bushes = [];
@@ -106,7 +118,12 @@ export class MapLoader {
                     if (fullMatch[4]) spawnRate = parseInt(fullMatch[4], 10);
                 }
 
-                const position = this.gridToWorld(blockIndex, y, width, height);
+                const position = this.gridToWorld(
+                    blockIndex + worldLayout.offsetX,
+                    y + worldLayout.offsetY,
+                    worldLayout.width,
+                    worldLayout.height
+                );
                 blockIndex++;
 
                 switch (base) {
@@ -126,6 +143,23 @@ export class MapLoader {
                     case "P":
                         playerSpawn = new THREE.Vector3(position.x, 1, position.z);
                         playerRotation = rotation;
+                        break;
+
+                    // Mapa de pruebas: permite colocar aliens de forma explícita
+                    // sin depender del sistema de rondas ni de pesos aleatorios.
+                    case "A":
+                    case "ALIEN":
+                        enemySpawns.push({
+                            position: new THREE.Vector3(position.x, 1, position.z),
+                            type: "alien",
+                            lastSpawnTime: 0,
+                            rotation: rotation,
+                            maxSpawns: maxSpawns,
+                            spawnedCount: 0,
+                            isActive: true,
+                            spawnRate: spawnRate
+                        });
+                        validFloors.push(position);
                         break;
 
                     case "D":
@@ -286,6 +320,12 @@ export class MapLoader {
             extraItems,
             width,
             height,
+            terrainBounds: {
+                minX: (-worldLayout.width * this.blockSize) / 2 + worldLayout.offsetX * this.blockSize,
+                maxX: (-worldLayout.width * this.blockSize) / 2 + (worldLayout.offsetX + width) * this.blockSize,
+                minZ: (-worldLayout.height * this.blockSize) / 2 + worldLayout.offsetY * this.blockSize,
+                maxZ: (-worldLayout.height * this.blockSize) / 2 + (worldLayout.offsetY + height) * this.blockSize
+            },
             blockSize: this.blockSize
         };
     }
@@ -318,6 +358,7 @@ export class MapLoader {
             extraItems: [],
             width: 0,
             height: 0,
+            terrainBounds: null,
             blockSize: this.blockSize
         };
     }

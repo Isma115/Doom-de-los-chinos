@@ -61,10 +61,276 @@ export class EnemyManager {
         // Sistema de proyectiles de sangre parabólicos
         this.bloodProjectiles = [];
 
+        // Partículas de gore de muerte: no dependen del enemigo reutilizable del pool.
+        this.goreParticles = [];
+        this.goreSprites = [];
+
         // Inicializar sistema de decals de sangre
         this.bloodDecalManager = new BloodDecalManager(scene, world);
     }
     // #endregion
+
+    getBloodTexturePaths(bloodType = 'red') {
+        return bloodType === 'white'
+            ? ['assets/textures/white_blood_splash.png']
+            : [
+                'assets/textures/blood_splash.png',
+                'assets/textures/blood_splash2.png',
+                'assets/textures/blood_splash3.png',
+                'assets/textures/blood_splash4.png',
+                'assets/textures/blood_droplets.png',
+                'assets/textures/blood_streak.png'
+            ];
+    }
+
+    getBloodColor(enemy) {
+        return enemy.userData.bloodColor ?? 0xcc0000;
+    }
+
+    isSpriteSheetEnemy(type) {
+        return Boolean(type?.spriteSheet?.animations);
+    }
+
+    createEnemyMaterial(type) {
+        const baseTexture = this.enemyTextures[type.id];
+        const texture = baseTexture;
+
+        if (this.isSpriteSheetEnemy(type)) {
+            // La textura original se comparte entre enemigos; las UV de cada
+            // geometría son las que seleccionan su frame. Así no se pierde la
+            // imagen si el enemigo aparece antes de que termine el preload.
+            texture.minFilter = THREE.NearestFilter;
+            texture.magFilter = THREE.NearestFilter;
+            texture.generateMipmaps = false;
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.needsUpdate = true;
+        }
+
+        return new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false,
+            alphaTest: 0.05,
+            side: THREE.DoubleSide
+        });
+    }
+
+    resetSpriteSheetGeometry(geometry) {
+        const uv = geometry?.attributes?.uv;
+        if (!uv) return;
+
+        uv.setXY(0, 0, 1);
+        uv.setXY(1, 1, 1);
+        uv.setXY(2, 0, 0);
+        uv.setXY(3, 1, 0);
+        uv.needsUpdate = true;
+    }
+
+    setEnemySpriteOffset(enemy, type) {
+        if (!enemy?.geometry) return;
+
+        const height = type?.height || 2.0;
+        const desiredOffset = Number(type?.spriteOffsetY || 0);
+        const desiredLocalOffset = desiredOffset / (height / 2.0);
+        const currentLocalOffset = Number(enemy.userData.spriteOffsetLocalY || 0);
+        const delta = desiredLocalOffset - currentLocalOffset;
+
+        if (Math.abs(delta) > 0.0001) {
+            enemy.geometry.translate(0, delta, 0);
+        }
+
+        enemy.userData.spriteOffsetLocalY = desiredLocalOffset;
+    }
+
+    setSpriteSheetGeometryFrame(geometry, spriteSheet, animationName, frameIndex) {
+        const animation = spriteSheet?.animations?.[animationName] || spriteSheet?.animations?.idle;
+        const uv = geometry?.attributes?.uv;
+        if (!spriteSheet || !animation || !uv) return;
+
+        const columns = Math.max(1, spriteSheet.columns || 1);
+        const rows = Math.max(1, spriteSheet.rows || 1);
+        const frameWidth = Math.max(1, spriteSheet.frameWidth || 1);
+        const frameHeight = Math.max(1, spriteSheet.frameHeight || 1);
+        const frames = Math.max(1, animation.frames || 1);
+        const frame = Math.max(0, Math.min(frames - 1, frameIndex));
+        const row = Math.max(0, Math.min(rows - 1, animation.row || 0));
+        const column = Math.min(columns - 1, frame);
+        const textureWidth = columns * frameWidth;
+        const textureHeight = rows * frameHeight;
+        const halfPixelX = 0.5 / textureWidth;
+        const halfPixelY = 0.5 / textureHeight;
+
+        // PlaneGeometry tiene las UV ordenadas como: arriba-izquierda,
+        // arriba-derecha, abajo-izquierda, abajo-derecha. Se deja medio píxel
+        // de margen para que nunca entre el frame contiguo del atlas.
+        const u0 = (column * frameWidth) / textureWidth + halfPixelX;
+        const u1 = ((column + 1) * frameWidth) / textureWidth - halfPixelX;
+        const v0 = 1 - ((row + 1) * frameHeight) / textureHeight + halfPixelY;
+        const v1 = 1 - (row * frameHeight) / textureHeight - halfPixelY;
+
+        uv.setXY(0, u0, v1);
+        uv.setXY(1, u1, v1);
+        uv.setXY(2, u0, v0);
+        uv.setXY(3, u1, v0);
+        uv.needsUpdate = true;
+    }
+
+    disposeEnemyMaterial(enemy) {
+        const material = enemy?.material;
+        if (!material) return;
+
+        if (material.map?.userData?.isEnemySpriteSheetFrame) {
+            material.map.dispose();
+        }
+        material.dispose();
+    }
+
+    initializeEnemyAnimation(enemy, type) {
+        enemy.userData.animationName = null;
+        enemy.userData.animationFrame = 0;
+        enemy.userData.animationTimer = 0;
+        enemy.userData.attackAnimUntil = 0;
+
+        if (this.isSpriteSheetEnemy(type)) {
+            this.updateSpriteSheetAnimation(enemy, type, 'idle', 0);
+        }
+    }
+
+    setSpriteSheetFrame(enemy, type, animationName, frameIndex) {
+        const spriteSheet = type.spriteSheet;
+        const animation = spriteSheet?.animations?.[animationName] || spriteSheet?.animations?.idle;
+        if (!spriteSheet || !animation || !enemy.geometry) return;
+
+        this.setSpriteSheetGeometryFrame(
+            enemy.geometry,
+            spriteSheet,
+            animationName,
+            frameIndex
+        );
+    }
+
+    updateSpriteSheetAnimation(enemy, type, animationName, delta) {
+        const spriteSheet = type.spriteSheet;
+        const animation = spriteSheet?.animations?.[animationName] || spriteSheet?.animations?.idle;
+        if (!spriteSheet || !animation || !enemy.material?.map) return;
+
+        const frames = Math.max(1, animation.frames || 1);
+        const fps = Math.max(1, animation.fps || 8);
+        const frameDuration = 1 / fps;
+
+        if (enemy.userData.animationName !== animationName) {
+            enemy.userData.animationName = animationName;
+            enemy.userData.animationFrame = 0;
+            enemy.userData.animationTimer = 0;
+            this.setSpriteSheetFrame(enemy, type, animationName, 0);
+        }
+
+        if (!animation.loop && enemy.userData.animationFrame >= frames - 1) {
+            return;
+        }
+
+        enemy.userData.animationTimer += Math.max(0, delta);
+        let frameChanged = false;
+
+        while (enemy.userData.animationTimer >= frameDuration) {
+            enemy.userData.animationTimer -= frameDuration;
+            let nextFrame = enemy.userData.animationFrame + 1;
+
+            if (nextFrame >= frames) {
+                nextFrame = animation.loop ? 0 : frames - 1;
+            }
+
+            if (nextFrame === enemy.userData.animationFrame) {
+                enemy.userData.animationTimer = 0;
+                break;
+            }
+
+            enemy.userData.animationFrame = nextFrame;
+            frameChanged = true;
+        }
+
+        if (frameChanged) {
+            this.setSpriteSheetFrame(
+                enemy,
+                type,
+                animationName,
+                enemy.userData.animationFrame
+            );
+        }
+    }
+
+    getSpriteSheetAnimationDuration(animation) {
+        const frames = Math.max(1, animation?.frames || 1);
+        const fps = Math.max(1, animation?.fps || 8);
+        return frames / fps;
+    }
+
+    updateEnemyVisual(enemy, type, isMoving, now, delta) {
+        if (this.isSpriteSheetEnemy(type)) {
+            let animationName = 'idle';
+
+            if (enemy.userData.isDying) {
+                animationName = 'death';
+            } else if (enemy.userData.isShooting || now < enemy.userData.attackAnimUntil) {
+                animationName = 'attack';
+            } else if (
+                enemy.userData.bloodTime > 0 &&
+                now - enemy.userData.bloodTime < this.getSpriteSheetAnimationDuration(
+                    type.spriteSheet.animations.hurt
+                ) * 1000
+            ) {
+                animationName = 'hurt';
+            } else if (isMoving) {
+                animationName = 'walk';
+            }
+
+            this.updateSpriteSheetAnimation(enemy, type, animationName, delta);
+            return;
+        }
+
+        if (!isMoving || enemy.userData.isShooting || !this.enemyWalkTextures[enemy.userData.enemyType]) {
+            return;
+        }
+
+        enemy.userData.walkAnimTimer += delta;
+        if (enemy.userData.walkAnimTimer >= 0.7) {
+            enemy.userData.walkAnimTimer = 0;
+            enemy.userData.walkAnimState = !enemy.userData.walkAnimState;
+
+            const newTexture = enemy.userData.walkAnimState
+                ? this.enemyWalkTextures[enemy.userData.enemyType]
+                : this.enemyTextures[enemy.userData.enemyType];
+
+            if (enemy.material.map !== newTexture) {
+                enemy.material.map = newTexture;
+                enemy.material.needsUpdate = true;
+            }
+        }
+    }
+
+    configureBloodEffects(enemy, height) {
+        enemy.userData.drawBlood = (hitPosition = null) => {
+            const actualHitPosition = enemy.position.clone();
+            actualHitPosition.y = height / 2.0;
+
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(enemy.quaternion);
+            forward.multiplyScalar(0.5);
+
+            actualHitPosition.add(forward);
+            const particles = this.createBloodParticles(enemy, actualHitPosition);
+            this.bloodParticles.set(enemy, particles);
+
+            this.bloodDecalManager.spawnBloodSplatter(
+                actualHitPosition,
+                forward,
+                enemy.userData.bloodType || 'red'
+            );
+        };
+
+        enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
+    }
 
     // #region Sistema de Partículas EnemyManager
     createBloodParticles(enemy, hitPosition) {
@@ -83,29 +349,28 @@ export class EnemyManager {
         }
 
         const particles = existingParticles || [];
-        const particleCount = 12 + Math.floor(Math.random() * 8);
+        const particleCount = 18 + Math.floor(Math.random() * 12);
 
         const spawnPos = hitPosition ? hitPosition.clone() : enemy.position.clone();
         if (!hitPosition) {
             spawnPos.y += 1.0;
         }
 
-        // Ahora incluye blood_splash3.png (3 texturas aleatorias)
+        // Escoger una textura distinta de todo el catálogo en cada impacto.
         const textureLoader = new THREE.TextureLoader();
-        const splashTextures = [
-            'assets/textures/blood_splash.png',
-            'assets/textures/blood_splash2.png',
-            'assets/textures/blood_splash3.png'
-        ];
+        const splashTextures = this.getBloodTexturePaths(enemy.userData.bloodType);
         const randomTexturePath = splashTextures[Math.floor(Math.random() * splashTextures.length)];
         const bloodSplashTexture = textureLoader.load(randomTexturePath);
+        bloodSplashTexture.colorSpace = THREE.SRGBColorSpace;
 
         const splashMaterial = new THREE.SpriteMaterial({
             map: bloodSplashTexture,
             transparent: true,
             opacity: 1.0, // Más opaco
             depthTest: false, // Siempre renderizar por encima
-            depthWrite: false
+            depthWrite: false,
+            alphaTest: 0.02,
+            blending: THREE.NormalBlending
         });
 
         const bloodSplash = new THREE.Sprite(splashMaterial);
@@ -124,9 +389,13 @@ export class EnemyManager {
         forwardDirection.applyQuaternion(enemy.quaternion);
         bloodSplash.position.add(forwardDirection.multiplyScalar(0.5)); // 0.5 unidades hacia adelante
 
-        // Tamaño más grande y variación
-        const scale = 2.0 + Math.random() * 1.0; // Entre 2x y 3x más grande
-        bloodSplash.scale.set(scale, scale, scale);
+        // Tamaño contenido para que el impacto no cubra al enemigo.
+        const scale = 0.75 + Math.random() * 0.55;
+        bloodSplash.scale.set(
+            scale * (0.75 + Math.random() * 0.45),
+            scale * (0.75 + Math.random() * 0.45),
+            scale
+        );
 
         // Rotación aleatoria
         bloodSplash.rotation.z = Math.random() * Math.PI * 2;
@@ -147,6 +416,11 @@ export class EnemyManager {
                     this.scene.remove(bloodSplash);
                     bloodSplash.material.dispose();
                     bloodSplashTexture.dispose();
+
+                    const splashIndex = enemy.userData.bloodSplashes?.indexOf(bloodSplash) ?? -1;
+                    if (splashIndex !== -1) {
+                        enemy.userData.bloodSplashes.splice(splashIndex, 1);
+                    }
                 } else {
                     requestAnimationFrame(fadeOut);
                 }
@@ -157,7 +431,9 @@ export class EnemyManager {
         setTimeout(fadeOut, 300); // Durar un poco más
 
         for (let i = 0; i < particleCount; i++) {
-            const particle = new THREE.Mesh(this.bloodGeometry, this.bloodMaterial.clone());
+            const particleMaterial = this.bloodMaterial.clone();
+            particleMaterial.color.setHex(this.getBloodColor(enemy));
+            const particle = new THREE.Mesh(this.bloodGeometry, particleMaterial);
             // Las partículas respetan la profundidad para no verse a través de muros
             particle.material.depthTest = true;
             particle.material.depthWrite = true;
@@ -185,7 +461,7 @@ export class EnemyManager {
                 isOnGround: false,
                 creationTime: performance.now(),
             };
-            const scale = (0.5 + Math.random() * 0.8) * 3; // 3x size
+            const scale = 0.35 + Math.random() * 0.55;
             particle.scale.set(scale, scale, scale);
 
             particles.push(particle);
@@ -202,16 +478,17 @@ export class EnemyManager {
         const explosionCenter = enemy.position.clone();
         explosionCenter.y += 1.0; // Centro del cuerpo
 
-        // 1. Crear múltiples sprites de sangre (5-8 sprites) - MÁS CANTIDAD
-        const spriteCount = 5 + Math.floor(Math.random() * 4);
+        // 1. Crear múltiples sprites de sangre (10-16) con tamaños y formas variadas.
+        const spriteCount = 10 + Math.floor(Math.random() * 7);
 
         // Cargar todas las texturas una sola vez
         const textureLoader = new THREE.TextureLoader();
-        const splashTextures = [
-            textureLoader.load('assets/textures/blood_splash.png'),
-            textureLoader.load('assets/textures/blood_splash2.png'),
-            textureLoader.load('assets/textures/blood_splash3.png')
-        ];
+        const splashTextures = this.getBloodTexturePaths(enemy.userData.bloodType)
+            .map(texturePath => textureLoader.load(texturePath));
+        splashTextures.forEach(texture => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.needsUpdate = true;
+        });
 
         for (let i = 0; i < spriteCount; i++) {
             // Usar una textura inicial aleatoria
@@ -222,7 +499,9 @@ export class EnemyManager {
                 transparent: true,
                 opacity: 1.0,
                 depthTest: false,
-                depthWrite: false
+                depthWrite: false,
+                alphaTest: 0.02,
+                blending: THREE.NormalBlending
             });
 
             const bloodSplash = new THREE.Sprite(splashMaterial);
@@ -235,9 +514,13 @@ export class EnemyManager {
             );
             bloodSplash.position.copy(explosionCenter).add(randomOffset);
 
-            // Tamaño MUY GRANDE (3x - 5x)
-            const scale = 3.0 + Math.random() * 2.5;
-            bloodSplash.scale.set(scale, scale, scale);
+            // Tamaño reducido y ligeramente deformado para que no parezcan clones.
+            const scale = 0.8 + Math.random() * 1.4;
+            bloodSplash.scale.set(
+                scale * (0.75 + Math.random() * 0.45),
+                scale * (0.75 + Math.random() * 0.45),
+                scale
+            );
 
             // Rotación aleatoria
             bloodSplash.rotation.z = Math.random() * Math.PI * 2;
@@ -246,7 +529,7 @@ export class EnemyManager {
 
             // Animación: Intercalar sprites durante 300ms (flicker effect)
             const startTime = performance.now();
-            const duration = 300; // Duración corta y furiosa (300ms)
+            const duration = 550; // Mantener el estallido visible algo más de tiempo
             let lastSwap = 0;
             const swapInterval = 150; // Cambiar sprite cada 150ms (más lento)
 
@@ -279,41 +562,76 @@ export class EnemyManager {
             animateSplash();
         }
 
-        // 2. Explosión adicional de partículas geométricas (cubos rojos)
-        const particleCount = 40; // Muchas partículas
+        // 2. Explosión adicional de partículas geométricas
+        const particleCount = 75 + Math.floor(Math.random() * 36);
         const particles = [];
 
         for (let i = 0; i < particleCount; i++) {
-            const particle = new THREE.Mesh(this.bloodGeometry, this.bloodMaterial.clone());
+            const particleMaterial = this.bloodMaterial.clone();
+            particleMaterial.color.setHex(this.getBloodColor(enemy));
+            const particle = new THREE.Mesh(this.bloodGeometry, particleMaterial);
             particle.position.copy(explosionCenter);
 
             // Velocidad explosiva en todas direcciones
             const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 15.0,
-                (Math.random() * 10.0) - 2.0,
-                (Math.random() - 0.5) * 15.0
+                (Math.random() - 0.5) * 18.0,
+                (Math.random() * 14.0) - 3.0,
+                (Math.random() - 0.5) * 18.0
             );
 
             particle.userData = {
                 life: 1.0,
                 velocity: velocity,
-                rotationSpeed: { x: Math.random() * 10, y: Math.random() * 10 }
+                rotationSpeed: { x: Math.random() * 10, y: Math.random() * 10 },
+                isOnGround: false,
+                creationTime: performance.now()
             };
 
-            // Tamaño variado
-            const s = 0.8 + Math.random() * 1.5;
+            // Partículas geométricas pequeñas para acompañar el splash.
+            const s = 0.25 + Math.random() * 0.75;
             particle.scale.set(s, s, s);
 
             this.scene.add(particle);
             particles.push(particle);
         }
 
-        // Añadir al sistema de partículas existente para que se actualicen
-        if (!this.bloodParticles.has(enemy)) {
-            this.bloodParticles.set(enemy, []);
-        }
-        const existing = this.bloodParticles.get(enemy);
-        existing.push(...particles);
+        // Estas partículas deben sobrevivir al retorno del enemigo al pool.
+        this.goreParticles.push(...particles);
+        this.spawnGoreShockwave(explosionCenter, enemy.userData.bloodType || 'red');
+    }
+
+    spawnGoreShockwave(position, bloodType = 'red') {
+        const textureLoader = new THREE.TextureLoader();
+        const texturePath = bloodType === 'white'
+            ? 'assets/textures/white_blood_splash.png'
+            : 'assets/textures/blood_splash4.png';
+        const texture = textureLoader.load(texturePath);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+
+        const material = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0.85,
+            depthTest: false,
+            depthWrite: false,
+            alphaTest: 0.02,
+            blending: THREE.NormalBlending
+        });
+        const sprite = new THREE.Sprite(material);
+        sprite.position.copy(position);
+
+        const initialScale = 0.6 + Math.random() * 0.6;
+        sprite.scale.setScalar(initialScale);
+        this.scene.add(sprite);
+        this.goreSprites.push({
+            sprite,
+            texture,
+            creationTime: performance.now(),
+            duration: 650 + Math.random() * 250,
+            initialScale,
+            rotationSpeed: (Math.random() - 0.5) * 4.0
+        });
     }
 
     // #region Sistema de Proyectiles Parabólicos de Sangre EnemyManager
@@ -328,17 +646,18 @@ export class EnemyManager {
 
         // Cargar texturas de sangre
         const textureLoader = new THREE.TextureLoader();
-        const splashTextures = [
-            textureLoader.load('assets/textures/blood_splash.png'),
-            textureLoader.load('assets/textures/blood_splash2.png'),
-            textureLoader.load('assets/textures/blood_splash3.png')
-        ];
+        const splashTextures = this.getBloodTexturePaths(enemy.userData.bloodType)
+            .map(texturePath => textureLoader.load(texturePath));
+        splashTextures.forEach(texture => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.needsUpdate = true;
+        });
 
-        // Generar 12-18 proyectiles de sangre (un poco más para las ráfagas)
-        const projectileCount = 8 + Math.floor(Math.random() * 7);
+        // Generar 18-30 proyectiles de sangre para formar varias ráfagas.
+        const projectileCount = 18 + Math.floor(Math.random() * 13);
 
         // Número de ráfagas (direcciones principales de la explosión)
-        const streakCount = 2 + Math.floor(Math.random() * 3); // 2 a 4 ráfagas
+        const streakCount = 3 + Math.floor(Math.random() * 4); // 3 a 6 ráfagas
 
         for (let s = 0; s < streakCount; s++) {
             // Ángulo base para esta ráfaga
@@ -346,7 +665,7 @@ export class EnemyManager {
             const particlesInStreak = Math.ceil(projectileCount / streakCount);
 
             for (let p = 0; p < particlesInStreak; p++) {
-                if (this.bloodProjectiles.length >= projectileCount + 20) break; // Límite de seguridad
+                if (this.bloodProjectiles.length >= 260) break; // Límite global de seguridad
 
                 // Usar sprite con textura de sangre aleatoria
                 const texture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
@@ -355,13 +674,15 @@ export class EnemyManager {
                     transparent: true,
                     opacity: 0.9,
                     depthTest: true,
-                    depthWrite: false
+                    depthWrite: false,
+                    alphaTest: 0.02,
+                    blending: THREE.NormalBlending
                 });
 
                 const projectile = new THREE.Sprite(spriteMaterial);
 
                 // Tamaño variado
-                const scale = 0.3 + Math.random() * 0.5;
+                const scale = 0.16 + Math.random() * 0.24;
                 projectile.scale.set(scale, scale, scale);
 
                 projectile.position.copy(spawnCenter);
@@ -375,10 +696,10 @@ export class EnemyManager {
                 const angle = baseAngle + (Math.random() - 0.5) * 0.8;
 
                 // Velocidad vertical variada
-                const vy = 2.5 + Math.random() * 4.0;
+                const vy = 3.0 + Math.random() * 5.0;
 
                 // Velocidad horizontal MUY variada para evitar el círculo
-                const horizontalSpeed = 2.0 + Math.random() * 6.0; // 2-8 m/s
+                const horizontalSpeed = 2.0 + Math.random() * 8.0; // 2-10 m/s
 
                 const vx = Math.cos(angle) * horizontalSpeed;
                 const vz = Math.sin(angle) * horizontalSpeed;
@@ -390,7 +711,8 @@ export class EnemyManager {
                     rotationSpeed: (Math.random() - 0.5) * 10,
                     initialScale: scale,
                     lastTrailTime: performance.now(),
-                    trailTexture: texture
+                    trailTexture: texture,
+                    bloodType: enemy.userData.bloodType || 'red'
                 };
 
                 this.scene.add(projectile);
@@ -406,14 +728,16 @@ export class EnemyManager {
             transparent: true,
             opacity: 0.6,
             depthTest: true,
-            depthWrite: false
+            depthWrite: false,
+            alphaTest: 0.02,
+            blending: THREE.NormalBlending
         });
 
         const trail = new THREE.Sprite(trailMaterial);
         trail.position.copy(position);
 
         // Estela más pequeña
-        const scale = 0.15 + Math.random() * 0.15;
+        const scale = 0.08 + Math.random() * 0.08;
         trail.scale.set(scale, scale, scale);
         trail.material.rotation = Math.random() * Math.PI * 2;
 
@@ -495,7 +819,10 @@ export class EnemyManager {
 
                     // Crear mancha de sangre en el suelo
                     if (this.bloodDecalManager) {
-                        this.bloodDecalManager.createFloorDecal(projectile.position);
+                        this.bloodDecalManager.createFloorDecal(
+                            projectile.position,
+                            data.bloodType || 'red'
+                        );
                     }
 
                     // Marcar para eliminación inmediata
@@ -595,6 +922,81 @@ export class EnemyManager {
         }
     }
 
+    updateGoreParticles(delta) {
+        const now = performance.now();
+
+        for (let i = this.goreParticles.length - 1; i >= 0; i--) {
+            const particle = this.goreParticles[i];
+            const data = particle?.userData;
+
+            if (!particle || !data || now - data.creationTime > 3500) {
+                if (particle) {
+                    if (particle.material) particle.material.dispose();
+                    this.scene.remove(particle);
+                }
+                this.goreParticles.splice(i, 1);
+                continue;
+            }
+
+            if (!data.isOnGround) {
+                data.velocity.y -= CONFIG.GRAVITY * 2.0 * delta;
+                particle.position.addScaledVector(data.velocity, delta);
+                particle.rotation.x += data.rotationSpeed.x * delta;
+                particle.rotation.z += data.rotationSpeed.y * delta;
+
+                if (particle.position.y <= 0.05) {
+                    particle.position.y = 0.05;
+                    data.isOnGround = true;
+                    data.velocity.set(0, 0, 0);
+                }
+            } else {
+                data.life -= delta * 0.55;
+                particle.rotation.y += data.rotationSpeed.y * delta;
+            }
+
+            if (particle.material) {
+                particle.material.opacity = Math.max(0, data.life);
+            }
+
+            if (data.life <= 0) {
+                if (particle.material) particle.material.dispose();
+                this.scene.remove(particle);
+                this.goreParticles.splice(i, 1);
+            }
+        }
+    }
+
+    updateGoreSprites(delta) {
+        const now = performance.now();
+
+        for (let i = this.goreSprites.length - 1; i >= 0; i--) {
+            const effect = this.goreSprites[i];
+            const sprite = effect?.sprite;
+
+            if (!effect || !sprite || !sprite.parent) {
+                if (sprite?.material) sprite.material.dispose();
+                if (effect?.texture) effect.texture.dispose();
+                this.goreSprites.splice(i, 1);
+                continue;
+            }
+
+            const progress = (now - effect.creationTime) / effect.duration;
+            if (progress >= 1) {
+                this.scene.remove(sprite);
+                sprite.material.dispose();
+                effect.texture.dispose();
+                this.goreSprites.splice(i, 1);
+                continue;
+            }
+
+            const easedProgress = 1 - Math.pow(1 - progress, 2);
+            const scale = effect.initialScale * (1 + easedProgress * 1.2);
+            sprite.scale.setScalar(scale);
+            sprite.rotation.z += effect.rotationSpeed * delta;
+            sprite.material.opacity = 0.85 * (1 - progress);
+        }
+    }
+
     clearBloodParticles(enemy) {
         // Limpiar splashes de sangre inmediatamente
         if (enemy.userData.bloodSplashes && enemy.userData.bloodSplashes.length > 0) {
@@ -630,7 +1032,7 @@ export class EnemyManager {
     // #region Helpers EnemyManager
     getRandomEnemyType() {
         const weightedTypes = [];
-        ENEMY_TYPES.forEach(enemyType => {
+        ENEMY_TYPES.filter(enemyType => enemyType.spawnWeight > 0).forEach(enemyType => {
             for (let i = 0; i < enemyType.spawnWeight; i++) {
                 weightedTypes.push(enemyType);
             }
@@ -654,12 +1056,21 @@ export class EnemyManager {
 
         if (this.enemyPool.length > 0) {
             const enemy = this.enemyPool.pop();
+            this.disposeEnemyMaterial(enemy);
+            // Cada enemigo necesita sus propias UV: el frame de un alien no
+            // debe cambiar el frame de otro enemigo reutilizado del pool.
+            if (enemy.geometry === this.sharedGeometry) {
+                enemy.geometry = this.sharedGeometry.clone();
+            }
+            this.resetSpriteSheetGeometry(enemy.geometry);
             enemy.visible = true;
             enemy.userData.hp = type.hp;
             enemy.userData.maxHp = type.hp;
             enemy.userData.speed = type.speed;
             enemy.userData.damage = type.damage;
             enemy.userData.enemyType = type.id;
+            enemy.userData.bloodType = type.bloodType || 'red';
+            enemy.userData.bloodColor = type.bloodColor ?? 0xcc0000;
             enemy.userData.bloodTime = 0;
             enemy.userData.velocity = new THREE.Vector3();
             enemy.userData.canJump = false;
@@ -675,18 +1086,21 @@ export class EnemyManager {
             enemy.userData.projectileSpeed = projSpeed;
             enemy.userData.projectileSize = projSize;
             enemy.userData.lastShootTime = performance.now();
+            enemy.userData.projectileOffsetX = type.projectileOffsetX || 0;
+            enemy.userData.projectileOffsetY = type.projectileOffsetY || 0;
+            enemy.userData.projectileOffsetZ = type.projectileOffsetZ || 0;
 
             enemy.userData.walkAnimTimer = 0;
             enemy.userData.walkAnimState = false;
             enemy.userData.isShooting = false;
+            enemy.userData.isDying = false;
 
             enemy.scale.set(width / 2.0, height / 2.0, 1.0);
-            enemy.material = new THREE.MeshBasicMaterial({
-                map: this.enemyTextures[type.id],
-                transparent: true,
-                alphaTest: 0.01
-            });
+            this.setEnemySpriteOffset(enemy, type);
+            enemy.material = this.createEnemyMaterial(type);
+            this.initializeEnemyAnimation(enemy, type);
             this.clearBloodParticles(enemy);
+            this.configureBloodEffects(enemy, height);
 
             if (!this.enemyCollisionHelpers.has(enemy)) {
                 const box = new THREE.Box3();
@@ -702,17 +1116,11 @@ export class EnemyManager {
             return enemy;
         }
 
-        const textureLoader = new THREE.TextureLoader();
-        const enemyTexture = textureLoader.load(type.texture);
-        enemyTexture.colorSpace = THREE.SRGBColorSpace;
-        const enemyMaterial = new THREE.MeshBasicMaterial({
-            map: enemyTexture,
-            transparent: true,
-            depthWrite: false,
-            alphaTest: 0.01
-        });
-        const enemy = new THREE.Mesh(this.sharedGeometry, enemyMaterial);
+        const enemyMaterial = this.createEnemyMaterial(type);
+        const enemy = new THREE.Mesh(this.sharedGeometry.clone(), enemyMaterial);
+        this.resetSpriteSheetGeometry(enemy.geometry);
         enemy.scale.set(width / 2.0, height / 2.0, 1.0);
+        this.setEnemySpriteOffset(enemy, type);
 
         enemy.matrixAutoUpdate = true;
         enemy.userData.hp = type.hp;
@@ -720,6 +1128,8 @@ export class EnemyManager {
         enemy.userData.speed = type.speed;
         enemy.userData.damage = type.damage;
         enemy.userData.enemyType = type.id;
+        enemy.userData.bloodType = type.bloodType || 'red';
+        enemy.userData.bloodColor = type.bloodColor ?? 0xcc0000;
         enemy.userData.bloodTime = 0;
         enemy.userData.velocity = new THREE.Vector3();
         enemy.userData.canJump = false;
@@ -743,24 +1153,11 @@ export class EnemyManager {
         enemy.userData.walkAnimTimer = 0;
         enemy.userData.walkAnimState = false;
         enemy.userData.isShooting = false;
+        enemy.userData.isDying = false;
 
-        enemy.userData.drawBlood = (hitPosition = null) => {
-            const actualHitPosition = enemy.position.clone();
-            actualHitPosition.y = height / 2.0;
+        this.initializeEnemyAnimation(enemy, type);
 
-            const forward = new THREE.Vector3(0, 0, 1);
-            forward.applyQuaternion(enemy.quaternion);
-            forward.multiplyScalar(0.5);
-
-            actualHitPosition.add(forward);
-            const particles = this.createBloodParticles(enemy, actualHitPosition);
-            this.bloodParticles.set(enemy, particles);
-
-            // NUEVO: Crear charcos de sangre persistentes
-            this.bloodDecalManager.spawnBloodSplatter(actualHitPosition, forward);
-        };
-
-        enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
+        this.configureBloodEffects(enemy, height);
         enemy.userData.collisionSize = { x: width * 0.2, y: height, z: width * 0.2 };
 
         const helperBox = new THREE.Box3();
@@ -779,6 +1176,12 @@ export class EnemyManager {
         enemy.userData.walkAnimTimer = 0;
         enemy.userData.walkAnimState = false;
         enemy.userData.isShooting = false;
+        enemy.userData.isDying = false;
+        enemy.userData.animationName = null;
+        enemy.userData.animationFrame = 0;
+        enemy.userData.animationTimer = 0;
+        enemy.userData.attackAnimUntil = 0;
+        enemy.userData.deathEndsAt = 0;
 
         this.clearBloodParticles(enemy);
 
@@ -796,6 +1199,10 @@ export class EnemyManager {
                 const helper = this.enemyCollisionHelpers.get(enemy);
                 this.scene.remove(helper);
                 this.enemyCollisionHelpers.delete(enemy);
+            }
+            this.disposeEnemyMaterial(enemy);
+            if (enemy.geometry && enemy.geometry !== this.sharedGeometry) {
+                enemy.geometry.dispose();
             }
             if (enemy.parent) this.scene.remove(enemy);
         }
@@ -831,13 +1238,6 @@ export class EnemyManager {
             }
 
             enemy.visible = true;
-
-            const tex = this.enemyTextures[enemy.userData.enemyType];
-            enemy.material = new THREE.MeshBasicMaterial({
-                map: tex,
-                transparent: true,
-                alphaTest: 0.01
-            });
             if (!this.activeEnemies.has(enemy)) {
                 this.scene.add(enemy);
                 this.enemies.push(enemy);
@@ -881,13 +1281,19 @@ export class EnemyManager {
         this.projectiles.push(projectile);
 
         enemy.userData.isShooting = true;
-        if (this.enemyShootTextures[enemy.userData.enemyType]) {
+        const typeInfo = ENEMY_TYPES.find(type => type.id === enemy.userData.enemyType);
+        if (!this.isSpriteSheetEnemy(typeInfo) && this.enemyShootTextures[enemy.userData.enemyType]) {
             enemy.material.map = this.enemyShootTextures[enemy.userData.enemyType];
             enemy.material.needsUpdate = true;
         }
 
         setTimeout(() => {
             enemy.userData.isShooting = false;
+            if (this.isSpriteSheetEnemy(typeInfo)) {
+                this.updateEnemyVisual(enemy, typeInfo, false, performance.now(), 0);
+                return;
+            }
+
             const currentTexture = enemy.userData.walkAnimState
                 ? this.enemyWalkTextures[enemy.userData.enemyType]
                 : this.enemyTextures[enemy.userData.enemyType];
@@ -929,6 +1335,16 @@ export class EnemyManager {
             const enemy = this.enemies[i];
             if (!enemy.visible) continue;
 
+            const typeInfo = ENEMY_TYPES.find(t => t.id === enemy.userData.enemyType);
+
+            if (enemy.userData.isDying) {
+                this.updateEnemyVisual(enemy, typeInfo, false, now, delta);
+                if (now >= enemy.userData.deathEndsAt) {
+                    this.finalizeEnemyRemoval(enemy);
+                }
+                continue;
+            }
+
             if (enemy.userData.hp < enemy.userData.maxHp) {
                 if (this.audioManager) {
                     this.audioManager.playSound('enemyHit', 0.5);
@@ -943,8 +1359,6 @@ export class EnemyManager {
 
                 if (distance <= AUDIO_CONFIG.ENEMY_SOUND_DISTANCE) {
                     if (this.activeSoundSources.length < AUDIO_CONFIG.MAX_SIMULTANEOUS_ENEMY_SOUNDS) {
-                        const typeInfo = ENEMY_TYPES.find(t => t.id === enemy.userData.enemyType);
-
                         if (typeInfo && typeInfo.sounds && typeInfo.sounds.length > 0) {
                             const randomSound = typeInfo.sounds[Math.floor(Math.random() * typeInfo.sounds.length)];
                             const vol = 0.3 + Math.random() * 0.3;
@@ -1015,26 +1429,10 @@ export class EnemyManager {
                 }
             }
 
+            let isMoving = false;
             if (!blocked) {
                 enemy.position.copy(tentativePos);
-
-                if (!enemy.userData.isShooting && this.enemyWalkTextures[enemy.userData.enemyType]) {
-                    enemy.userData.walkAnimTimer += delta;
-
-                    if (enemy.userData.walkAnimTimer >= 0.7) {
-                        enemy.userData.walkAnimTimer = 0;
-                        enemy.userData.walkAnimState = !enemy.userData.walkAnimState;
-
-                        const newTexture = enemy.userData.walkAnimState
-                            ? this.enemyWalkTextures[enemy.userData.enemyType]
-                            : this.enemyTextures[enemy.userData.enemyType];
-
-                        if (enemy.material.map !== newTexture) {
-                            enemy.material.map = newTexture;
-                            enemy.material.needsUpdate = true;
-                        }
-                    }
-                }
+                isMoving = direction.lengthSq() > 0.0001;
             }
 
             const floorHeight = s.y / 2.0;
@@ -1046,10 +1444,13 @@ export class EnemyManager {
 
             if (enemy.position.distanceTo(playerPos) < 2.5) {
                 if (now - enemy.userData.lastMeleeAttackTime > 500) {
-                    onHitPlayer(enemy.userData.damage);
+                    onHitPlayer(enemy.userData.damage, enemy.position.clone());
                     enemy.userData.lastMeleeAttackTime = now;
+                    enemy.userData.attackAnimUntil = now + 420;
                 }
             }
+
+            this.updateEnemyVisual(enemy, typeInfo, isMoving, now, delta);
         }
 
         const projBox = new THREE.Box3();
@@ -1057,6 +1458,7 @@ export class EnemyManager {
 
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const proj = this.projectiles[i];
+            const previousProjectilePosition = proj.position.clone();
             proj.position.addScaledVector(proj.userData.velocity, delta);
             const r = proj.userData.radius;
             projBox.min.set(proj.position.x - r, proj.position.y - r, proj.position.z - r);
@@ -1064,7 +1466,7 @@ export class EnemyManager {
             let destroyed = false;
 
             if (projBox.intersectsBox(playerHitBox)) {
-                onHitPlayer(proj.userData.damage);
+                onHitPlayer(proj.userData.damage, previousProjectilePosition);
                 destroyed = true;
             }
 
@@ -1090,17 +1492,30 @@ export class EnemyManager {
 
         // Actualizar proyectiles de sangre parabólicos
         this.updateBloodProjectiles(delta);
+        this.updateGoreParticles(delta);
+        this.updateGoreSprites(delta);
     }
     // #endregion
 
     // #region Eliminación de Enemigos EnemyManager
     // Descripción: Elimina un enemigo de la escena, gestionando la limpieza de sus partículas y sonido de muerte.
+    finalizeEnemyRemoval(enemy) {
+        this.scene.remove(enemy);
+        this.enemies = this.enemies.filter(e => e !== enemy);
+        this.activeEnemies.delete(enemy);
+        this.returnEnemyToPool(enemy);
+    }
+
     removeEnemy(enemy) {
+        if (!enemy || enemy.userData.isDying) return;
+
+        const bloodType = enemy.userData.bloodType || 'red';
+        const typeInfo = ENEMY_TYPES.find(type => type.id === enemy.userData.enemyType);
         this.clearBloodParticles(enemy);
 
         // NUEVO: Explosión de sangre al morir (Decals en suelo/paredes/techo)
         if (this.bloodDecalManager) {
-            this.bloodDecalManager.spawnBloodExplosion(enemy.position);
+            this.bloodDecalManager.spawnBloodExplosion(enemy.position, bloodType);
         }
 
         // NUEVO: Explosión de partículas masiva (Sprites gigantes y cubos)
@@ -1116,10 +1531,29 @@ export class EnemyManager {
             this.audioManager.playSound(randomSplat, 0.7);
         }
 
-        this.scene.remove(enemy);
-        this.enemies = this.enemies.filter(e => e !== enemy);
-        this.activeEnemies.delete(enemy);
-        this.returnEnemyToPool(enemy);
+        const deathAnimation = typeInfo?.spriteSheet?.animations?.death;
+        if (deathAnimation) {
+            const deathStart = performance.now();
+            enemy.userData.isDying = true;
+            enemy.userData.hp = 0;
+            enemy.userData.maxHp = 0;
+            enemy.userData.isShooting = false;
+            enemy.userData.attackAnimUntil = 0;
+            enemy.userData.velocity.set(0, 0, 0);
+            enemy.userData.deathEndsAt = deathStart + Math.max(
+                0.45,
+                this.getSpriteSheetAnimationDuration(deathAnimation)
+            ) * 1000;
+
+            if (this.enemyCollisionHelpers.has(enemy)) {
+                this.enemyCollisionHelpers.get(enemy).visible = false;
+            }
+
+            this.updateEnemyVisual(enemy, typeInfo, false, deathStart, 0);
+            return;
+        }
+
+        this.finalizeEnemyRemoval(enemy);
     }
     // #endregion
 
@@ -1144,16 +1578,43 @@ export class EnemyManager {
         if (this.projectileGeometry) this.projectileGeometry.dispose();
         if (this.projectileMaterial) this.projectileMaterial.dispose();
 
-        this.enemies.forEach(enemy => {
-            if (enemy.geometry) enemy.geometry.dispose();
-            if (enemy.material) enemy.material.dispose();
+        const allEnemies = new Set([...this.enemies, ...this.enemyPool]);
+        allEnemies.forEach(enemy => {
+            if (enemy.geometry && enemy.geometry !== this.sharedGeometry) {
+                enemy.geometry.dispose();
+            }
+            this.disposeEnemyMaterial(enemy);
         });
+        if (this.sharedGeometry) this.sharedGeometry.dispose();
+
+        const allEnemyTextures = new Set([
+            ...Object.values(this.enemyTextures),
+            ...Object.values(this.enemyWalkTextures),
+            ...Object.values(this.enemyShootTextures)
+        ]);
+        allEnemyTextures.forEach(texture => texture.dispose());
         this.enemies = [];
         this.enemyPool = [];
         this.activeEnemies.clear();
 
         // Limpiar sonidos activos
         this.activeSoundSources = [];
+
+        // Limpiar efectos de gore que no pertenecen a un enemigo del pool.
+        this.goreParticles.forEach(particle => {
+            if (particle.material) particle.material.dispose();
+            this.scene.remove(particle);
+        });
+        this.goreParticles = [];
+
+        this.goreSprites.forEach(effect => {
+            if (effect.sprite) {
+                this.scene.remove(effect.sprite);
+                if (effect.sprite.material) effect.sprite.material.dispose();
+            }
+            if (effect.texture) effect.texture.dispose();
+        });
+        this.goreSprites = [];
 
         // Limpiar proyectiles de sangre parabólicos
         this.bloodProjectiles.forEach(p => {

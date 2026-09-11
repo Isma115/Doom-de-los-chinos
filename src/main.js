@@ -15,6 +15,7 @@ class Game {
     // #region Constructor Game
     // Descripción: Inicializa la instancia del juego, configurando la escena, cámara, renderizador, y los gestores básicos de estado y audio.
     constructor(mapName) {
+        this.autoStart = new URLSearchParams(window.location.search).get('autostart') === '1';
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({
@@ -141,9 +142,25 @@ class Game {
         this.player.weaponSystem.debugState.bulletLog = this.debugPanel.debugState.bulletLog;
         this.player.debugState.bulletLog = this.debugPanel.debugState.bulletLog;
 
-        this.audioManager.playMusic('background');
+        // Los mapas con rondas inician su pista cuando comienza cada ronda.
+        // Mantener música de fondo solo para mapas sin sistema de rondas.
+        if (!this.eventManager.waveEvent) {
+            this.audioManager.playMusic('background');
+        }
 
         UIManager.togglePauseScreen(false, false);
+
+        // Modo de prueba: permite abrir un mapa aislado sin depender de
+        // Pointer Lock, útil para inspeccionar sprites y animaciones.
+        if (this.autoStart) {
+            this.player.controls.isLocked = true;
+            UIManager.togglePauseScreen(true, false);
+        }
+
+        // El reloj empieza cuando el mundo ya está listo; evita que la
+        // primera actualización mueva al alien de golpe por el tiempo de
+        // carga del mapa y falsee la prueba de sus animaciones.
+        this.prevTime = performance.now();
         this.animate();
     }
     // #endregion
@@ -165,6 +182,9 @@ class Game {
         //  Actualización de Lógica
         if (this.player && !this.player.isGameOver) {
             this.player.update(delta);
+            if (this.world?.updateBillboards) {
+                this.world.updateBillboards(this.camera);
+            }
 
             if (this.eventManager) {
                 this.eventManager.update(delta, this.player.getPosition());
@@ -200,8 +220,8 @@ class Game {
                 }
             });
 
-            this.enemyManager.update(delta, this.player.getPosition(), (damage) => {
-                this.player.takeDamage(damage);
+            this.enemyManager.update(delta, this.player.getPosition(), (damage, damageSource) => {
+                this.player.takeDamage(damage, damageSource);
             });
             Door.updateAll(delta, this.player.getPosition());
 
@@ -224,20 +244,27 @@ class Game {
         const foodMeshes = this.world.getFoodMeshes();
         const playerPos = this.player.getPosition();
 
-        foodMeshes.forEach(foodMesh => {
-            if (foodMesh.userData.collected) return;
+        for (let i = foodMeshes.length - 1; i >= 0; i--) {
+            const foodMesh = foodMeshes[i];
+            if (foodMesh.userData.collected) {
+                foodMeshes.splice(i, 1);
+                continue;
+            }
 
             foodMesh.rotation.y += foodMesh.userData.rotationSpeed * delta;
 
-            const distance = playerPos.distanceTo(foodMesh.position);
-            if (distance < 2.0) {
-                this.player.collectFood(foodMesh.userData.healAmount);
+            if (playerPos.distanceTo(foodMesh.position) < CONFIG.PICKUP_DISTANCE) {
+                this.player.collectFood(
+                    foodMesh.userData.healAmount,
+                    foodMesh.userData.foodName
+                );
 
-                foodMesh.userData.collected
-                    = true;
+                foodMesh.userData.collected = true;
                 this.scene.remove(foodMesh);
+                if (foodMesh.material) foodMesh.material.dispose();
+                foodMeshes.splice(i, 1);
             }
-        });
+        }
     }
     // #endregion
 
@@ -292,5 +319,13 @@ function createMapSelector() {
     document.body.appendChild(selectorDiv);
 }
 
-createMapSelector();
+const queryParams = new URLSearchParams(window.location.search);
+const requestedMapId = queryParams.get('map');
+const requestedMap = AVAILABLE_MAPS.find(map => map.id === requestedMapId);
+
+if (requestedMap && queryParams.get('autostart') === '1') {
+    new Game(requestedMap.id);
+} else {
+    createMapSelector();
+}
 // #endregion

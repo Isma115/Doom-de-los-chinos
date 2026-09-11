@@ -3,9 +3,10 @@ import { ENEMY_TYPES } from '../Constants.js';
 import { UIManager } from '../UI.js';
 
 export class WaveEvent {
-    constructor(enemyManager, world) {
+    constructor(enemyManager, world, audioManager = null) {
         this.enemyManager = enemyManager;
         this.world = world;
+        this.audioManager = audioManager;
         this.genericSpawners = world.getGenericSpawners();
         this.ammoSpawners = world.getAmmoSpawners();
         this.foodSpawners = world.getFoodSpawners();
@@ -20,10 +21,7 @@ export class WaveEvent {
         this.enemiesSpawned = 0;
         this.waveConfig = this.configureWaveData();
 
-        // NUEVA ESTRUCTURA: Control de música LPDMC para mapa de fortaleza en rondas 3 y 4
-        this.isFortalezaMap = false;
-        this.lpdpmMusicPlaying = false;
-        this.lpdmcMusicPlaying = false;
+        this.lastRoundMusic = null;
 
         setTimeout(() => this.startWave(), 2000);
 
@@ -73,10 +71,11 @@ export class WaveEvent {
                     { type: 'amego', count: 6 },
                     { type: 'patica', count: 5 },
                     { type: 'charo', count: 6 },
-                    { type: 'charo2', count: 6 }
+                    { type: 'charo2', count: 6 },
+                    { type: 'alien', count: 4 }
                 ]
             },
-            // Ronda 5: Aquí aparece Pablo por primera vez (y en mayor cantidad)
+            // Ronda 5: Aquí aparecen Pablo y el alien en mayor cantidad
             {
                 spawners: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'],
                 enemies: [
@@ -86,10 +85,11 @@ export class WaveEvent {
                     { type: 'amego', count: 5 },
                     { type: 'patica', count: 6 },
                     { type: 'charo', count: 5 },
-                    { type: 'charo2', count: 5 }
+                    { type: 'charo2', count: 5 },
+                    { type: 'alien', count: 6 }
                 ]
             }
-            // Si añades más rondas en el futuro, puedes seguir incluyendo a Pablo aquí
+            // Si añades más rondas en el futuro, incluye aquí también al alien si debe continuar apareciendo
         ];
     }
 
@@ -110,34 +110,11 @@ export class WaveEvent {
 
         console.log(`Iniciando ronda ${waveNumber}`);
 
-        // NUEVA ESTRUCTURA: Controlar música LPDPM en rondas 1 y 2 del mapa fortaleza
-        if (this.isFortalezaMap && (waveNumber === 1 || waveNumber === 2)) {
-            if (!this.lpdpmMusicPlaying && this.audioManager) {
-                this.audioManager.stopMusic();
-                this.audioManager.playMusic('lpdpm', 0.3);
-                this.lpdpmMusicPlaying = true;
-                this.lpdmcMusicPlaying = false;
-                console.log('Reproduciendo música LPDPM para ronda', waveNumber);
-            }
-        }
-        // NUEVA ESTRUCTURA: Controlar música LPDMC en rondas 3 y 4 del mapa fortaleza
-        else if (this.isFortalezaMap && (waveNumber === 3 || waveNumber === 4)) {
-            if (!this.lpdmcMusicPlaying && this.audioManager) {
-                this.audioManager.stopMusic();
-                this.audioManager.playMusic('lpdmc', 0.3);
-                this.lpdmcMusicPlaying = true;
-                this.lpdpmMusicPlaying = false;
-                console.log('Reproduciendo música LPDMC para ronda', waveNumber);
-            }
-        }
-        // NUEVA ESTRUCTURA: Detener música especial en ronda 5 y volver a música normal
-        else if (this.isFortalezaMap && waveNumber === 5 && (this.lpdpmMusicPlaying || this.lpdmcMusicPlaying)) {
-            if (this.audioManager) {
-                this.audioManager.stopMusic();
-                this.audioManager.playMusic('background', 0.3);
-                this.lpdpmMusicPlaying = false;
-                this.lpdmcMusicPlaying = false;
-                console.log('Deteniendo música especial en ronda 5');
+        if (this.audioManager) {
+            const musicName = this.audioManager.playRandomMusic(this.lastRoundMusic, 0.3);
+            if (musicName) {
+                this.lastRoundMusic = musicName;
+                console.log(`Reproduciendo ${musicName} en bucle para la ronda ${waveNumber}`);
             }
         }
 
@@ -209,6 +186,11 @@ export class WaveEvent {
     onWaveComplete() {
         this.waveActive = false;
         this.currentWave++;
+
+        // La pista de la ronda termina aquí; la siguiente se elegirá al iniciar la próxima.
+        if (this.audioManager) {
+            this.audioManager.stopMusic();
+        }
 
         const waveNumber = this.currentWave;
         UIManager.showEventMessage(`¡RONDA ${waveNumber} COMPLETADA!`, 3000);

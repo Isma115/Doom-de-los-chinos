@@ -48,6 +48,35 @@ export class UIManager {
         }
     }
 
+    static showDamageIndicator(angleDegrees = 0, intensity = 1) {
+        let overlay = document.getElementById('damage-direction-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'damage-direction-overlay';
+            overlay.setAttribute('aria-hidden', 'true');
+            document.getElementById('ui-layer').appendChild(overlay);
+        }
+
+        const clampedIntensity = Math.max(0.25, Math.min(1, intensity));
+        const angle = Number.isFinite(angleDegrees) ? angleDegrees : 0;
+        const radians = angle * Math.PI / 180;
+        const directionX = Math.sin(radians);
+        const directionY = -Math.cos(radians);
+        const edgeScale = 50 / Math.max(Math.abs(directionX), Math.abs(directionY), 0.0001);
+
+        // El centro del óvalo se coloca exactamente en el borde desde el que llega el daño.
+        overlay.style.setProperty('--damage-angle', `${angle}deg`);
+        overlay.style.setProperty('--damage-x', `${50 + directionX * edgeScale}%`);
+        overlay.style.setProperty('--damage-y', `${50 + directionY * edgeScale}%`);
+        overlay.style.setProperty('--damage-opacity', (0.45 + clampedIntensity * 0.4).toFixed(3));
+        overlay.style.opacity = '1';
+
+        if (this.damageIndicatorTimeout) clearTimeout(this.damageIndicatorTimeout);
+        this.damageIndicatorTimeout = setTimeout(() => {
+            overlay.style.opacity = '0';
+        }, 420 + clampedIntensity * 260);
+    }
+
     static updateScore(score) {
         let el = document.getElementById('score-display');
         if (!el) {
@@ -59,13 +88,6 @@ export class UIManager {
     }
 
     static updateWeapon(name, ammo) {
-        let el = document.getElementById('weapon-name');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'weapon-name';
-            document.getElementById('ui-layer').appendChild(el);
-        }
-        el.innerText = "Arma: " + name;
         this.updateAmmo(ammo);
     }
 
@@ -74,30 +96,11 @@ export class UIManager {
         if (!el) {
             el = document.createElement('div');
             el.id = 'ammo-display';
-            document.getElementById('ui-layer').appendChild(el);
+            const hud = document.getElementById('hud-top-right') || document.getElementById('ui-layer');
+            hud.appendChild(el);
         }
         const ammoText = (ammo === Infinity || ammo === "∞") ? "∞" : ammo;
-        el.innerText = "Munición: " + ammoText;
-    }
-
-    static updateAngle(angleDegrees) {
-        let el = document.getElementById('angle-display');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'angle-display';
-            el.style.position = 'absolute';
-            el.style.top = '10px';
-            el.style.right = '10px';
-            el.style.background = 'rgba(0,0,0,0.5)';
-            el.style.color = 'white';
-            el.style.padding = '5px 10px';
-            el.style.borderRadius = '4px';
-            el.style.fontFamily = 'Arial, sans-serif';
-            el.style.fontSize = '14px';
-            el.style.zIndex = '1000';
-            document.getElementById('ui-layer').appendChild(el);
-        }
-        el.innerText = `Ángulo: ${angleDegrees.toFixed(0)}°`;
+        el.innerText = ammoText;
     }
 
     static updateCoordinates(x, y, z) {
@@ -367,6 +370,9 @@ export class DebugPanel {
         this.player = player;
         this.weaponSystem = weaponSystem;
         this.isVisible = false;
+        this.infoUpdateInterval = null;
+        this.metricsRequestInFlight = false;
+        this.lastMetricsRequestAt = 0;
 
         const savedDebugSettings = localStorage.getItem('gameDebugSettings');
         if (savedDebugSettings) {
@@ -495,6 +501,17 @@ export class DebugPanel {
                     </div>
                 </div>
                 
+                <div class="debug-section debug-performance-section">
+                    <h4>RENDIMIENTO</h4>
+                    <div class="debug-info debug-performance-info">
+                        <p><strong>CPU:</strong> <span id="debug-cpu-info">N/D</span></p>
+                        <p><strong>GPU (proceso):</strong> <span id="debug-gpu-info">N/D</span></p>
+                        <p><strong>RAM del juego:</strong> <span id="debug-ram-info">N/D</span></p>
+                        <p><strong>RAM del sistema:</strong> <span id="debug-system-ram-info">N/D</span></p>
+                    </div>
+                    <small id="debug-metrics-source">Disponible con la versión de escritorio</small>
+                </div>
+
                 <div class="debug-info">
                     <p><strong>Posición:</strong> <span id="debug-pos-info">X: 0, Y: 0, Z: 0</span></p>
                     <p><strong>Salud:</strong> <span id="debug-health-info">100</span></p>
@@ -685,6 +702,8 @@ export class DebugPanel {
     }
 
     startInfoUpdate() {
+        this.stopInfoUpdate();
+        this.updateDebugInfo();
         this.infoUpdateInterval = setInterval(() => {
             this.updateDebugInfo();
         }, 100);
@@ -693,6 +712,7 @@ export class DebugPanel {
     stopInfoUpdate() {
         if (this.infoUpdateInterval) {
             clearInterval(this.infoUpdateInterval);
+            this.infoUpdateInterval = null;
         }
     }
 
@@ -706,6 +726,106 @@ export class DebugPanel {
 
         document.getElementById('debug-enemies-info').textContent =
             this.player.enemyManager.enemies.length;
+
+        this.updatePerformanceInfo();
+    }
+
+    updatePerformanceInfo() {
+        if (!this.isVisible || !this.panel?.classList.contains('active')) {
+            return;
+        }
+
+        const metricsApi = globalThis.systemMetrics;
+        const now = performance.now();
+
+        if (!metricsApi || typeof metricsApi.get !== 'function') {
+            this.renderBrowserPerformanceFallback();
+            return;
+        }
+
+        if (this.metricsRequestInFlight || now - this.lastMetricsRequestAt < 500) {
+            return;
+        }
+
+        this.metricsRequestInFlight = true;
+        this.lastMetricsRequestAt = now;
+
+        metricsApi.get()
+            .then(metrics => this.renderPerformanceMetrics(metrics))
+            .catch(() => this.renderBrowserPerformanceFallback())
+            .finally(() => {
+                this.metricsRequestInFlight = false;
+            });
+    }
+
+    renderPerformanceMetrics(metrics) {
+        const cpuText = this.formatPercentage(metrics?.cpuPercent);
+        const gpuText = this.formatPercentage(metrics?.gpuPercent);
+        const gameRam = this.formatMemory(metrics?.ramUsedMb, metrics?.ramPercent);
+        const systemRam = this.formatPercentage(metrics?.systemRamUsedPercent);
+
+        this.setPerformanceValue('debug-cpu-info', cpuText);
+        this.setPerformanceValue('debug-gpu-info', gpuText);
+        this.setPerformanceValue('debug-ram-info', gameRam);
+        this.setPerformanceValue('debug-system-ram-info', systemRam);
+
+        const source = document.getElementById('debug-metrics-source');
+        if (source) {
+            source.textContent = 'Electron · GPU = carga del proceso gráfico';
+        }
+    }
+
+    renderBrowserPerformanceFallback() {
+        const memory = globalThis.performance?.memory;
+        const heapUsedMb = memory?.usedJSHeapSize / (1024 * 1024);
+        const heapLimitMb = memory?.jsHeapSizeLimit / (1024 * 1024);
+        const heapPercent = Number.isFinite(heapUsedMb) && Number.isFinite(heapLimitMb) && heapLimitMb > 0
+            ? (heapUsedMb / heapLimitMb) * 100
+            : null;
+
+        this.setPerformanceValue('debug-cpu-info', 'N/D');
+        this.setPerformanceValue('debug-gpu-info', 'N/D');
+        this.setPerformanceValue('debug-ram-info', this.formatMemory(heapUsedMb, heapPercent, 'heap JS'));
+        this.setPerformanceValue('debug-system-ram-info', 'N/D');
+
+        const source = document.getElementById('debug-metrics-source');
+        if (source) {
+            source.textContent = memory
+                ? 'Navegador · solo memoria del heap JS'
+                : 'Abre el juego con npm run desktop para ver CPU/GPU/RAM';
+        }
+    }
+
+    setPerformanceValue(id, value) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = value;
+        }
+    }
+
+    formatPercentage(value) {
+        if (value === null || value === undefined || value === '') {
+            return 'N/D';
+        }
+
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+            return 'N/D';
+        }
+
+        return `${Math.max(0, Math.min(100, numericValue)).toFixed(1)}%`;
+    }
+
+    formatMemory(megabytes, percentage, suffix = 'sist.') {
+        if (megabytes === null || megabytes === undefined || !Number.isFinite(Number(megabytes))) {
+            return 'N/D';
+        }
+
+        const memoryText = `${Number(megabytes).toFixed(0)} MB`;
+        const percentageText = this.formatPercentage(percentage);
+        return percentageText === 'N/D'
+            ? `${memoryText} · ${suffix}`
+            : `${memoryText} (${percentageText} ${suffix})`;
     }
 
     setupPauseMenuIntegration() {

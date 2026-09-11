@@ -24,10 +24,7 @@ export class EventManager {
 
         const genericSpawners = world.getGenericSpawners();
         if (genericSpawners && genericSpawners.length > 0) {
-            this.waveEvent = new WaveEvent(enemyManager, world);
-
-            // Asignar AudioManager al WaveEvent
-            this.waveEvent.audioManager = audioManager;
+            this.waveEvent = new WaveEvent(enemyManager, world, audioManager);
 
             console.log('Wave system initialized with', genericSpawners.length, 'generic spawners');
         }
@@ -44,12 +41,6 @@ export class EventManager {
             console.log(`Eventos cargados para el mapa: ${mapName}`);
         } catch (err) {
             console.warn(`No hay archivo de eventos para este mapa (${mapName})`);
-        }
-
-        // Activar música LPDPM si es el mapa de fortaleza
-        if (this.waveEvent && mapName === 'mapa1') {
-            this.waveEvent.isFortalezaMap = true;
-            console.log('Mapa de fortaleza detectado - Música LPDPM activada para rondas 1 y 2');
         }
     }
 

@@ -1,8 +1,9 @@
 // #region Importaciones World
 // Descripción: Importa las dependencias externas (Three.js, Loaders) y módulos internos necesarios para la construcción del mundo.
 import * as THREE from '../../node_modules/three/build/three.module.js';
-import { CONFIG } from '../Constants.js';
+import { CONFIG, FOOD_TYPES } from '../Constants.js';
 import { MapLoader } from './MapLoader.js';
+import { Door } from '../entities/Door.js';
 
 import { OBJLoader } from '../../node_modules/three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from '../../node_modules/three/examples/jsm/loaders/MTLLoader.js';
@@ -25,9 +26,11 @@ export class World {
         this.walls = [];
         this.doorMeshes = [];
         this.foodMeshes = [];
+        this.foodTextures = {};
         this.ammoMeshes = [];
         this.staticModels = [];
         this.decorativeMeshes = []; // Objetos decorativos (squares) para efectos de balas/sangre
+        this.billboardMeshes = [];
     }
     // #endregion
 
@@ -92,12 +95,24 @@ export class World {
         this.scene.add(dirLight);
         const mapWidth = this.mapData.width * CONFIG.BLOCK_SIZE;
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
-        const floorSize = Math.max(mapWidth, mapHeight, CONFIG.ARENA_SIZE);
+        const terrainBounds = this.mapData.terrainBounds || {
+            minX: -mapWidth / 2,
+            maxX: mapWidth / 2,
+            minZ: -mapHeight / 2,
+            maxZ: mapHeight / 2
+        };
+        const terrainMargin = CONFIG.BLOCK_SIZE * 2;
+        const terrainWidth = terrainBounds.maxX - terrainBounds.minX;
+        const terrainDepth = terrainBounds.maxZ - terrainBounds.minZ;
+        const floorWidth = Math.max(terrainWidth + terrainMargin * 2, CONFIG.ARENA_SIZE);
+        const floorDepth = Math.max(terrainDepth + terrainMargin * 2, CONFIG.ARENA_SIZE);
+        const floorCenterX = (terrainBounds.minX + terrainBounds.maxX) / 2;
+        const floorCenterZ = (terrainBounds.minZ + terrainBounds.maxZ) / 2;
 
         // Generación de Suelo
         const tileSize = 20;
-        const tilesX = Math.ceil((floorSize * 1.5) / tileSize) + 2;
-        const tilesZ = Math.ceil((floorSize * 1.5) / tileSize) + 2;
+        const tilesX = Math.ceil(floorWidth / tileSize);
+        const tilesZ = Math.ceil(floorDepth / tileSize);
 
         const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
 
@@ -127,8 +142,8 @@ export class World {
         const floorGroup = new THREE.Group();
         const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
 
-        const startX = -(tilesX * tileSize) / 2 + tileSize / 2;
-        const startZ = -(tilesZ * tileSize) / 2 + tileSize / 2;
+        const startX = floorCenterX - (tilesX * tileSize) / 2 + tileSize / 2;
+        const startZ = floorCenterZ - (tilesZ * tileSize) / 2 + tileSize / 2;
 
         for (let x = 0; x < tilesX; x++) {
             for (let z = 0; z < tilesZ; z++) {
@@ -142,6 +157,10 @@ export class World {
             }
         }
 
+        floorGroup.userData = {
+            type: 'floor',
+            bulletImpact: true
+        };
         this.scene.add(floorGroup);
 
         // Guardar referencia al suelo para raycasting
@@ -161,24 +180,42 @@ export class World {
     // #region Getters de Objetos World
     // Descripción: Proporciona acceso a las listas de objetos colisionables, spawners y mallas del mundo.
     getSolidObjects() {
-        const solidObjects = [];
+        const solidObjects = new Set();
+        const addObject = (object) => {
+            if (object) solidObjects.add(object);
+        };
 
         // Agregar muros
-        solidObjects.push(...this.walls);
+        this.walls.forEach(addObject);
 
         // Agregar modelos estáticos 3D
-        solidObjects.push(...this.staticModels);
+        this.staticModels.forEach(addObject);
+
+        // Las puertas se crean en World y sus instancias se registran después
+        // desde main.js. Usar también doorMeshes evita que el raycast dependa
+        // de que exista una referencia global a Door.
+        const doorInstances = new Map(Door.instances.map(door => [door.mesh, door]));
+        this.doorMeshes.forEach(doorMesh => {
+            const door = doorInstances.get(doorMesh);
+            const isClosed = door ? !door.isOpen : this.isDoorMeshClosed(doorMesh);
+            if (isClosed) addObject(doorMesh);
+        });
 
         // Agregar puertas cerradas (si las tenemos referenciadas)
-        if (window.Door && Door.instances) {
-            Door.instances.forEach(door => {
-                if (!door.isOpen && door.mesh) {
-                    solidObjects.push(door.mesh);
-                }
-            });
-        }
+        Door.instances.forEach(door => {
+            if (!door.isOpen) addObject(door.mesh);
+        });
 
-        return solidObjects;
+        return [...solidObjects];
+    }
+
+    isDoorMeshClosed(doorMesh) {
+        const doorData = doorMesh?.userData || {};
+        if (doorData.isOpen === true) return false;
+        if (doorData.targetY !== undefined && doorData.closedY !== undefined) {
+            return Math.abs(doorData.targetY - doorData.closedY) < 0.001;
+        }
+        return true;
     }
 
     getWalls() {
@@ -224,6 +261,45 @@ export class World {
         return this.decorativeMeshes || [];
     }
 
+    getFloorGroup() {
+        return this.floorGroup || null;
+    }
+
+    getBulletImpactObjects() {
+        const impactObjects = new Set();
+        const addImpactObject = (object) => {
+            if (!object || object.userData?.bulletImpact === false) return;
+            impactObjects.add(object);
+        };
+
+        this.getSolidObjects().forEach(addImpactObject);
+        this.decorativeMeshes.forEach(addImpactObject);
+
+        if (this.floorGroup) {
+            addImpactObject(this.floorGroup);
+        }
+
+        // Recuperar props marcados como impactables aunque no hayan sido
+        // añadidos a una lista específica por un loader externo.
+        this.scene?.traverse(object => {
+            if (object.userData?.bulletImpact === true) {
+                addImpactObject(object);
+            }
+        });
+
+        return [...impactObjects];
+    }
+
+    getBulletImpactFallbackObjects() {
+        const fallbackObjects = [];
+        this.getBulletImpactObjects().forEach(object => {
+            if (object.userData?.bulletImpactFallback && object.userData.boundingBox) {
+                fallbackObjects.push(object);
+            }
+        });
+        return fallbackObjects;
+    }
+
     getPlayerRotation() {
         return this.mapData ? this.mapData.playerRotation : 0;
     }
@@ -231,29 +307,57 @@ export class World {
 
     // #region Creación de Items (Runtime) World
     // Descripción: Métodos para instanciar objetos dinámicamente durante el juego, como paquetes de comida y munición.
-    spawnFood(position) {
-        const textureLoader = new THREE.TextureLoader();
-        const foodTexture = textureLoader.load(
-            'assets/textures/kebab.png',
-            () => { },
-            () => { },
-            () => { console.error("No se pudo cargar la textura de comida"); }
-        );
+    getFoodType(foodType = null) {
+        if (foodType && typeof foodType === 'object' && foodType.texture) {
+            return foodType;
+        }
+
+        if (typeof foodType === 'string') {
+            const matchingType = FOOD_TYPES.find(type => type.id === foodType);
+            if (matchingType) return matchingType;
+        }
+
+        return FOOD_TYPES[Math.floor(Math.random() * FOOD_TYPES.length)] || FOOD_TYPES[0];
+    }
+
+    getFoodTexture(foodType) {
+        if (!this.foodTextures[foodType.id]) {
+            const textureLoader = new THREE.TextureLoader();
+            const texture = textureLoader.load(
+                foodType.texture,
+                () => { },
+                () => { },
+                () => { console.error(`No se pudo cargar la textura de comida: ${foodType.name}`); }
+            );
+            texture.colorSpace = THREE.SRGBColorSpace;
+            this.foodTextures[foodType.id] = texture;
+        }
+
+        return this.foodTextures[foodType.id];
+    }
+
+    createFoodSprite(position, foodType = null) {
+        const type = this.getFoodType(foodType);
+        const foodTexture = this.getFoodTexture(type);
 
         const spriteMaterial = new THREE.SpriteMaterial({
             map: foodTexture,
             color: 0xffffff,
             depthWrite: false,
-            transparent: true
+            transparent: true,
+            alphaTest: 0.02
         });
 
         const foodSprite = new THREE.Sprite(spriteMaterial);
-        foodSprite.scale.set(3, 3, 1);
+        const scale = type.scale || 3;
+        foodSprite.scale.set(scale, scale, 1);
         foodSprite.position.set(position.x, 2, position.z);
 
         foodSprite.userData = {
             type: 'food',
-            healAmount: CONFIG.FOOD_HEAL_AMOUNT,
+            foodType: type.id,
+            foodName: type.name,
+            healAmount: type.healAmount ?? CONFIG.FOOD_HEAL_AMOUNT,
             collected: false,
             rotationSpeed: 2.0
         };
@@ -261,6 +365,10 @@ export class World {
         this.scene.add(foodSprite);
         this.foodMeshes.push(foodSprite);
         return foodSprite;
+    }
+
+    spawnFood(position, foodType = null) {
+        return this.createFoodSprite(position, foodType);
     }
 
     spawnAmmo(type, position) {
@@ -377,36 +485,14 @@ export class World {
             return;
         }
 
-        const textureLoader = new THREE.TextureLoader();
-        const foodTexture = textureLoader.load(
-            'assets/textures/kebab.png',
-            () => { },
-            () => { },
-            () => { console.error("No se pudo cargar la textura de comida"); }
-        );
-
-        this.mapData.foodItems.forEach(pos => {
-            const spriteMaterial = new THREE.SpriteMaterial({
-                map: foodTexture,
-                color: 0xffffff,
-                depthWrite: false,
-                transparent: true
-            });
-
-            const foodSprite = new THREE.Sprite(spriteMaterial);
-
-            foodSprite.scale.set(3, 3, 1);
-            foodSprite.position.set(pos.x, 2, pos.z);
-
-            foodSprite.userData = {
-                type: 'food',
-                healAmount: CONFIG.FOOD_HEAL_AMOUNT,   // ← Ahora usa la constante modificada (50)
-                collected: false,
-                rotationSpeed: 2.0
-            };
-
-            this.scene.add(foodSprite);
-            this.foodMeshes.push(foodSprite);
+        this.mapData.foodItems.forEach(foodData => {
+            const position = foodData?.position || foodData;
+            const foodType = foodData?.foodType || (
+                typeof foodData?.type === 'string' && foodData.type !== 'food'
+                    ? foodData.type
+                    : null
+            );
+            this.createFoodSprite(position, foodType);
         });
     }
     // #endregion
@@ -427,12 +513,24 @@ export class World {
             const objLoader = new OBJLoader();
             const mtlLoader = new MTLLoader();
             const tdsLoader = new TDSLoader();
+            const textureLoader = new THREE.TextureLoader();
 
             for (const model of modelsData) {
                 const { type = "obj", path, position, rotation = 0, scale = 1, texture, width = 10, height = 10 } = model;
+                const hasCollision = model.collision !== false;
+
+                if (type === "swing" || type === "columpio") {
+                    this.createSwingProp(model, textureLoader);
+                    continue;
+                }
+
+                if (type === "flower_pot" || type === "flower_pot_3d" || type === "maceta_3d") {
+                    this.createFlowerPotProp(model, textureLoader);
+                    continue;
+                }
 
                 // Soporte para archivos .3ds
-                if (type === "3ds" || (path && path.endsWith(".3ds"))) {
+                if (type === "3ds" || (path && path.toLowerCase().endsWith(".3ds"))) {
                     try {
                         const basePath = path.substring(0, path.lastIndexOf("/") + 1);
                         tdsLoader.setResourcePath(basePath); // Texturas en la misma carpeta
@@ -440,36 +538,80 @@ export class World {
                         const object = await tdsLoader.loadAsync(path);
 
                         object.position.set(position.x, position.y, position.z);
-                        object.rotation.x = -Math.PI / 2; // Corrección común para 3DS
-                        object.rotation.z = THREE.MathUtils.degToRad(rotation); // Rotación en Y del mundo suele ser Z en objetos rotados
+                        // La mayoría de modelos 3DS vienen con Y arriba; mantener la
+                        // corrección por defecto, pero permitir afinarla desde el mapa.
+                        const rotationX = model.rotationX !== undefined
+                            ? model.rotationX
+                            : -90;
+                        const rotationY = model.rotationY !== undefined
+                            ? model.rotationY
+                            : 0;
+                        const rotationZ = model.rotationZ !== undefined
+                            ? model.rotationZ
+                            : rotation;
+                        object.rotation.set(
+                            THREE.MathUtils.degToRad(rotationX),
+                            THREE.MathUtils.degToRad(rotationY),
+                            THREE.MathUtils.degToRad(rotationZ)
+                        );
                         object.scale.set(scale, scale, scale);
 
                         this.scene.add(object);
+                        object.updateMatrixWorld(true);
 
                         // Colisión
                         const box = new THREE.Box3().setFromObject(object);
                         const size = box.getSize(new THREE.Vector3());
                         const center = box.getCenter(new THREE.Vector3());
 
+                        const colliderWidth = Math.max(
+                            0.5,
+                            Number(model.collisionWidth) || size.x
+                        );
+                        const colliderHeight = Math.max(
+                            0.5,
+                            Number(model.collisionHeight) || size.y
+                        );
+                        const colliderDepth = Math.max(
+                            0.5,
+                            Number(model.collisionDepth) || size.z
+                        );
+
                         const collisionBox = new THREE.Box3(
                             new THREE.Vector3(
-                                center.x - size.x / 4, // Colisión más estrecha
-                                center.y - size.y / 2,
-                                center.z - size.z / 4
+                                center.x - colliderWidth / 2,
+                                center.y - colliderHeight / 2,
+                                center.z - colliderDepth / 2
                             ),
                             new THREE.Vector3(
-                                center.x + size.x / 4,
-                                center.y + size.y / 2,
-                                center.z + size.z / 4
+                                center.x + colliderWidth / 2,
+                                center.y + colliderHeight / 2,
+                                center.z + colliderDepth / 2
                             )
                         );
 
-                        object.userData.boundingBox = collisionBox;
-                        object.userData.isStatic = true;
-                        object.userData.type = 'staticModel';
+                        object.userData = {
+                            ...object.userData,
+                            boundingBox: collisionBox,
+                            isStatic: hasCollision,
+                            type: 'staticModel',
+                            bulletImpact: model.bulletImpact !== false,
+                            bulletImpactFallback: hasCollision,
+                            simpleBoxCollider: true,
+                            collisionBoxSize: {
+                                width: colliderWidth,
+                                height: colliderHeight,
+                                depth: colliderDepth
+                            }
+                        };
 
-                        this.walls.push(object); // Agregar a colisionables
-                        this.staticModels.push(object);
+                        if (hasCollision) {
+                            this.walls.push(object);
+                            this.staticModels.push(object);
+                        } else {
+                            object.userData.isDecorative = true;
+                            this.decorativeMeshes.push(object);
+                        }
 
                         console.log(`Modelo 3DS cargado: ${path}`);
                         continue;
@@ -484,6 +626,10 @@ export class World {
                 if (type === "square" || type === "cuadrado") {
                     const geometry = new THREE.PlaneGeometry(width, height);
                     const textureLoader = new THREE.TextureLoader();
+                    const rotationX = model.rotationX || 0;
+                    const shouldBillboard = model.billboard === true || (
+                        model.billboard !== false && Math.abs(rotationX) < 0.001
+                    );
 
                     let material;
                     if (texture) {
@@ -493,16 +639,21 @@ export class World {
                             () => { },
                             () => { console.error(`No se pudo cargar textura: ${texture}`); }
                         );
+                        tex.colorSpace = THREE.SRGBColorSpace;
                         material = new THREE.MeshBasicMaterial({
                             map: tex,
                             side: THREE.DoubleSide,
-                            transparent: true
+                            transparent: true,
+                            alphaTest: 0.02,
+                            depthWrite: false
                         });
                     } else {
                         material = new THREE.MeshBasicMaterial({
                             color: 0xffffff,
                             side: THREE.DoubleSide,
-                            transparent: true
+                            transparent: true,
+                            alphaTest: 0.02,
+                            depthWrite: false
                         });
                     }
 
@@ -510,30 +661,46 @@ export class World {
                     console.log(`[World] Creating square mesh at ${JSON.stringify(position)} with size ${width}x${height}`);
                     squareMesh.position.set(position.x, position.y, position.z);
 
-                    const { rotationX = 0, rotationY, rotationZ = 0, rotationOrder = 'XYZ' } = model;
+                    const { rotationY, rotationZ = 0, rotationOrder = 'XYZ' } = model;
                     squareMesh.rotation.order = rotationOrder;
                     squareMesh.rotation.x = THREE.MathUtils.degToRad(rotationX);
                     squareMesh.rotation.y = THREE.MathUtils.degToRad(rotationY !== undefined ? rotationY : rotation);
                     squareMesh.rotation.z = THREE.MathUtils.degToRad(rotationZ);
 
                     this.scene.add(squareMesh);
+                    squareMesh.updateMatrixWorld(true);
 
                     const hasCollision = model.collision !== false;
 
                     // SIEMPRE agregar a decorativeMeshes para efectos de balas/sangre
-                    squareMesh.userData.isDecorative = true;
-                    squareMesh.userData.type = 'square';
+                    squareMesh.userData = {
+                        isDecorative: true,
+                        type: 'square',
+                        bulletImpact: model.bulletImpact !== false,
+                        bulletImpactFallback: hasCollision,
+                        billboard: shouldBillboard
+                    };
                     this.decorativeMeshes.push(squareMesh);
+                    if (shouldBillboard) {
+                        this.billboardMeshes.push(squareMesh);
+                    }
 
                     if (hasCollision) {
-                        // Colisión: caja ajustada al cuadrado
-                        const box = new THREE.Box3().setFromObject(squareMesh);
-                        const size = box.getSize(new THREE.Vector3());
-                        const center = box.getCenter(new THREE.Vector3());
-
-                        const colliderHeight = Math.max(size.y, 1);
-                        const colliderWidth = Math.max(size.x, 1);
-                        const colliderDepth = Math.max(size.z, 0.1);
+                        // Colisión: una caja simple dimensionada según el prop.
+                        // Los billboards mantienen este volumen fijo aunque roten.
+                        const colliderWidth = Math.max(
+                            0.5,
+                            model.collisionWidth || width
+                        );
+                        const colliderHeight = Math.max(
+                            1,
+                            model.collisionHeight || height
+                        );
+                        const colliderDepth = Math.max(
+                            0.5,
+                            model.collisionDepth || Math.min(width, height) * 0.25
+                        );
+                        const center = squareMesh.position;
 
                         const collisionBox = new THREE.Box3(
                             new THREE.Vector3(
@@ -549,6 +716,12 @@ export class World {
                         );
 
                         squareMesh.userData.boundingBox = collisionBox;
+                        squareMesh.userData.simpleBoxCollider = true;
+                        squareMesh.userData.collisionBoxSize = {
+                            width: colliderWidth,
+                            height: colliderHeight,
+                            depth: colliderDepth
+                        };
                         squareMesh.userData.isStatic = true;
                         this.walls.push(squareMesh);
                         this.staticModels.push(squareMesh);
@@ -637,15 +810,27 @@ export class World {
                     finalObject.rotation.z = THREE.MathUtils.degToRad(rotationZ);
 
                     this.scene.add(finalObject);
+                    finalObject.updateMatrixWorld(true);
 
-                    // Colisión: caja ajustada al modelo
+                    // Colisión: caja simple ajustada al tamaño real del modelo.
+                    // Los valores del JSON pueden afinarla cuando sea necesario,
+                    // pero no se fuerza una caja mínima de 5x5x10 para props pequeños.
                     const box = new THREE.Box3().setFromObject(finalObject);
                     const size = box.getSize(new THREE.Vector3());
                     const center = box.getCenter(new THREE.Vector3());
 
-                    const colliderHeight = Math.max(size.y, 10);
-                    const colliderWidth = Math.max(size.x, 5);
-                    const colliderDepth = Math.max(size.z, 5);
+                    const colliderHeight = Math.max(
+                        0.5,
+                        Number(model.collisionHeight) || size.y
+                    );
+                    const colliderWidth = Math.max(
+                        0.5,
+                        Number(model.collisionWidth) || size.x
+                    );
+                    const colliderDepth = Math.max(
+                        0.5,
+                        Number(model.collisionDepth) || size.z
+                    );
 
                     const collisionBox = new THREE.Box3(
                         new THREE.Vector3(
@@ -660,11 +845,28 @@ export class World {
                         )
                     );
 
-                    finalObject.userData.boundingBox = collisionBox;
-                    finalObject.userData.isStatic = true;
-                    finalObject.userData.type = 'staticModel';
-                    this.walls.push(finalObject);
-                    this.staticModels.push(finalObject);
+                    finalObject.userData = {
+                        ...finalObject.userData,
+                        boundingBox: collisionBox,
+                        isStatic: hasCollision,
+                        type: 'staticModel',
+                        bulletImpact: model.bulletImpact !== false,
+                        bulletImpactFallback: hasCollision,
+                        simpleBoxCollider: true,
+                        collisionBoxSize: {
+                            width: colliderWidth,
+                            height: colliderHeight,
+                            depth: colliderDepth
+                        }
+                    };
+
+                    if (hasCollision) {
+                        this.walls.push(finalObject);
+                        this.staticModels.push(finalObject);
+                    } else {
+                        finalObject.userData.isDecorative = true;
+                        this.decorativeMeshes.push(finalObject);
+                    }
 
                     console.log(`Modelo 3D cargado: ${path} en (${position.x}, ${position.y}, ${position.z})`);
 
@@ -675,6 +877,494 @@ export class World {
         } catch (err) {
             console.warn(`No hay archivo de modelos 3D para el mapa ${mapName} o error de carga`, err);
         }
+    }
+    // #endregion
+
+    // #region Actualización de Billboards World
+    // Descripción: Hace que los props planos verticales miren horizontalmente a la cámara del jugador.
+    updateBillboards(camera) {
+        if (!camera || this.billboardMeshes.length === 0) return;
+
+        for (let i = this.billboardMeshes.length - 1; i >= 0; i--) {
+            const mesh = this.billboardMeshes[i];
+            if (!mesh || !mesh.parent) {
+                this.billboardMeshes.splice(i, 1);
+                continue;
+            }
+
+            const deltaX = camera.position.x - mesh.position.x;
+            const deltaZ = camera.position.z - mesh.position.z;
+            if (Math.abs(deltaX) < 0.0001 && Math.abs(deltaZ) < 0.0001) continue;
+
+            mesh.rotation.y = Math.atan2(deltaX, deltaZ);
+            mesh.updateMatrixWorld(true);
+
+            // Los colliders simples no dependen de la orientación del billboard.
+            if (mesh.userData.boundingBox && !mesh.userData.simpleBoxCollider) {
+                mesh.userData.boundingBox.setFromObject(mesh);
+            }
+        }
+    }
+    // #endregion
+
+    // #region Creación de Prop de Maceta 3D World
+    // Descripción: Construye una jardinera 3D con tierra, tallos, hojas y flores low-poly.
+    createFlowerPotProp(model, textureLoader) {
+        const group = new THREE.Group();
+        const width = Math.max(2.5, model.width || 8.5);
+        const depth = Math.max(1.2, model.depth || 2.4);
+        const totalHeight = Math.max(2, model.height || 3.5);
+        const planterHeight = Math.min(totalHeight * 0.4, model.planterHeight || 1.25);
+        const soilHeight = 0.12;
+        const propScale = model.scale || 1;
+
+        let planterTexture = null;
+        if (model.texture) {
+            planterTexture = textureLoader.load(
+                model.texture,
+                () => { },
+                () => { },
+                () => { console.error(`No se pudo cargar textura de la maceta: ${model.texture}`); }
+            );
+            planterTexture.colorSpace = THREE.SRGBColorSpace;
+            planterTexture.wrapS = THREE.RepeatWrapping;
+            planterTexture.wrapT = THREE.RepeatWrapping;
+            planterTexture.magFilter = THREE.LinearFilter;
+            planterTexture.needsUpdate = true;
+        }
+
+        const planterMaterial = new THREE.MeshStandardMaterial({
+            map: planterTexture,
+            color: 0xffffff,
+            roughness: 0.9,
+            metalness: 0.02
+        });
+        const rimMaterial = new THREE.MeshStandardMaterial({
+            map: planterTexture,
+            color: 0xffffff,
+            roughness: 0.86,
+            metalness: 0.02
+        });
+        const soilMaterial = new THREE.MeshStandardMaterial({
+            color: 0x302016,
+            roughness: 1,
+            metalness: 0
+        });
+        const stemMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2f6e32,
+            roughness: 0.95,
+            metalness: 0
+        });
+        const leafMaterials = [
+            new THREE.MeshStandardMaterial({ color: 0x3d8438, roughness: 0.95 }),
+            new THREE.MeshStandardMaterial({ color: 0x6b9b3d, roughness: 0.95 })
+        ];
+        const flowerMaterials = [
+            new THREE.MeshStandardMaterial({ color: 0xe64a4a, roughness: 0.9 }),
+            new THREE.MeshStandardMaterial({ color: 0xf3b52f, roughness: 0.9 }),
+            new THREE.MeshStandardMaterial({ color: 0x7b55c7, roughness: 0.9 }),
+            new THREE.MeshStandardMaterial({ color: 0xf4f0da, roughness: 0.9 })
+        ];
+        const flowerCenterMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffd45a,
+            roughness: 0.86,
+            metalness: 0
+        });
+
+        const addBox = (name, boxWidth, boxHeight, boxDepth, position, material) => {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth),
+                material
+            );
+            mesh.name = name;
+            mesh.position.copy(position);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        const addCylinderBetween = (name, start, end, radius, material, segments = 7) => {
+            const direction = end.clone().sub(start);
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(radius, radius, direction.length(), segments),
+                material
+            );
+            mesh.name = name;
+            mesh.position.copy(start).add(end).multiplyScalar(0.5);
+            mesh.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.normalize()
+            );
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        // Jardinera, zócalo, borde superior y tierra visible.
+        addBox(
+            'flower-pot-base',
+            width * 0.84,
+            0.18,
+            depth * 0.82,
+            new THREE.Vector3(0, 0.09, 0),
+            planterMaterial
+        );
+        addBox(
+            'flower-pot-body',
+            width * 0.92,
+            planterHeight,
+            depth * 0.9,
+            new THREE.Vector3(0, planterHeight / 2 + 0.12, 0),
+            planterMaterial
+        );
+        addBox(
+            'flower-pot-rim',
+            width,
+            0.2,
+            depth,
+            new THREE.Vector3(0, planterHeight + 0.22, 0),
+            rimMaterial
+        );
+        const soilY = planterHeight + 0.36;
+        addBox(
+            'flower-pot-soil',
+            width * 0.88,
+            soilHeight,
+            depth * 0.78,
+            new THREE.Vector3(0, soilY, 0),
+            soilMaterial
+        );
+
+        // Flores distribuidas en dos filas, con variación de altura y color.
+        const flowerCount = Math.max(6, Math.min(10, Math.round(width / 0.9)));
+        const flowerGeometry = new THREE.DodecahedronGeometry(0.2, 0);
+        const flowerCenterGeometry = new THREE.SphereGeometry(0.075, 6, 4);
+        const leafGeometry = new THREE.SphereGeometry(0.13, 6, 4);
+        const flowerHeight = Math.max(0.8, totalHeight - soilY - 0.18);
+
+        for (let i = 0; i < flowerCount; i++) {
+            const progress = flowerCount === 1 ? 0.5 : i / (flowerCount - 1);
+            const x = -width * 0.36 + progress * width * 0.72;
+            const row = i % 2;
+            const z = row === 0 ? -depth * 0.2 : depth * 0.2;
+            const heightFactor = [0.78, 1, 0.9, 0.86, 0.96][i % 5];
+            const stemStartY = soilY + 0.04;
+            const flowerY = stemStartY + flowerHeight * heightFactor;
+
+            addCylinderBetween(
+                `flower-stem-${i}`,
+                new THREE.Vector3(x, stemStartY, z),
+                new THREE.Vector3(x, flowerY - 0.16, z),
+                0.035,
+                stemMaterial
+            );
+
+            for (const side of [-1, 1]) {
+                const leaf = new THREE.Mesh(leafGeometry, leafMaterials[(i + (side > 0 ? 1 : 0)) % 2]);
+                leaf.name = `flower-leaf-${i}-${side < 0 ? 'left' : 'right'}`;
+                leaf.position.set(
+                    x + side * 0.13,
+                    stemStartY + (flowerY - stemStartY) * 0.45,
+                    z + (row === 0 ? 0.04 : -0.04)
+                );
+                leaf.rotation.z = side * 0.7;
+                leaf.rotation.y = row * 0.5;
+                leaf.scale.set(1.45, 0.42, 0.72);
+                group.add(leaf);
+            }
+
+            const flower = new THREE.Mesh(flowerGeometry, flowerMaterials[i % flowerMaterials.length]);
+            flower.name = `flower-head-${i}`;
+            flower.position.set(x, flowerY, z);
+            flower.scale.set(1, 0.82, 1);
+            group.add(flower);
+
+            const center = new THREE.Mesh(flowerCenterGeometry, flowerCenterMaterial);
+            center.name = `flower-center-${i}`;
+            center.position.set(x, flowerY + 0.06, z + 0.05);
+            group.add(center);
+        }
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        group.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? model.rotationY : (model.rotation || 0)
+        );
+        group.scale.setScalar(propScale);
+        group.userData = {
+            id: model.id || 'park-flower-pot',
+            type: 'staticModel',
+            propType: 'flower-pot',
+            bulletImpact: model.bulletImpact !== false,
+            bulletImpactFallback: model.collision !== false,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+        this.decorativeMeshes.push(group);
+
+        if (model.collision !== false) {
+            const colliderWidth = (model.collisionWidth || width) * propScale;
+            const colliderHeight = (model.collisionHeight || planterHeight + 0.45) * propScale;
+            const colliderDepth = (model.collisionDepth || depth) * propScale;
+            const center = group.position;
+            group.userData.simpleBoxCollider = true;
+            group.userData.collisionBoxSize = {
+                width: colliderWidth,
+                height: colliderHeight,
+                depth: colliderDepth
+            };
+            group.userData.boundingBox = new THREE.Box3(
+                new THREE.Vector3(
+                    center.x - colliderWidth / 2,
+                    center.y,
+                    center.z - colliderDepth / 2
+                ),
+                new THREE.Vector3(
+                    center.x + colliderWidth / 2,
+                    center.y + colliderHeight,
+                    center.z + colliderDepth / 2
+                )
+            );
+            this.walls.push(group);
+            this.staticModels.push(group);
+        }
+
+        console.log(`Maceta 3D cargada en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
+    }
+    // #endregion
+
+    // #region Creación de Prop de Columpio World
+    // Descripción: Construye un columpio low-poly con estructura metálica, asiento texturizado y cadenas.
+    createSwingProp(model, textureLoader) {
+        const group = new THREE.Group();
+        const width = Math.max(4, model.width || 8);
+        const height = Math.max(4.5, model.height || 6.5);
+        const depth = Math.max(2.5, model.depth || 3.8);
+        const seatWidth = Math.min(width * 0.42, model.seatWidth || 2.6);
+        const seatDepth = Math.min(depth * 0.34, model.seatDepth || 0.75);
+        const seatY = model.seatHeight || 2.1;
+
+        const frameMaterial = new THREE.MeshStandardMaterial({
+            color: 0x294b3b,
+            roughness: 0.78,
+            metalness: 0.42
+        });
+        const chainMaterial = new THREE.MeshStandardMaterial({
+            color: 0x252a27,
+            roughness: 0.55,
+            metalness: 0.8
+        });
+
+        let swingTexture = null;
+        if (model.texture) {
+            swingTexture = textureLoader.load(
+                model.texture,
+                () => { },
+                () => { },
+                () => { console.error(`No se pudo cargar textura del columpio: ${model.texture}`); }
+            );
+            swingTexture.colorSpace = THREE.SRGBColorSpace;
+            swingTexture.wrapS = THREE.RepeatWrapping;
+            swingTexture.wrapT = THREE.RepeatWrapping;
+            swingTexture.magFilter = THREE.LinearFilter;
+            swingTexture.needsUpdate = true;
+        }
+
+        const seatMaterial = new THREE.MeshStandardMaterial({
+            map: swingTexture,
+            color: 0xffffff,
+            roughness: 0.88,
+            metalness: 0
+        });
+
+        const addBox = (name, boxWidth, boxHeight, boxDepth, position, material) => {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth),
+                material
+            );
+            mesh.name = name;
+            mesh.position.copy(position);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        const addCylinderBetween = (name, start, end, radius, material, segments = 10) => {
+            const direction = end.clone().sub(start);
+            const length = direction.length();
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(radius, radius, length, segments),
+                material
+            );
+            mesh.name = name;
+            mesh.position.copy(start).add(end).multiplyScalar(0.5);
+            mesh.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.normalize()
+            );
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        const topX = width * 0.39;
+        const bottomX = width * 0.49;
+        const bottomZ = depth * 0.5;
+        const topY = height - 0.15;
+        const bottomY = 0.22;
+
+        // Viga superior y cuatro patas inclinadas del bastidor.
+        addCylinderBetween(
+            'swing-top-beam',
+            new THREE.Vector3(-topX, topY, 0),
+            new THREE.Vector3(topX, topY, 0),
+            0.24,
+            frameMaterial,
+            12
+        );
+
+        // Casquillos que cubren y unen las cuatro patas con la viga superior.
+        const topJointGeometry = new THREE.SphereGeometry(0.31, 8, 6);
+        for (const side of [-1, 1]) {
+            const joint = new THREE.Mesh(topJointGeometry, frameMaterial);
+            joint.name = `swing-top-joint-${side < 0 ? 'left' : 'right'}`;
+            joint.position.set(side * topX, topY, 0);
+            joint.castShadow = false;
+            joint.receiveShadow = false;
+            group.add(joint);
+        }
+
+        for (const side of [-1, 1]) {
+            for (const z of [-bottomZ, bottomZ]) {
+                addCylinderBetween(
+                    `swing-leg-${side < 0 ? 'left' : 'right'}-${z < 0 ? 'back' : 'front'}`,
+                    new THREE.Vector3(side * topX, topY - 0.05, 0),
+                    new THREE.Vector3(side * bottomX, bottomY, z),
+                    0.17,
+                    frameMaterial,
+                    10
+                );
+            }
+        }
+
+        // Travesaños bajos para dar estabilidad al conjunto.
+        for (const z of [-bottomZ, bottomZ]) {
+            addBox(
+                `swing-crossbar-${z < 0 ? 'back' : 'front'}`,
+                bottomX * 2 + 0.45,
+                0.18,
+                0.18,
+                new THREE.Vector3(0, 0.28, z),
+                frameMaterial
+            );
+        }
+
+        // Travesaños laterales: unen las patas delanteras y traseras de cada lado.
+        for (const side of [-1, 1]) {
+            addCylinderBetween(
+                `swing-side-crossbar-${side < 0 ? 'left' : 'right'}`,
+                new THREE.Vector3(side * bottomX, 0.28, -bottomZ),
+                new THREE.Vector3(side * bottomX, 0.28, bottomZ),
+                0.14,
+                frameMaterial,
+                10
+            );
+        }
+
+        // Asiento de madera texturizado en dos lamas para que la textura sea visible.
+        addBox(
+            'swing-seat-base',
+            seatWidth,
+            0.16,
+            seatDepth,
+            new THREE.Vector3(0, seatY, 0),
+            seatMaterial
+        );
+        addBox(
+            'swing-seat-front-slat',
+            seatWidth,
+            0.12,
+            seatDepth * 0.43,
+            new THREE.Vector3(0, seatY + 0.12, seatDepth * 0.27),
+            seatMaterial
+        );
+        addBox(
+            'swing-seat-back-slat',
+            seatWidth,
+            0.12,
+            seatDepth * 0.43,
+            new THREE.Vector3(0, seatY + 0.12, -seatDepth * 0.27),
+            seatMaterial
+        );
+
+        const chainTopY = topY - 0.22;
+        const chainBottomY = seatY + 0.2;
+        const chainX = seatWidth * 0.37;
+        for (const x of [-chainX, chainX]) {
+            addCylinderBetween(
+                `swing-chain-${x < 0 ? 'left' : 'right'}`,
+                new THREE.Vector3(x, chainTopY, 0),
+                new THREE.Vector3(x, chainBottomY, 0),
+                0.055,
+                chainMaterial,
+                8
+            );
+        }
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        group.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? model.rotationY : (model.rotation || 0)
+        );
+        group.scale.setScalar(model.scale || 1);
+        group.userData = {
+            id: model.id || 'park-swing',
+            type: 'staticModel',
+            propType: 'swing',
+            bulletImpact: model.bulletImpact !== false,
+            bulletImpactFallback: model.collision !== false,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+        this.decorativeMeshes.push(group);
+
+        if (model.collision !== false) {
+            const propScale = model.scale || 1;
+            const collisionCubeSize = Math.max(
+                1,
+                (model.collisionCubeSize || Math.max(width * 0.8, height, depth)) * propScale
+            );
+            const halfCube = collisionCubeSize / 2;
+            const cubeMin = new THREE.Vector3(
+                group.position.x - halfCube,
+                group.position.y,
+                group.position.z - halfCube
+            );
+            const cubeMax = new THREE.Vector3(
+                group.position.x + halfCube,
+                group.position.y + collisionCubeSize,
+                group.position.z + halfCube
+            );
+
+            // Un único cubo AABB para el prop: evita colliders complejos
+            // separados para patas, asiento y cadenas.
+            group.userData.collisionCubeSize = collisionCubeSize;
+            group.userData.boundingBox = new THREE.Box3(cubeMin, cubeMax);
+            this.walls.push(group);
+            this.staticModels.push(group);
+        }
+
+        console.log(`Prop de columpio cargado en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
     }
     // #endregion
 
@@ -735,7 +1425,9 @@ export class World {
                 closedY: doorHeight / 2,
                 openY: doorHeight + 10,
                 targetY: doorHeight / 2,
-                id: Math.random()
+                id: Math.random(),
+                bulletImpact: true,
+                bulletImpactFallback: true
             };
 
             this.scene.add(doorMesh);
@@ -826,8 +1518,16 @@ export class World {
                 mesh.rotation.y = rotationRadians;
 
                 mesh.geometry.computeBoundingBox();
+                mesh.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(mesh);
-                mesh.userData.boundingBox = box;
+                mesh.userData = {
+                    ...mesh.userData,
+                    boundingBox: box,
+                    isStatic: true,
+                    type: 'wall',
+                    bulletImpact: true,
+                    bulletImpactFallback: true
+                };
 
                 mesh.updateMatrixWorld(true);
                 this.walls.push(mesh);
@@ -863,7 +1563,13 @@ export class World {
 
         this.walls = [];
         this.doorMeshes = [];
+        this.foodMeshes.forEach(foodMesh => {
+            this.scene.remove(foodMesh);
+            if (foodMesh.material) foodMesh.material.dispose();
+        });
         this.foodMeshes = [];
+        Object.values(this.foodTextures).forEach(texture => texture.dispose());
+        this.foodTextures = {};
         this.ammoMeshes = [];
     }
     // #endregion

@@ -13,6 +13,10 @@ export class AudioManager {
         this.musicGain = null;
         this.sfxGain = null;
         this.initialized = false;
+        this.currentMusic = null;
+        this.currentMusicGain = null;
+        this.currentMusicName = null;
+        this.proceduralSoundBuffers = {};
     }
     // #endregion
     // #region Inicialización y Contexto Audio
@@ -56,7 +60,8 @@ export class AudioManager {
         const soundFiles = {
             pistol: 'assets/sound/weapons/pistol.mp3',
             machinegun: 'assets/sound/weapons/ametra.mp3',
-            shotgun: 'assets/sound/weapons/shotgun.mp3',
+            shotgun: 'assets/sound/weapons/shotgun_realistic.mp3',
+            reload: 'assets/sound/weapons/reload.mp3',
             knife: 'assets/sound/weapons/knife.mp3',  // ← NUEVO: sonido del cuchillo
             out_of_ammo: 'assets/sound/weapons/out_of_ammo.mp3',
             enemyDeath: 'assets/sound/enemy_death.mp3',
@@ -74,7 +79,6 @@ export class AudioManager {
             growl2: 'assets/sound/enemy_growl2.mp3',
             hiss1: 'assets/sound/enemy_hiss1.mp3',
             roar1: 'assets/sound/enemy_roar1.mp3',
-            doorOpen: 'assets/sound/door_open.mp3',
             collectItem: 'assets/sound/collect.mp3',
             background: 'assets/sound/background_music.mp3',
             lpdpm: 'assets/sound/music/LPDPM.mp3',
@@ -111,7 +115,17 @@ export class AudioManager {
     // #region Reproducción SFX Audio
     // Descripción: Métodos para reproducir efectos de sonido puntuales.
     playSound(soundName, volume = 1.0, loop = false, pitch = 1.0) {
-        if (!this.initialized || !this.sounds[soundName]) {
+        if (!this.initialized) {
+            return null;
+        }
+
+        // door_open.mp3 no está disponible en los assets actuales; usar un
+        // efecto mecánico sintetizado mantiene la apertura audible igualmente.
+        if (soundName === 'doorOpen' && !this.sounds[soundName]) {
+            return this.playDoorOpenSound(volume, pitch);
+        }
+
+        if (!this.sounds[soundName]) {
             return null;
         }
 
@@ -132,6 +146,85 @@ export class AudioManager {
             return source;
         } catch (error) {
             console.warn(`Error reproduciendo sonido ${soundName}:`, error);
+            return null;
+        }
+    }
+
+    playDoorOpenSound(volume = 1.0, pitch = 1.0) {
+        if (!this.audioContext || !this.sfxGain) {
+            return null;
+        }
+
+        try {
+            const context = this.audioContext;
+            const startTime = context.currentTime;
+            const duration = 0.85;
+            const safeVolume = Math.max(0, Math.min(1, volume));
+            const safePitch = Math.max(0.5, pitch);
+
+            const outputGain = context.createGain();
+            outputGain.gain.setValueAtTime(0.0001, startTime);
+            outputGain.gain.exponentialRampToValueAtTime(
+                Math.max(0.02, safeVolume * 0.45),
+                startTime + 0.04
+            );
+            outputGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            outputGain.connect(this.sfxGain);
+
+            const motor = context.createOscillator();
+            motor.type = 'sawtooth';
+            motor.frequency.setValueAtTime(75 * safePitch, startTime);
+            motor.frequency.exponentialRampToValueAtTime(185 * safePitch, startTime + duration);
+            motor.connect(outputGain);
+            motor.start(startTime);
+            motor.stop(startTime + duration);
+
+            const metalTone = context.createOscillator();
+            const metalGain = context.createGain();
+            metalTone.type = 'triangle';
+            metalTone.frequency.setValueAtTime(420 * safePitch, startTime);
+            metalTone.frequency.exponentialRampToValueAtTime(260 * safePitch, startTime + duration);
+            metalGain.gain.setValueAtTime(0.0001, startTime);
+            metalGain.gain.linearRampToValueAtTime(safeVolume * 0.16, startTime + 0.06);
+            metalGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            metalTone.connect(metalGain);
+            metalGain.connect(outputGain);
+            metalTone.start(startTime);
+            metalTone.stop(startTime + duration);
+
+            if (!this.proceduralSoundBuffers.doorOpen) {
+                const frameCount = Math.floor(context.sampleRate * duration);
+                const noiseBuffer = context.createBuffer(1, frameCount, context.sampleRate);
+                const noiseData = noiseBuffer.getChannelData(0);
+
+                for (let index = 0; index < frameCount; index++) {
+                    const fade = 1 - index / frameCount;
+                    noiseData[index] = (Math.random() * 2 - 1) * fade;
+                }
+
+                this.proceduralSoundBuffers.doorOpen = noiseBuffer;
+            }
+
+            const noise = context.createBufferSource();
+            const noiseFilter = context.createBiquadFilter();
+            const noiseGain = context.createGain();
+            noise.buffer = this.proceduralSoundBuffers.doorOpen;
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.setValueAtTime(900, startTime);
+            noiseFilter.frequency.exponentialRampToValueAtTime(1800, startTime + duration);
+            noiseFilter.Q.value = 0.8;
+            noiseGain.gain.setValueAtTime(0.0001, startTime);
+            noiseGain.gain.linearRampToValueAtTime(safeVolume * 0.2, startTime + 0.03);
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(outputGain);
+            noise.start(startTime);
+            noise.stop(startTime + duration);
+
+            return motor;
+        } catch (error) {
+            console.warn('Error reproduciendo sonido de apertura de puerta:', error);
             return null;
         }
     }
@@ -160,10 +253,19 @@ export class AudioManager {
             source.connect(gainNode);
             gainNode.connect(this.musicGain);
 
+            source.onended = () => {
+                if (this.currentMusic === source) {
+                    this.currentMusic = null;
+                    this.currentMusicGain = null;
+                    this.currentMusicName = null;
+                }
+            };
+
             source.start(0);
 
             this.currentMusic = source;
             this.currentMusicGain = gainNode;
+            this.currentMusicName = musicName;
             return source;
         } catch (error) {
             console.warn(`Error reproduciendo música ${musicName}:`, error);
@@ -171,11 +273,31 @@ export class AudioManager {
         }
     }
 
+    playRandomMusic(previousMusicName = null, volume = 1.0) {
+        const availableMusic = Object.entries(this.music)
+            .filter(([, buffer]) => buffer)
+            .map(([name]) => name);
+
+        if (availableMusic.length === 0) {
+            return null;
+        }
+
+        const differentMusic = availableMusic.filter(name => name !== previousMusicName);
+        const candidates = differentMusic.length > 0 ? differentMusic : availableMusic;
+        const musicName = candidates[Math.floor(Math.random() * candidates.length)];
+
+        return this.playMusic(musicName, volume) ? musicName : null;
+    }
+
     stopMusic() {
-        if (this.currentMusic) {
+        const musicSource = this.currentMusic;
+        this.currentMusic = null;
+        this.currentMusicGain = null;
+        this.currentMusicName = null;
+
+        if (musicSource) {
             try {
-                this.currentMusic.stop();
-                this.currentMusic = null;
+                musicSource.stop();
             } catch (error) {
                 console.warn('Error deteniendo música:', error);
             }
