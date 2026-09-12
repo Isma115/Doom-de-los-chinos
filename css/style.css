@@ -66,6 +66,39 @@ pointer-events: none;
     filter: blur(5px);
     opacity: 0.45;
 }
+
+/* Destello global muy breve al recibir daño. La opacidad baja evita tapar la escena. */
+#damage-flash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    background: rgba(255, 25, 25, 0.13);
+    opacity: 0;
+    transition: opacity 0.025s linear;
+    will-change: opacity;
+}
+
+#damage-flash-overlay.active {
+    opacity: 1;
+}
+
+/* Destello global verde al recoger comida y recuperar salud. */
+#heal-flash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    background: rgba(45, 255, 95, 0.13);
+    opacity: 0;
+    transition: opacity 0.025s linear;
+    will-change: opacity;
+}
+
+#heal-flash-overlay.active {
+    opacity: 1;
+}
+
 #hud-top-right {
     position: absolute;
     top: 14px;
@@ -83,6 +116,57 @@ pointer-events: none;
     line-height: 1;
     text-align: center;
     text-shadow: 1px 1px 2px #000;
+}
+
+#performance-overlay {
+    margin-top: 9px;
+    color: #d8d8d8;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: right;
+    text-shadow: 1px 1px 2px #000;
+    white-space: nowrap;
+}
+
+#performance-overlay div + div {
+    margin-top: 2px;
+}
+
+#performance-overlay strong {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+#respawn-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 12%;
+    transform: translateX(-50%);
+    display: none;
+    padding: 7px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-align: center;
+    text-shadow: 1px 1px 3px #000;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 200;
+}
+
+#respawn-hint.visible {
+    display: block;
+    animation: respawn-hint-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes respawn-hint-pulse {
+    0%, 100% { opacity: 0.78; }
+    50% { opacity: 1; }
 }
 /*  Mensajes y Countdown */
 /* Estilo para mensajes de eventos */
@@ -135,36 +219,18 @@ pointer-events: none;
     left: 20px;
     width: 260px;
     height: 18px;                    /* aún más delgada */
-    background: rgba(0, 0, 0, 0.8);
-    border: 2px solid #880000;
-    border-radius: 6px;
+    background: #000000;
+    border: none;
+    border-radius: 0;
     pointer-events: none;
     z-index: 100;
-}
-
-#coordinates-display {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
-    color: #00ff00;
-    font-family: 'Courier New', monospace;
-    font-size: 16px;
-    padding: 5px 15px;
-    border-radius: 5px;
-    border: 2px solid #008800;
-    text-shadow: 0 0 5px #00ff00;
-    pointer-events: none;
-    z-index: 100;
-    display: none;
 }
 
 #health-bar-bg {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background: #000000;
-    border-radius: 4px;
+    border-radius: 0;
 }
 
 #health-bar-fill {
@@ -173,8 +239,8 @@ pointer-events: none;
     height: 100%;
     width: 100%;
     background: #ff0000;
-    border-radius: 4px;
-    transition: width 0.25s ease;
+    border-radius: 0;
+    transition: none;
     box-shadow: none;
 }
 
@@ -397,6 +463,30 @@ p { font-size: 20px;
     font-size: 16px;
     min-width: 45px;
     text-align: right;
+}
+
+.settings-select {
+    min-width: 190px;
+    padding: 8px 10px;
+    border: 2px solid #660000;
+    border-radius: 4px;
+    background: #0d0d0d;
+    color: #ffcccc;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    outline: none;
+}
+
+.settings-select:focus {
+    border-color: #ff3333;
+    box-shadow: 0 0 8px rgba(255, 51, 51, 0.45);
+}
+
+.settings-select option {
+    background: #0d0d0d;
+    color: #ffcccc;
 }
 
 .volume-slider {

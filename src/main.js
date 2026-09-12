@@ -11,6 +11,12 @@ import { AudioManager } from './core/AudioManager.js';
 import { EventManager } from './core/EventManager.js';
 // #endregion
 
+const DISPLAY_RESOLUTIONS = Object.freeze({
+    '1080p': { width: 1920, height: 1080 },
+    '720p': { width: 1280, height: 720 }
+});
+const DEFAULT_RESOLUTION = '1080p';
+
 class Game {
     // #region Constructor Game
     // Descripción: Inicializa la instancia del juego, configurando la escena, cámara, renderizador, y los gestores básicos de estado y audio.
@@ -24,13 +30,18 @@ class Game {
             stencil: false,
             depth: true
         });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        // Mantener el canvas ajustado a la ventana y controlar la resolución interna.
+        // El pixel ratio 1 hace que 1080p/720p sean predecibles también en pantallas Retina.
+        this.renderer.setPixelRatio(1);
         this.renderer.shadowMap.enabled = false;
         document.body.appendChild(this.renderer.domElement);
+        this.resolutionId = this.getSavedResolution();
+        this.setResolution(this.resolutionId);
 
         this.prevTime = performance.now();
         this.frameCount = 0;
+        this.fpsFrameCount = 0;
+        this.fpsSampleStart = this.prevTime;
         this.lastCleanupTime = 0;
         this.isPaused = false;
         this.isGameOver = false;
@@ -69,7 +80,9 @@ class Game {
     setupGlobalRestartListener() {
         const handleRestart = (e) => {
             console.log("key: ", e.key);
-            if (this.isGameOver && (e.key === 'r' || e.key === 'R')) {
+            const isRestartKey = e.code === 'KeyR' || e.key === 'r' || e.key === 'R';
+            const isGameOver = this.isGameOver || this.player?.isGameOver;
+            if (isGameOver && isRestartKey) {
                 e.preventDefault();
 
                 // Reinicio limpio sin recargar toda la página
@@ -120,6 +133,12 @@ class Game {
             this.player.teleport(playerSpawn, playerRotation);
         }
 
+        // El mapa de pruebas muestra el portal desde el inicio para poder
+        // comprobar su spritesheet e interacción sin completar ocho rondas.
+        if (mapName === 'pruebas_alien') {
+            this.world.spawnExitPortal(this.player.getPosition(), this.audioManager);
+        }
+
         UIManager.updateHealth(this.player.health);
 
         this.player.controls.addEventListener('lock', () => {
@@ -128,14 +147,25 @@ class Game {
         });
 
         this.player.controls.addEventListener('unlock', () => {
-            this.isPaused = true;
+            // La muerte libera el pointer lock, pero la escena debe seguir
+            // actualizándose para reproducir la animación de caída.
+            this.isPaused = !this.player?.isDead;
         });
 
         //  Configuración de Eventos y UI
-        this.eventManager = new EventManager(this.scene, this.enemyManager, this.audioManager, this.world);
+        this.eventManager = new EventManager(
+            this.scene,
+            this.enemyManager,
+            this.audioManager,
+            this.world,
+            this.player
+        );
         await this.eventManager.loadEventsForMap(mapName);
 
-        this.settingsManager = new SettingsManager(this.audioManager);
+        this.settingsManager = new SettingsManager(
+            this.audioManager,
+            (resolutionId) => this.setResolution(resolutionId)
+        );
         this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
 
         // NUEVA ESTRUCTURA: Sincronizar el estado de bulletLog del debug panel con el weapon system y player
@@ -158,9 +188,11 @@ class Game {
         }
 
         // El reloj empieza cuando el mundo ya está listo; evita que la
-        // primera actualización mueva al alien de golpe por el tiempo de
+        // primera actualización mueva al esqueleto minigun de golpe por el tiempo de
         // carga del mapa y falsee la prueba de sus animaciones.
         this.prevTime = performance.now();
+        this.fpsFrameCount = 0;
+        this.fpsSampleStart = this.prevTime;
         this.animate();
     }
     // #endregion
@@ -169,6 +201,17 @@ class Game {
     // Descripción: Maneja el bucle de renderizado y actualización lógica frame a frame, gestionando el tiempo delta y el estado de pausa.
     animate() {
         requestAnimationFrame(() => this.animate());
+        this.updateFPSCounter();
+
+        if (this.player?.isDead) {
+            const time = performance.now();
+            const delta = (time - this.prevTime) / 1000;
+
+            this.player.updateDeath(delta);
+            this.prevTime = time;
+            this.renderer.render(this.scene, this.camera);
+            return;
+        }
 
         //  Lógica de Actualización Main
         if (this.isPaused) {
@@ -182,12 +225,26 @@ class Game {
         //  Actualización de Lógica
         if (this.player && !this.player.isGameOver) {
             this.player.update(delta);
+
+            // Actualizar los cohetes después del disparo del jugador para que
+            // puedan avanzar, detectar impactos y aplicar el daño de área.
+            if (this.player.weaponSystem?.update) {
+                this.player.weaponSystem.update(delta, () => {
+                    this.player.score++;
+                    UIManager.updateScore(this.player.score);
+                });
+            }
+
             if (this.world?.updateBillboards) {
                 this.world.updateBillboards(this.camera);
             }
 
             if (this.eventManager) {
                 this.eventManager.update(delta, this.player.getPosition());
+            }
+
+            if (this.world?.updateExitPortal) {
+                this.world.updateExitPortal(delta, this.camera.position);
             }
 
             const enemySpawns = this.world.getEnemySpawns();
@@ -220,9 +277,14 @@ class Game {
                 }
             });
 
-            this.enemyManager.update(delta, this.player.getPosition(), (damage, damageSource) => {
-                this.player.takeDamage(damage, damageSource);
-            });
+            this.enemyManager.update(
+                delta,
+                this.player.getPosition(),
+                (damage, damageSource) => {
+                    this.player.takeDamage(damage, damageSource);
+                },
+                this.camera
+            );
             Door.updateAll(delta, this.player.getPosition());
 
             this.updateFoodItems(delta);
@@ -235,6 +297,17 @@ class Game {
         //  Renderizado
         this.renderer.render(this.scene, this.camera);
 
+    }
+
+    updateFPSCounter(now = performance.now()) {
+        this.fpsFrameCount++;
+        const elapsed = now - this.fpsSampleStart;
+
+        if (elapsed < 500) return;
+
+        UIManager.updateFPS((this.fpsFrameCount * 1000) / elapsed);
+        this.fpsFrameCount = 0;
+        this.fpsSampleStart = now;
     }
     // #endregion
 
@@ -271,9 +344,37 @@ class Game {
     // #region Manejo de Ventana Game
     // Descripción: Ajusta la cámara y el renderizador cuando cambia el tamaño de la ventana del navegador.
     onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.setResolution(this.resolutionId);
+    }
+
+    getSavedResolution() {
+        try {
+            const savedSettings = JSON.parse(localStorage.getItem('gameAudioSettings') || '{}');
+            if (Object.prototype.hasOwnProperty.call(DISPLAY_RESOLUTIONS, savedSettings.resolution)) {
+                return savedSettings.resolution;
+            }
+        } catch (error) {
+            console.warn('No se pudo leer la resolución guardada:', error);
+        }
+        return DEFAULT_RESOLUTION;
+    }
+
+    setResolution(resolutionId = DEFAULT_RESOLUTION) {
+        const selectedResolution = Object.prototype.hasOwnProperty.call(DISPLAY_RESOLUTIONS, resolutionId)
+            ? resolutionId
+            : DEFAULT_RESOLUTION;
+        const resolution = DISPLAY_RESOLUTIONS[selectedResolution];
+        const viewportWidth = Math.max(1, window.innerWidth || resolution.width);
+        const viewportHeight = Math.max(1, window.innerHeight || resolution.height);
+        const viewportAspect = viewportWidth / viewportHeight;
+        const renderWidth = Math.max(1, Math.round(resolution.height * viewportAspect));
+
+        this.resolutionId = selectedResolution;
+        this.renderer.setSize(renderWidth, resolution.height, false);
+        this.renderer.domElement.style.width = `${viewportWidth}px`;
+        this.renderer.domElement.style.height = `${viewportHeight}px`;
+        this.camera.aspect = viewportAspect;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
     // #endregion
 

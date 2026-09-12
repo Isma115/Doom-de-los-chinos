@@ -1,9 +1,15 @@
 // #region Importaciones World
 // Descripción: Importa las dependencias externas (Three.js, Loaders) y módulos internos necesarios para la construcción del mundo.
 import * as THREE from '../../node_modules/three/build/three.module.js';
-import { CONFIG, FOOD_TYPES } from '../Constants.js';
+import {
+    CONFIG,
+    EXIT_PORTAL_CONFIG,
+    FOOD_TYPES,
+    WEAPONS_DATA
+} from '../Constants.js';
 import { MapLoader } from './MapLoader.js';
 import { Door } from '../entities/Door.js';
+import { ExitPortal } from '../entities/ExitPortal.js';
 
 import { OBJLoader } from '../../node_modules/three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from '../../node_modules/three/examples/jsm/loaders/MTLLoader.js';
@@ -20,6 +26,7 @@ export class World {
         this.sharedMaterials = {};
         this.sharedGeometries = {};
         this.mapData = null;
+        this.currentMapName = null;
         this.enemySpawns = [];
         this.genericSpawners = [];
         this.mapLoader = new MapLoader();
@@ -28,19 +35,27 @@ export class World {
         this.foodMeshes = [];
         this.foodTextures = {};
         this.ammoMeshes = [];
+        this.weaponMeshes = [];
         this.staticModels = [];
         this.decorativeMeshes = []; // Objetos decorativos (squares) para efectos de balas/sangre
         this.billboardMeshes = [];
+        this.floorGroup = null;
+        this.parkGroundTerrain = null;
+        this.collisionHelpers = new Map();
+        this.exitPortal = null;
+        this.exitPortalSpawn = null;
     }
     // #endregion
 
     // #region Inicialización World
     // Descripción: Carga los datos del mapa, configura el skybox (cielo), iluminación, genera el suelo y crea los objetos iniciales del nivel.
     async init(mapName = 'default') {
+        this.currentMapName = mapName;
         // Carga de Datos
         this.mapData = await this.mapLoader.loadMapFile(mapName);
         this.enemySpawns = this.mapData.enemySpawns;
         this.genericSpawners = this.mapData.genericSpawners;
+        this.exitPortalSpawn = this.mapData.exitPortalSpawn || null;
         this.ammoSpawners = this.mapData.ammoSpawners || [];
         this.foodSpawners = this.mapData.foodSpawners || [];
 
@@ -104,67 +119,103 @@ export class World {
         const terrainMargin = CONFIG.BLOCK_SIZE * 2;
         const terrainWidth = terrainBounds.maxX - terrainBounds.minX;
         const terrainDepth = terrainBounds.maxZ - terrainBounds.minZ;
-        const floorWidth = Math.max(terrainWidth + terrainMargin * 2, CONFIG.ARENA_SIZE);
-        const floorDepth = Math.max(terrainDepth + terrainMargin * 2, CONFIG.ARENA_SIZE);
+        const minimumFloorSize = mapName === 'mapa1' ? 0 : CONFIG.ARENA_SIZE;
+        const floorWidth = Math.max(terrainWidth + terrainMargin * 2, minimumFloorSize);
+        const floorDepth = Math.max(terrainDepth + terrainMargin * 2, minimumFloorSize);
         const floorCenterX = (terrainBounds.minX + terrainBounds.maxX) / 2;
         const floorCenterZ = (terrainBounds.minZ + terrainBounds.maxZ) / 2;
 
         // Generación de Suelo
-        const tileSize = 20;
-        const tilesX = Math.ceil(floorWidth / tileSize);
-        const tilesZ = Math.ceil(floorDepth / tileSize);
-
-        const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
-
-        let floorTexture = null;
-
-        try {
-            floorTexture = textureLoader.load(
-                'assets/textures/grass.jpg',
+        // Parque usa una única imagen compuesta y un único plano. El camino
+        // ya está horneado dentro de la textura, así que no se crean baldosas
+        // independientes ni otro suelo debajo de ellas.
+        if (mapName === 'mapa1') {
+            const parkGroundTexture = textureLoader.load(
+                'assets/textures/park/park_ground_terrain.png',
                 () => { },
-                () => { },
-                () => { floorTexture = null; }
+                undefined,
+                () => console.error('No se pudo cargar assets/textures/park/park_ground_terrain.png')
             );
-        } catch (err) {
-            floorTexture = null;
-        }
+            parkGroundTexture.colorSpace = THREE.SRGBColorSpace;
+            parkGroundTexture.wrapS = THREE.ClampToEdgeWrapping;
+            parkGroundTexture.wrapT = THREE.ClampToEdgeWrapping;
+            parkGroundTexture.minFilter = THREE.LinearMipmapLinearFilter;
+            parkGroundTexture.magFilter = THREE.LinearFilter;
+            parkGroundTexture.generateMipmaps = true;
+            parkGroundTexture.needsUpdate = true;
 
-        let tileMaterial;
-        if (floorTexture) {
-            floorTexture.wrapS = THREE.RepeatWrapping;
-            floorTexture.wrapT = THREE.RepeatWrapping;
-            floorTexture.repeat.set(2, 2);
-            tileMaterial = new THREE.MeshLambertMaterial({ map: floorTexture });
+            const terrainGeometry = new THREE.PlaneGeometry(floorWidth, floorDepth);
+            terrainGeometry.rotateX(-Math.PI / 2);
+            const terrainMaterial = new THREE.MeshLambertMaterial({
+                map: parkGroundTexture,
+                side: THREE.FrontSide
+            });
+            const parkGroundTerrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+            parkGroundTerrain.name = 'park_ground_terrain';
+            parkGroundTerrain.position.set(floorCenterX, 0, floorCenterZ);
+            parkGroundTerrain.renderOrder = -20;
+            parkGroundTerrain.userData = {
+                type: 'floor',
+                isGroundPlane: true,
+                bulletImpact: true,
+                bulletImpactFallback: false
+            };
+
+            this.scene.add(parkGroundTerrain);
+            this.floorGroup = parkGroundTerrain;
+            this.parkGroundTerrain = parkGroundTerrain;
         } else {
-            tileMaterial = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
-        }
+            const tileSize = 20;
+            const tilesX = Math.ceil(floorWidth / tileSize);
+            const tilesZ = Math.ceil(floorDepth / tileSize);
+            const tileGeometry = new THREE.PlaneGeometry(tileSize, tileSize);
 
-        const floorGroup = new THREE.Group();
-        const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
-
-        const startX = floorCenterX - (tilesX * tileSize) / 2 + tileSize / 2;
-        const startZ = floorCenterZ - (tilesZ * tileSize) / 2 + tileSize / 2;
-
-        for (let x = 0; x < tilesX; x++) {
-            for (let z = 0; z < tilesZ; z++) {
-                const tile = new THREE.Mesh(tileGeometry, tileMaterial);
-                tile.rotation.x = -Math.PI / 2;
-                tile.rotation.z = rotations[Math.floor(Math.random() * rotations.length)];
-                tile.position.set(startX + x * tileSize, 0, startZ + z * tileSize);
-                tile.matrixAutoUpdate = false;
-                tile.updateMatrix();
-                floorGroup.add(tile);
+            let floorTexture = null;
+            try {
+                floorTexture = textureLoader.load(
+                    'assets/textures/grass.jpg',
+                    () => { },
+                    () => { },
+                    () => { floorTexture = null; }
+                );
+            } catch (err) {
+                floorTexture = null;
             }
+
+            let tileMaterial;
+            if (floorTexture) {
+                floorTexture.wrapS = THREE.RepeatWrapping;
+                floorTexture.wrapT = THREE.RepeatWrapping;
+                floorTexture.repeat.set(2, 2);
+                tileMaterial = new THREE.MeshLambertMaterial({ map: floorTexture });
+            } else {
+                tileMaterial = new THREE.MeshLambertMaterial({ color: 0x44aa44 });
+            }
+
+            const floorGroup = new THREE.Group();
+            const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+            const startX = floorCenterX - (tilesX * tileSize) / 2 + tileSize / 2;
+            const startZ = floorCenterZ - (tilesZ * tileSize) / 2 + tileSize / 2;
+
+            for (let x = 0; x < tilesX; x++) {
+                for (let z = 0; z < tilesZ; z++) {
+                    const tile = new THREE.Mesh(tileGeometry, tileMaterial);
+                    tile.rotation.x = -Math.PI / 2;
+                    tile.rotation.z = rotations[Math.floor(Math.random() * rotations.length)];
+                    tile.position.set(startX + x * tileSize, 0, startZ + z * tileSize);
+                    tile.matrixAutoUpdate = false;
+                    tile.updateMatrix();
+                    floorGroup.add(tile);
+                }
+            }
+
+            floorGroup.userData = {
+                type: 'floor',
+                bulletImpact: true
+            };
+            this.scene.add(floorGroup);
+            this.floorGroup = floorGroup;
         }
-
-        floorGroup.userData = {
-            type: 'floor',
-            bulletImpact: true
-        };
-        this.scene.add(floorGroup);
-
-        // Guardar referencia al suelo para raycasting
-        this.floorGroup = floorGroup;
 
         // Generación de Objetos Inicial
         this.createWallsFromMap();
@@ -177,8 +228,168 @@ export class World {
     }
     // #endregion
 
+    // #region Portal de Salida World
+    // Descripción: Busca una celda despejada del mapa y materializa el portal
+    // cuando el sistema de rondas o el mapa de pruebas lo solicita.
+    findExitPortalPosition(playerPosition = null) {
+        const explicitPosition = this.exitPortalSpawn
+            ? new THREE.Vector3(this.exitPortalSpawn.x, 0, this.exitPortalSpawn.z)
+            : null;
+        const genericPositions = (this.genericSpawners || [])
+            .map(spawner => spawner?.position)
+            .filter(Boolean)
+            .map(position => new THREE.Vector3(position.x, 0, position.z));
+
+        const referencePosition = playerPosition || this.getPlayerSpawn();
+        if (referencePosition) {
+            genericPositions.sort((first, second) => {
+                const firstDistance = first.distanceToSquared(referencePosition);
+                const secondDistance = second.distanceToSquared(referencePosition);
+                return secondDistance - firstDistance;
+            });
+        }
+        const candidatePositions = explicitPosition
+            ? [explicitPosition, ...genericPositions]
+            : genericPositions;
+
+        const portalWidth = Number(EXIT_PORTAL_CONFIG.width) || 5.2;
+        const portalHeight = Number(EXIT_PORTAL_CONFIG.height) || 7.2;
+        const portalDepth = 1.5;
+        const solidObjects = this.getSolidObjects();
+        const canPlace = position => {
+            if (!position) return false;
+
+            if (playerPosition) {
+                const distanceFromPlayer = Math.hypot(
+                    playerPosition.x - position.x,
+                    playerPosition.z - position.z
+                );
+                if (distanceFromPlayer < 6) return false;
+            }
+
+            const portalBox = new THREE.Box3(
+                new THREE.Vector3(
+                    position.x - portalWidth / 2,
+                    0,
+                    position.z - portalDepth / 2
+                ),
+                new THREE.Vector3(
+                    position.x + portalWidth / 2,
+                    portalHeight,
+                    position.z + portalDepth / 2
+                )
+            );
+
+            return solidObjects.every(object => {
+                const boundingBox = object?.userData?.boundingBox;
+                return !boundingBox || !portalBox.intersectsBox(boundingBox);
+            });
+        };
+
+        const freePosition = candidatePositions.find(canPlace);
+        if (freePosition) return freePosition;
+
+        // Fallback para mapas de Parque modificados: probar el centro y una
+        // pequeña cuadrícula antes de renunciar a mostrar la salida.
+        const bounds = this.mapData?.terrainBounds;
+        if (bounds) {
+            const centerX = (bounds.minX + bounds.maxX) / 2;
+            const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+            const fallbackPositions = [
+                new THREE.Vector3(centerX, 0, centerZ),
+                new THREE.Vector3(centerX - 10, 0, centerZ),
+                new THREE.Vector3(centerX + 10, 0, centerZ),
+                new THREE.Vector3(centerX, 0, centerZ - 10),
+                new THREE.Vector3(centerX, 0, centerZ + 10)
+            ];
+            const fallbackPosition = fallbackPositions.find(canPlace);
+            if (fallbackPosition) return fallbackPosition;
+        }
+
+        return null;
+    }
+
+    spawnExitPortal(playerPosition = null, audioManager = null) {
+        if (!['mapa1', 'pruebas_alien'].includes(this.currentMapName)) return null;
+        if (this.exitPortal) return this.exitPortal;
+
+        const position = this.findExitPortalPosition(playerPosition);
+        if (!position) {
+            console.warn('No se encontró una zona libre para el portal de salida');
+            return null;
+        }
+
+        this.exitPortal = new ExitPortal(this.scene, position, audioManager);
+        console.log(`Portal de salida abierto en (${position.x.toFixed(1)}, ${position.z.toFixed(1)})`);
+        return this.exitPortal;
+    }
+
+    updateExitPortal(delta, cameraPosition) {
+        this.exitPortal?.update(delta, cameraPosition);
+    }
+
+    tryEnterExitPortal(playerPosition) {
+        if (!this.exitPortal?.isPlayerNear(playerPosition)) return false;
+
+        const destinationMap = this.exitPortal.mesh.userData.destinationMap;
+        if (destinationMap) {
+            return destinationMap;
+        }
+
+        // El siguiente mapa aún no existe; mantener el portal interactivo
+        // permite conectar la transición sin rehacer la entidad más adelante.
+        return true;
+    }
+
+    getExitPortalDestination() {
+        return this.exitPortal?.mesh?.userData?.destinationMap || null;
+    }
+    // #endregion
+
     // #region Getters de Objetos World
     // Descripción: Proporciona acceso a las listas de objetos colisionables, spawners y mallas del mundo.
+    setCollisionDebugVisible(visible) {
+        const shouldShow = Boolean(visible);
+        CONFIG.DEBUG_SHOW_HITBOXES = shouldShow;
+
+        if (shouldShow) {
+            const collidableObjects = new Set([
+                ...this.walls,
+                ...this.staticModels,
+                ...this.doorMeshes
+            ]);
+
+            collidableObjects.forEach(object => {
+                if (!object?.userData?.boundingBox) return;
+
+                let helper = this.collisionHelpers.get(object);
+                if (!helper) {
+                    helper = new THREE.Box3Helper(object.userData.boundingBox.clone(), 0x00ff00);
+                    helper.renderOrder = 100;
+                    helper.material.depthTest = false;
+                    helper.material.depthWrite = false;
+                    this.scene.add(helper);
+                    this.collisionHelpers.set(object, helper);
+                }
+
+                helper.box.copy(object.userData.boundingBox);
+                helper.visible = Boolean(object.parent);
+                helper.updateMatrixWorld(true);
+            });
+        }
+
+        this.collisionHelpers.forEach((helper, object) => {
+            if (!shouldShow || !object?.parent || !object.userData?.boundingBox) {
+                helper.visible = false;
+                return;
+            }
+
+            helper.box.copy(object.userData.boundingBox);
+            helper.visible = true;
+            helper.updateMatrixWorld(true);
+        });
+    }
+
     getSolidObjects() {
         const solidObjects = new Set();
         const addObject = (object) => {
@@ -240,6 +451,10 @@ export class World {
 
     getAmmoMeshes() {
         return this.ammoMeshes;
+    }
+
+    getWeaponMeshes() {
+        return this.weaponMeshes;
     }
 
     getGenericSpawners() {
@@ -349,9 +564,9 @@ export class World {
         });
 
         const foodSprite = new THREE.Sprite(spriteMaterial);
-        const scale = type.scale || 3;
+        const scale = (type.scale || 3) * CONFIG.FOOD_SPRITE_SCALE;
         foodSprite.scale.set(scale, scale, 1);
-        foodSprite.position.set(position.x, 2, position.z);
+        foodSprite.position.set(position.x, CONFIG.PICKUP_SPRITE_HEIGHT, position.z);
 
         foodSprite.userData = {
             type: 'food',
@@ -381,6 +596,10 @@ export class World {
             texturePath = 'assets/textures/pistol_ammo.png';
             ammoAmount = CONFIG.PISTOL_AMMO_AMOUNT;
             weaponIndex = 0;
+        } else if (type === 'rpg') {
+            texturePath = 'assets/textures/rpg_ammo.png';
+            ammoAmount = CONFIG.RPG_AMMO_AMOUNT;
+            weaponIndex = WEAPONS_DATA.findIndex(weapon => weapon.id === 'rpg');
         } else if (type === 'shotgun') {
             texturePath = 'assets/textures/municion_escopeta.png';
             ammoAmount = CONFIG.SHOTGUN_AMMO_AMOUNT;
@@ -402,13 +621,17 @@ export class World {
             map: texture,
             color: 0xffffff,
             depthWrite: false,
-            transparent: true
+            transparent: true,
+            alphaTest: 0.03
         });
 
         const ammoSprite = new THREE.Sprite(spriteMaterial);
 
-        ammoSprite.scale.set(2, 2, 1);
-        ammoSprite.position.set(position.x, 2, position.z);
+        const ammoScale = type === 'rpg'
+            ? (CONFIG.RPG_AMMO_SPRITE_SCALE || 0.85)
+            : (CONFIG.AMMO_SPRITE_SCALE || 0.75);
+        ammoSprite.scale.set(ammoScale, ammoScale, 1);
+        ammoSprite.position.set(position.x, CONFIG.PICKUP_SPRITE_HEIGHT, position.z);
 
         ammoSprite.userData = {
             type: 'ammo',
@@ -422,6 +645,52 @@ export class World {
         this.scene.add(ammoSprite);
         this.ammoMeshes.push(ammoSprite);
         return ammoSprite;
+    }
+
+    spawnWeaponPickup(weaponId, position) {
+        const weapon = WEAPONS_DATA.find(type =>
+            type.id === weaponId || type.name === weaponId
+        );
+        if (!weapon?.pickupTexture || !position) return null;
+
+        const textureLoader = new THREE.TextureLoader();
+        const texture = textureLoader.load(
+            weapon.pickupTexture,
+            () => { },
+            () => { },
+            () => { console.error(`No se pudo cargar el recogible del arma: ${weapon.name}`); }
+        );
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+
+        const material = new THREE.SpriteMaterial({
+            map: texture,
+            color: 0xffffff,
+            transparent: true,
+            depthWrite: false,
+            alphaTest: 0.03
+        });
+        const pickup = new THREE.Sprite(material);
+        const scale = Number(weapon.pickupScale) || 1.35;
+        pickup.scale.set(scale, scale, 1);
+        pickup.position.set(
+            position.x,
+            CONFIG.PICKUP_SPRITE_HEIGHT,
+            position.z
+        );
+        pickup.userData = {
+            type: 'weapon',
+            weaponId: weapon.id || weapon.name,
+            ammoAmount: Number(weapon.pickupAmmo) || 0,
+            collected: false,
+            rotationSpeed: 1.6
+        };
+
+        this.scene.add(pickup);
+        this.weaponMeshes.push(pickup);
+        return pickup;
     }
     // #endregion
 
@@ -461,8 +730,13 @@ export class World {
 
             const ammoSprite = new THREE.Sprite(spriteMaterial);
 
-            ammoSprite.scale.set(2, 2, 1);
-            ammoSprite.position.set(ammoData.position.x, 2, ammoData.position.z);
+            const ammoScale = CONFIG.AMMO_SPRITE_SCALE || 0.75;
+            ammoSprite.scale.set(ammoScale, ammoScale, 1);
+            ammoSprite.position.set(
+                ammoData.position.x,
+                CONFIG.PICKUP_SPRITE_HEIGHT,
+                ammoData.position.z
+            );
 
             ammoSprite.userData = {
                 type: 'ammo',
@@ -526,6 +800,11 @@ export class World {
 
                 if (type === "flower_pot" || type === "flower_pot_3d" || type === "maceta_3d") {
                     this.createFlowerPotProp(model, textureLoader);
+                    continue;
+                }
+
+                if (type === "fountain" || type === "fuente") {
+                    this.createFountainProp(model);
                     continue;
                 }
 
@@ -627,6 +906,8 @@ export class World {
                     const geometry = new THREE.PlaneGeometry(width, height);
                     const textureLoader = new THREE.TextureLoader();
                     const rotationX = model.rotationX || 0;
+                    const isGroundPlane = model.groundPlane === true ||
+                        Math.abs(Math.abs(rotationX) - 90) < 0.001;
                     const shouldBillboard = model.billboard === true || (
                         model.billboard !== false && Math.abs(rotationX) < 0.001
                     );
@@ -643,23 +924,55 @@ export class World {
                         material = new THREE.MeshBasicMaterial({
                             map: tex,
                             side: THREE.DoubleSide,
-                            transparent: true,
+                            // Los suelos opacos deben renderizarse antes que
+                            // los sprites transparentes de enemigos e ítems.
+                            // Si entran en la lista de transparentes, Three.js
+                            // puede ordenarlos por distancia y dibujarlos
+                            // visualmente por encima del objeto.
+                            transparent: !isGroundPlane,
                             alphaTest: 0.02,
-                            depthWrite: false
+                            // Los planos 2D deben escribir profundidad para
+                            // ocultar los impactos que estén detrás de ellos.
+                            // alphaTest conserva la transparencia sin dejar
+                            // pasar agujeros de bala por toda la textura.
+                            depthWrite: true,
+                            // Separar y desplazar los planos de suelo evita
+                            // z-fighting con el suelo base.
+                            polygonOffset: isGroundPlane,
+                            polygonOffsetFactor: isGroundPlane ? -4 : 0,
+                            polygonOffsetUnits: isGroundPlane ? -4 : 0
                         });
                     } else {
                         material = new THREE.MeshBasicMaterial({
                             color: 0xffffff,
                             side: THREE.DoubleSide,
-                            transparent: true,
+                            transparent: !isGroundPlane,
                             alphaTest: 0.02,
-                            depthWrite: false
+                            depthWrite: true,
+                            polygonOffset: isGroundPlane,
+                            polygonOffsetFactor: isGroundPlane ? -4 : 0,
+                            polygonOffsetUnits: isGroundPlane ? -4 : 0
                         });
                     }
 
                     const squareMesh = new THREE.Mesh(geometry, material);
                     console.log(`[World] Creating square mesh at ${JSON.stringify(position)} with size ${width}x${height}`);
-                    squareMesh.position.set(position.x, position.y, position.z);
+                    // Algunos decorados de suelo se solapan (por ejemplo, el
+                    // arenero invade ligeramente el camino de piedra). No
+                    // basta con elevar todos al mismo Y: siguen quedando
+                    // coplanares entre sí y aparece z-fighting. `groundLayer`
+                    // permite separar visualmente esas superficies sin
+                    // alterar su posición lógica en el mapa.
+                    const groundLayer = Number.isFinite(Number(model.groundLayer))
+                        ? Number(model.groundLayer)
+                        : 0;
+                    const groundLayerStep = 0.02;
+                    const groundY = isGroundPlane
+                        ? Math.max(CONFIG.GROUND_SURFACE_OFFSET, position.y || 0)
+                            + groundLayer * groundLayerStep
+                        : position.y;
+                    squareMesh.position.set(position.x, groundY, position.z);
+                    squareMesh.renderOrder = isGroundPlane ? -20 : 0;
 
                     const { rotationY, rotationZ = 0, rotationOrder = 'XYZ' } = model;
                     squareMesh.rotation.order = rotationOrder;
@@ -678,7 +991,8 @@ export class World {
                         type: 'square',
                         bulletImpact: model.bulletImpact !== false,
                         bulletImpactFallback: hasCollision,
-                        billboard: shouldBillboard
+                        billboard: shouldBillboard,
+                        isGroundPlane
                     };
                     this.decorativeMeshes.push(squareMesh);
                     if (shouldBillboard) {
@@ -688,29 +1002,37 @@ export class World {
                     if (hasCollision) {
                         // Colisión: una caja simple dimensionada según el prop.
                         // Los billboards mantienen este volumen fijo aunque roten.
+                        const numericValue = (value, fallback) => {
+                            const parsedValue = Number(value);
+                            return Number.isFinite(parsedValue) ? parsedValue : fallback;
+                        };
                         const colliderWidth = Math.max(
                             0.5,
-                            model.collisionWidth || width
+                            numericValue(model.collisionWidth, width)
                         );
                         const colliderHeight = Math.max(
                             1,
-                            model.collisionHeight || height
+                            numericValue(model.collisionHeight, height)
                         );
                         const colliderDepth = Math.max(
                             0.5,
-                            model.collisionDepth || Math.min(width, height) * 0.25
+                            numericValue(model.collisionDepth, Math.min(width, height) * 0.25)
                         );
                         const center = squareMesh.position;
+                        const collisionBottom = numericValue(
+                            model.collisionBottom,
+                            center.y - colliderHeight / 2
+                        );
 
                         const collisionBox = new THREE.Box3(
                             new THREE.Vector3(
                                 center.x - colliderWidth / 2,
-                                center.y - colliderHeight / 2,
+                                collisionBottom,
                                 center.z - colliderDepth / 2
                             ),
                             new THREE.Vector3(
                                 center.x + colliderWidth / 2,
-                                center.y + colliderHeight / 2,
+                                collisionBottom + colliderHeight,
                                 center.z + colliderDepth / 2
                             )
                         );
@@ -904,6 +1226,172 @@ export class World {
                 mesh.userData.boundingBox.setFromObject(mesh);
             }
         }
+    }
+    // #endregion
+
+    // #region Creación de Prop de Fuente 3D World
+    // Descripción: Construye una fuente octogonal low poly con varios niveles y agua.
+    createFountainProp(model) {
+        const group = new THREE.Group();
+        const width = Math.max(5, Number(model.width) || 7);
+        const depth = Math.max(5, Number(model.depth) || 7);
+        const height = Math.max(2.8, Number(model.height) || 3.2);
+        const propScale = Number(model.scale) || 1;
+        const radialSegments = 8;
+
+        const stoneMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b9299,
+            roughness: 0.86,
+            metalness: 0.04,
+            flatShading: true
+        });
+        const stoneLightMaterial = new THREE.MeshStandardMaterial({
+            color: 0xb7bdc1,
+            roughness: 0.8,
+            metalness: 0.03,
+            flatShading: true
+        });
+        const stoneDarkMaterial = new THREE.MeshStandardMaterial({
+            color: 0x59636b,
+            roughness: 0.92,
+            metalness: 0.02,
+            flatShading: true
+        });
+        const waterMaterial = new THREE.MeshStandardMaterial({
+            color: 0x20b8d8,
+            emissive: 0x07566a,
+            emissiveIntensity: 0.55,
+            roughness: 0.18,
+            metalness: 0.25,
+            transparent: true,
+            opacity: 0.82,
+            flatShading: true
+        });
+        const waterHighlightMaterial = new THREE.MeshStandardMaterial({
+            color: 0x9bf5ff,
+            emissive: 0x168da3,
+            emissiveIntensity: 0.8,
+            roughness: 0.12,
+            metalness: 0.18,
+            transparent: true,
+            opacity: 0.72,
+            flatShading: true
+        });
+
+        const addCylinder = (name, radiusTop, radiusBottom, cylinderHeight, y, material) => {
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(
+                    radiusTop,
+                    radiusBottom,
+                    cylinderHeight,
+                    radialSegments
+                ),
+                material
+            );
+            mesh.name = name;
+            mesh.position.y = y;
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        const addRing = (name, radius, tube, y, material) => {
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(radius, tube, 4, radialSegments),
+                material
+            );
+            ring.name = name;
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = y;
+            ring.castShadow = false;
+            ring.receiveShadow = false;
+            group.add(ring);
+            return ring;
+        };
+
+        const outerRadius = Math.min(width, depth) / 2;
+
+        // Base y pedestal inferior.
+        addCylinder('fountain-base', outerRadius * 0.98, outerRadius, height * 0.08, height * 0.04, stoneDarkMaterial);
+        addCylinder('fountain-plinth', outerRadius * 0.84, outerRadius * 0.92, height * 0.12, height * 0.14, stoneMaterial);
+
+        // Gran cuenca inferior y su lámina de agua.
+        addCylinder('fountain-lower-basin', outerRadius * 0.76, outerRadius * 0.9, height * 0.1, height * 0.25, stoneLightMaterial);
+        addCylinder('fountain-lower-water', outerRadius * 0.71, outerRadius * 0.71, height * 0.025, height * 0.315, waterMaterial);
+        addRing('fountain-lower-rim', outerRadius * 0.75, outerRadius * 0.035, height * 0.305, stoneLightMaterial);
+
+        // Columna central y cuenca intermedia.
+        addCylinder('fountain-main-column', outerRadius * 0.18, outerRadius * 0.27, height * 0.25, height * 0.445, stoneMaterial);
+        addCylinder('fountain-middle-basin', outerRadius * 0.47, outerRadius * 0.31, height * 0.08, height * 0.61, stoneLightMaterial);
+        addCylinder('fountain-middle-water', outerRadius * 0.41, outerRadius * 0.41, height * 0.025, height * 0.665, waterMaterial);
+        addRing('fountain-middle-rim', outerRadius * 0.45, outerRadius * 0.028, height * 0.65, stoneLightMaterial);
+
+        // Nivel superior, remate y pequeño chorro de agua.
+        addCylinder('fountain-upper-column', outerRadius * 0.1, outerRadius * 0.16, height * 0.16, height * 0.76, stoneDarkMaterial);
+        addCylinder('fountain-upper-basin', outerRadius * 0.32, outerRadius * 0.2, height * 0.06, height * 0.87, stoneLightMaterial);
+        addCylinder('fountain-upper-water', outerRadius * 0.27, outerRadius * 0.27, height * 0.025, height * 0.9125, waterHighlightMaterial);
+        addRing('fountain-upper-rim', outerRadius * 0.3, outerRadius * 0.022, height * 0.9, stoneLightMaterial);
+
+        const finial = new THREE.Mesh(
+            new THREE.ConeGeometry(outerRadius * 0.09, height * 0.1, radialSegments),
+            stoneDarkMaterial
+        );
+        finial.name = 'fountain-finial';
+        finial.position.y = height * 0.95;
+        finial.castShadow = false;
+        finial.receiveShadow = false;
+        group.add(finial);
+
+        const topJet = new THREE.Mesh(
+            new THREE.ConeGeometry(outerRadius * 0.045, height * 0.16, 6),
+            waterHighlightMaterial
+        );
+        topJet.name = 'fountain-top-jet';
+        topJet.position.y = height * 0.98;
+        topJet.castShadow = false;
+        topJet.receiveShadow = false;
+        group.add(topJet);
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        group.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? model.rotationY : (model.rotation || 0)
+        );
+        group.scale.setScalar(propScale);
+        group.userData = {
+            id: model.id || 'park-fountain',
+            type: 'staticModel',
+            propType: 'fountain',
+            bulletImpact: model.bulletImpact !== false,
+            bulletImpactFallback: model.collision !== false,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+        this.decorativeMeshes.push(group);
+
+        if (model.collision !== false) {
+            const colliderWidth = Math.max(0.5, Number(model.collisionWidth) || width);
+            const colliderHeight = Math.max(0.5, Number(model.collisionHeight) || height);
+            const colliderDepth = Math.max(0.5, Number(model.collisionDepth) || depth);
+            group.userData.simpleBoxCollider = true;
+            group.userData.collisionBoxSize = {
+                width: colliderWidth,
+                height: colliderHeight,
+                depth: colliderDepth
+            };
+            group.userData.boundingBox = new THREE.Box3(
+                new THREE.Vector3(-colliderWidth / 2, 0, -colliderDepth / 2),
+                new THREE.Vector3(colliderWidth / 2, colliderHeight, colliderDepth / 2)
+            ).applyMatrix4(group.matrixWorld);
+            this.walls.push(group);
+            this.staticModels.push(group);
+        }
+
+        console.log(`Fuente 3D low poly cargada en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
     }
     // #endregion
 
@@ -1110,25 +1598,29 @@ export class World {
             const colliderWidth = (model.collisionWidth || width) * propScale;
             const colliderHeight = (model.collisionHeight || planterHeight + 0.45) * propScale;
             const colliderDepth = (model.collisionDepth || depth) * propScale;
-            const center = group.position;
             group.userData.simpleBoxCollider = true;
             group.userData.collisionBoxSize = {
                 width: colliderWidth,
                 height: colliderHeight,
                 depth: colliderDepth
             };
+
+            // El collider se define en el espacio local de la maceta y se
+            // transforma a mundo para respetar su rotación y escala. Antes se
+            // construía directamente en ejes globales, por lo que una maceta
+            // girada 90 grados mantenía intercambiados el ancho y el fondo.
             group.userData.boundingBox = new THREE.Box3(
                 new THREE.Vector3(
-                    center.x - colliderWidth / 2,
-                    center.y,
-                    center.z - colliderDepth / 2
+                    -colliderWidth / 2,
+                    0,
+                    -colliderDepth / 2
                 ),
                 new THREE.Vector3(
-                    center.x + colliderWidth / 2,
-                    center.y + colliderHeight,
-                    center.z + colliderDepth / 2
+                    colliderWidth / 2,
+                    colliderHeight,
+                    colliderDepth / 2
                 )
-            );
+            ).applyMatrix4(group.matrixWorld);
             this.walls.push(group);
             this.staticModels.push(group);
         }
@@ -1540,6 +2032,11 @@ export class World {
     // #region Limpieza de Recursos World
     // Descripción: Libera la memoria de geometrías, materiales y elimina objetos de la escena al destruir el mundo o recargar el mapa.
     dispose() {
+        if (this.exitPortal) {
+            this.exitPortal.dispose();
+            this.exitPortal = null;
+        }
+
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
 
@@ -1561,6 +2058,26 @@ export class World {
         });
         this.staticModels = [];
 
+        // Liberar el único terreno compuesto de Parque al cambiar de mapa o
+        // reiniciar la partida.
+        if (this.parkGroundTerrain) {
+            this.scene.remove(this.parkGroundTerrain);
+            if (this.parkGroundTerrain.geometry) {
+                this.parkGroundTerrain.geometry.dispose();
+            }
+            if (this.parkGroundTerrain.material) {
+                if (this.parkGroundTerrain.material.map) {
+                    this.parkGroundTerrain.material.map.dispose();
+                }
+                this.parkGroundTerrain.material.dispose();
+            }
+            this.parkGroundTerrain = null;
+            this.floorGroup = null;
+        }
+
+        this.collisionHelpers.forEach(helper => this.scene.remove(helper));
+        this.collisionHelpers.clear();
+
         this.walls = [];
         this.doorMeshes = [];
         this.foodMeshes.forEach(foodMesh => {
@@ -1571,6 +2088,12 @@ export class World {
         Object.values(this.foodTextures).forEach(texture => texture.dispose());
         this.foodTextures = {};
         this.ammoMeshes = [];
+        this.weaponMeshes.forEach(weaponMesh => {
+            this.scene.remove(weaponMesh);
+            if (weaponMesh.material?.map) weaponMesh.material.map.dispose();
+            if (weaponMesh.material) weaponMesh.material.dispose();
+        });
+        this.weaponMeshes = [];
     }
     // #endregion
 }

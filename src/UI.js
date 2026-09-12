@@ -1,6 +1,6 @@
 // #region Importaciones UI
 import * as THREE from '../node_modules/three/build/three.module.js';
-import { WEAPONS_DATA } from './Constants.js';
+import { CONFIG, WEAPONS_DATA } from './Constants.js';
 // #endregion
 
 // #region Clase UIManager
@@ -8,6 +8,7 @@ import { WEAPONS_DATA } from './Constants.js';
 export class UIManager {
     // #region Métodos de HUD UIManager
     static updateHealth(amount) {
+        const maxHealth = CONFIG.PLAYER_MAX_HEALTH;
         let container = document.getElementById('health-bar-container');
         if (!container) {
 
@@ -22,7 +23,7 @@ export class UIManager {
 
             const text = document.createElement('div');
             text.id = 'health-bar-text';
-            text.innerText = '100 / 100';
+            text.innerText = `${maxHealth} / ${maxHealth}`;
 
             container.appendChild(bg);
             container.appendChild(fill);
@@ -34,21 +35,14 @@ export class UIManager {
         const fill = document.getElementById('health-bar-fill');
         const text = document.getElementById('health-bar-text');
 
-        const percent = Math.max(0, Math.min(100, amount));
+        const percent = Math.max(0, Math.min(100, (amount / maxHealth) * 100));
         fill.style.width = percent + '%';
-        text.innerText = Math.floor(amount) + ' / 100';
-
-        // Cambios de color según nivel de salud
-        if (percent <= 30) {
-            fill.style.background = 'linear-gradient(90deg, #880000, #ff2222)';
-        } else if (percent <= 60) {
-            fill.style.background = 'linear-gradient(90deg, #cc4400, #ff8800)';
-        } else {
-            fill.style.background = 'linear-gradient(90deg, #ff0000, #ff4444)';
-        }
+        text.innerText = Math.floor(amount) + ' / ' + maxHealth;
     }
 
     static showDamageIndicator(angleDegrees = 0, intensity = 1) {
+        this.showDamageFlash();
+
         let overlay = document.getElementById('damage-direction-overlay');
         if (!overlay) {
             overlay = document.createElement('div');
@@ -77,6 +71,34 @@ export class UIManager {
         }, 420 + clampedIntensity * 260);
     }
 
+    static showScreenFlash(overlayId, timeoutProperty, duration = 65) {
+        let overlay = document.getElementById(overlayId);
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = overlayId;
+            overlay.setAttribute('aria-hidden', 'true');
+            document.getElementById('ui-layer').appendChild(overlay);
+        }
+
+        if (this[timeoutProperty]) clearTimeout(this[timeoutProperty]);
+        overlay.classList.remove('active');
+        // Forzar un nuevo ciclo de transición cuando llegan impactos consecutivos.
+        void overlay.offsetWidth;
+        overlay.classList.add('active');
+
+        this[timeoutProperty] = setTimeout(() => {
+            overlay.classList.remove('active');
+        }, duration);
+    }
+
+    static showDamageFlash() {
+        this.showScreenFlash('damage-flash-overlay', 'damageFlashTimeout');
+    }
+
+    static showHealFlash() {
+        this.showScreenFlash('heal-flash-overlay', 'healFlashTimeout');
+    }
+
     static updateScore(score) {
         let el = document.getElementById('score-display');
         if (!el) {
@@ -103,16 +125,24 @@ export class UIManager {
         el.innerText = ammoText;
     }
 
-    static updateCoordinates(x, y, z) {
-        let coordsEl = document.getElementById('coordinates-display');
-        if (!coordsEl) {
-            coordsEl = document.createElement('div');
-            coordsEl.id = 'coordinates-display';
-            coordsEl.style.display = 'block';
-            document.getElementById('ui-layer').appendChild(coordsEl);
-        }
-        coordsEl.innerText = `X: ${x.toFixed(1)}  Y: ${y.toFixed(1)}  Z: ${z.toFixed(1)}`;
+    static updateFPS(fps) {
+        const el = document.getElementById('hud-fps-info');
+        if (!el) return;
+
+        const value = Number.isFinite(fps) ? Math.max(0, Math.round(fps)) : 0;
+        el.innerText = `${value}`;
     }
+
+    static showRespawnHint() {
+        const hint = document.getElementById('respawn-hint');
+        if (hint) hint.classList.add('visible');
+    }
+
+    static hideRespawnHint() {
+        const hint = document.getElementById('respawn-hint');
+        if (hint) hint.classList.remove('visible');
+    }
+
     // #endregion
 
     // #region Mensajes y Eventos UIManager
@@ -174,7 +204,6 @@ export class UIManager {
         const pauseSubtitle = screen.querySelector('.pause-subtitle');
 
         const debugBtn = document.getElementById('debug-btn');
-        const coordsDisplay = document.getElementById('coordinates-display');
 
         if (isLocked) {
             screen.style.display = 'none';
@@ -187,8 +216,6 @@ export class UIManager {
 
             if (debugBtn) debugBtn.style.display = 'none';
 
-            // NUEVA ESTRUCTURA: Mostrar coordenadas cuando el juego está activo
-            if (coordsDisplay) coordsDisplay.style.display = 'block';
         } else {
             screen.style.display = 'flex';
             if (!isGameOver) {
@@ -201,8 +228,6 @@ export class UIManager {
                 if (debugBtn) debugBtn.style.display = 'none';
             }
 
-            // NUEVA ESTRUCTURA: Ocultar coordenadas cuando el juego está en pausa
-            if (coordsDisplay) coordsDisplay.style.display = 'none';
         }
     }
     // #endregion
@@ -214,8 +239,9 @@ export class UIManager {
 // Descripción: Gestiona la configuración de audio y las interacciones con el menú de ajustes.
 export class SettingsManager {
     // #region Constructor SettingsManager
-    constructor(audioManager) {
+    constructor(audioManager, onResolutionChange = null) {
         this.audioManager = audioManager;
+        this.onResolutionChange = typeof onResolutionChange === 'function' ? onResolutionChange : null;
         this.settingsMenu = document.getElementById('settings-menu');
         this.settingsBtn = document.getElementById('settings-btn');
         this.menuBtn = document.getElementById('menu-btn');
@@ -224,6 +250,7 @@ export class SettingsManager {
         this.sfxSlider = document.getElementById('sfx-volume');
         this.musicValueEl = document.getElementById('music-volume-value');
         this.sfxValueEl = document.getElementById('sfx-volume-value');
+        this.resolutionSelect = document.getElementById('resolution-select');
 
         if (typeof AUDIO_CONFIG === 'undefined') {
             window.AUDIO_CONFIG = {
@@ -246,19 +273,29 @@ export class SettingsManager {
     loadSettings() {
         const savedSettings = localStorage.getItem('gameAudioSettings');
         if (savedSettings) {
-            const settings = JSON.parse(savedSettings);
-            this.musicSlider.value = settings.musicVolume ?? 30;
-            this.sfxSlider.value = settings.sfxVolume ?? 50;
+            try {
+                const settings = JSON.parse(savedSettings);
+                this.musicSlider.value = settings.musicVolume ?? 30;
+                this.sfxSlider.value = settings.sfxVolume ?? 50;
+
+                if (this.resolutionSelect && (settings.resolution === '1080p' || settings.resolution === '720p')) {
+                    this.resolutionSelect.value = settings.resolution;
+                }
+            } catch (error) {
+                console.warn('No se pudieron cargar los ajustes guardados:', error);
+            }
         }
 
         this.updateMusicVolume();
         this.updateSFXVolume();
+        this.applyResolution();
     }
 
     saveSettings() {
         const settings = {
             musicVolume: parseInt(this.musicSlider.value),
-            sfxVolume: parseInt(this.sfxSlider.value)
+            sfxVolume: parseInt(this.sfxSlider.value),
+            resolution: this.resolutionSelect?.value ?? '1080p'
         };
         localStorage.setItem('gameAudioSettings', JSON.stringify(settings));
     }
@@ -294,6 +331,13 @@ export class SettingsManager {
             this.saveSettings();
         });
 
+        if (this.resolutionSelect) {
+            this.resolutionSelect.addEventListener('change', () => {
+                this.applyResolution();
+                this.saveSettings();
+            });
+        }
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isOpen()) {
                 this.closeMenu();
@@ -324,6 +368,12 @@ export class SettingsManager {
         if (this.audioManager) {
             const normalizedVolume = (value / 100) * AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER;
             this.audioManager.setSFXVolume(normalizedVolume);
+        }
+    }
+
+    applyResolution() {
+        if (this.onResolutionChange && this.resolutionSelect) {
+            this.onResolutionChange(this.resolutionSelect.value);
         }
     }
     // #endregion
@@ -371,6 +421,7 @@ export class DebugPanel {
         this.weaponSystem = weaponSystem;
         this.isVisible = false;
         this.infoUpdateInterval = null;
+        this.performanceUpdateInterval = null;
         this.metricsRequestInFlight = false;
         this.lastMetricsRequestAt = 0;
 
@@ -382,6 +433,7 @@ export class DebugPanel {
                 infiniteAmmo: settings.infiniteAmmo || false,
                 flyMode: settings.flyMode || false,
                 noClip: settings.noClip || false,
+                hitboxes: settings.hitboxes === true,
                 speedMultiplier: settings.speedMultiplier || 1.0,
                 bulletLog: settings.bulletLog !== undefined ? settings.bulletLog : true,
                 // CORRECCIÓN: Cargar correctamente fireRateMultiplier, con fallback a 1.0
@@ -393,6 +445,7 @@ export class DebugPanel {
                 infiniteAmmo: false,
                 flyMode: false,
                 noClip: false,
+                hitboxes: false,
                 speedMultiplier: 1.0,
                 bulletLog: true,
                 fireRateMultiplier: 1.0
@@ -401,6 +454,7 @@ export class DebugPanel {
 
         // Sincronizar el multiplicador de cadencia con el WeaponSystem
         this.weaponSystem.debugState.fireRateMultiplier = this.debugState.fireRateMultiplier;
+        this.applyHitboxVisibility(this.debugState.hitboxes);
 
         // Sincronización inicial con Player
         if (this.player && this.player.debugState) {
@@ -415,6 +469,7 @@ export class DebugPanel {
         this.createDebugPanel();
         this.setupEventListeners();
         this.setupPauseMenuIntegration();
+        this.startPerformanceUpdate();
     }
     // #endregion
 
@@ -452,6 +507,7 @@ export class DebugPanel {
                         <span class="debug-toggle-label">Munición Infinita</span>
                     </label>
                     <button class="debug-btn" id="debug-refill-ammo">Rellenar Munición</button>
+                    <button class="debug-btn" id="debug-give-all-weapons">Dar todas las armas (RPG)</button>
                     <label class="debug-toggle">
                         <input type="checkbox" id="debug-bullet-log" checked>
                         <span class="debug-toggle-label">Console Log de Impacto de Balas</span>
@@ -479,6 +535,14 @@ export class DebugPanel {
                         <input type="range" id="debug-speed" min="0.5" max="5.0" step="0.1" value="1.0">
                     </div>
                 </div>
+
+                <div class="debug-section">
+                    <h4>COLISIONES</h4>
+                    <label class="debug-toggle">
+                        <input type="checkbox" id="debug-hitboxes">
+                        <span class="debug-toggle-label">Cajas de colisión (verde)</span>
+                    </label>
+                </div>
                 
                 <div class="debug-section">
                     <h4>SALUD</h4>
@@ -489,6 +553,11 @@ export class DebugPanel {
                 <div class="debug-section">
                     <h4>ENEMIGOS</h4>
                     <button class="debug-btn" id="debug-kill-all">Matar Todos los Enemigos</button>
+                </div>
+
+                <div class="debug-section">
+                    <h4>RONDAS</h4>
+                    <button class="debug-btn" id="debug-next-wave">Pasar de ronda</button>
                 </div>
                 
                 <div class="debug-section">
@@ -514,7 +583,7 @@ export class DebugPanel {
 
                 <div class="debug-info">
                     <p><strong>Posición:</strong> <span id="debug-pos-info">X: 0, Y: 0, Z: 0</span></p>
-                    <p><strong>Salud:</strong> <span id="debug-health-info">100</span></p>
+                    <p><strong>Salud:</strong> <span id="debug-health-info">${CONFIG.PLAYER_MAX_HEALTH}</span></p>
                     <p><strong>Enemigos vivos:</strong> <span id="debug-enemies-info">0</span></p>
                 </div>
             </div>
@@ -530,6 +599,7 @@ export class DebugPanel {
             infiniteAmmo: this.debugState.infiniteAmmo,
             flyMode: this.debugState.flyMode,
             noClip: this.debugState.noClip,
+            hitboxes: this.debugState.hitboxes,
             speedMultiplier: this.debugState.speedMultiplier,
             bulletLog: this.debugState.bulletLog,
             // CORRECCIÓN: Siempre guardar fireRateMultiplier, incluso si es 1.0
@@ -590,6 +660,12 @@ export class DebugPanel {
             this.saveDebugSettings();
         });
 
+        document.getElementById('debug-hitboxes').addEventListener('change', (e) => {
+            this.debugState.hitboxes = e.target.checked;
+            this.applyHitboxVisibility(this.debugState.hitboxes);
+            this.saveDebugSettings();
+        });
+
         document.getElementById('debug-speed').addEventListener('input', (e) => {
             this.debugState.speedMultiplier = parseFloat(e.target.value);
             this.player.debugState.speedMultiplier = this.debugState.speedMultiplier; // Sincronizar con Player
@@ -612,9 +688,25 @@ export class DebugPanel {
             this.weaponSystem.refillAllAmmo();
         });
 
+        document.getElementById('debug-give-all-weapons').addEventListener('click', () => {
+            const unlockedWeapons = this.weaponSystem?.unlockAllWeapons?.(true) || [];
+            if (unlockedWeapons.length === 0) {
+                UIManager.showEventMessage('NO HAY ARMAS DESBLOQUEABLES EN ESTE MAPA', 2500);
+                return;
+            }
+
+            const weaponNames = unlockedWeapons
+                .map(({ weapon }) => weapon.name)
+                .join(', ');
+            UIManager.showEventMessage(
+                `¡ARMAS DEBUG DESBLOQUEADAS: ${weaponNames}!`,
+                3000
+            );
+        });
+
         document.getElementById('debug-heal-full').addEventListener('click', () => {
-            this.player.health = 100;
-            UIManager.updateHealth(100);
+            this.player.health = CONFIG.PLAYER_MAX_HEALTH;
+            UIManager.updateHealth(this.player.health);
         });
 
         document.getElementById('debug-damage-self').addEventListener('click', () => {
@@ -623,6 +715,16 @@ export class DebugPanel {
 
         document.getElementById('debug-kill-all').addEventListener('click', () => {
             this.player.enemyManager.removeAllEnemies();
+        });
+
+        document.getElementById('debug-next-wave').addEventListener('click', () => {
+            const waveEvent = this.player?.gameInstance?.eventManager?.waveEvent;
+            if (!waveEvent) {
+                UIManager.showEventMessage('ESTE MAPA NO TIENE RONDAS', 2500);
+                return;
+            }
+
+            waveEvent.skipCurrentWave(this.player.getPosition());
         });
 
         document.getElementById('debug-teleport').addEventListener('click', () => {
@@ -634,6 +736,19 @@ export class DebugPanel {
     }
     // #endregion
 
+    applyHitboxVisibility(visible) {
+        const shouldShow = Boolean(visible);
+        CONFIG.DEBUG_SHOW_HITBOXES = shouldShow;
+
+        if (this.player?.enemyManager?.setCollisionDebugVisible) {
+            this.player.enemyManager.setCollisionDebugVisible(shouldShow);
+        }
+
+        if (this.player?.world?.setCollisionDebugVisible) {
+            this.player.world.setCollisionDebugVisible(shouldShow);
+        }
+    }
+
     // #region Visibilidad y Actualización DebugPanel
     show() {
         this.isVisible = true;
@@ -644,6 +759,7 @@ export class DebugPanel {
         document.getElementById('debug-fly-mode').checked = this.debugState.flyMode;
         document.getElementById('debug-noclip').checked = this.debugState.noClip;
         document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog;
+        document.getElementById('debug-hitboxes').checked = this.debugState.hitboxes;
 
         const speedSlider = document.getElementById('debug-speed');
         if (speedSlider) {
@@ -673,6 +789,7 @@ export class DebugPanel {
         document.getElementById('debug-fly-mode').checked = this.debugState.flyMode;
         document.getElementById('debug-noclip').checked = this.debugState.noClip;
         document.getElementById('debug-bullet-log').checked = this.debugState.bulletLog;
+        document.getElementById('debug-hitboxes').checked = this.debugState.hitboxes;
 
         const speedSlider = document.getElementById('debug-speed');
         if (speedSlider) {
@@ -716,6 +833,21 @@ export class DebugPanel {
         }
     }
 
+    startPerformanceUpdate() {
+        this.stopPerformanceUpdate();
+        this.updatePerformanceInfo();
+        this.performanceUpdateInterval = setInterval(() => {
+            this.updatePerformanceInfo();
+        }, 500);
+    }
+
+    stopPerformanceUpdate() {
+        if (this.performanceUpdateInterval) {
+            clearInterval(this.performanceUpdateInterval);
+            this.performanceUpdateInterval = null;
+        }
+    }
+
     updateDebugInfo() {
         const pos = this.player.getPosition();
         document.getElementById('debug-pos-info').textContent =
@@ -731,10 +863,6 @@ export class DebugPanel {
     }
 
     updatePerformanceInfo() {
-        if (!this.isVisible || !this.panel?.classList.contains('active')) {
-            return;
-        }
-
         const metricsApi = globalThis.systemMetrics;
         const now = performance.now();
 
@@ -768,6 +896,9 @@ export class DebugPanel {
         this.setPerformanceValue('debug-gpu-info', gpuText);
         this.setPerformanceValue('debug-ram-info', gameRam);
         this.setPerformanceValue('debug-system-ram-info', systemRam);
+        this.setPerformanceValue('hud-cpu-info', cpuText);
+        this.setPerformanceValue('hud-gpu-info', gpuText);
+        this.setPerformanceValue('hud-ram-info', gameRam);
 
         const source = document.getElementById('debug-metrics-source');
         if (source) {
@@ -787,6 +918,12 @@ export class DebugPanel {
         this.setPerformanceValue('debug-gpu-info', 'N/D');
         this.setPerformanceValue('debug-ram-info', this.formatMemory(heapUsedMb, heapPercent, 'heap JS'));
         this.setPerformanceValue('debug-system-ram-info', 'N/D');
+        this.setPerformanceValue('hud-cpu-info', 'N/D');
+        this.setPerformanceValue('hud-gpu-info', 'N/D');
+        this.setPerformanceValue(
+            'hud-ram-info',
+            this.formatMemory(heapUsedMb, heapPercent, 'heap JS')
+        );
 
         const source = document.getElementById('debug-metrics-source');
         if (source) {

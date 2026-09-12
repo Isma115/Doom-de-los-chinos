@@ -51,9 +51,8 @@ export class MapLoader {
 
         const width = lines.length > 0 ? countBlocks(lines[0]) : 0;
         const worldLayouts = {
-            // Estos mapas se han recortado por los lados alejados del spawn.
-            // Su rejilla conserva el mismo origen mundial para no mover al jugador.
-            mapa1: { width: 36, height: 26, offsetX: 0, offsetY: 0 },
+            // Parque usa ahora una rejilla compacta y centrada en el origen.
+            mapa1: { width: 12, height: 10, offsetX: 0, offsetY: 0 },
             mapa2: { width: 36, height: 26, offsetX: 0, offsetY: 3 }
         };
         const worldLayout = worldLayouts[mapName] || {
@@ -80,6 +79,7 @@ export class MapLoader {
 
         let playerSpawn = null;
         let playerRotation = 0;
+        let exitPortalSpawn = null;
 
         for (let y = 0; y < height; y++) {
             const line = lines[y];
@@ -145,13 +145,19 @@ export class MapLoader {
                         playerRotation = rotation;
                         break;
 
-                    // Mapa de pruebas: permite colocar aliens de forma explícita
-                    // sin depender del sistema de rondas ni de pesos aleatorios.
+                    case "PORTAL":
+                        exitPortalSpawn = new THREE.Vector3(position.x, 0, position.z);
+                        validFloors.push(position);
+                        break;
+
+                    // Mapa de pruebas: permite colocar el esqueleto minigun de
+                    // forma explícita, sin depender de rondas ni pesos aleatorios.
                     case "A":
                     case "ALIEN":
+                    case "MINIGUN":
                         enemySpawns.push({
                             position: new THREE.Vector3(position.x, 1, position.z),
-                            type: "alien",
+                            type: "skeleton_minigun",
                             lastSpawnTime: 0,
                             rotation: rotation,
                             maxSpawns: maxSpawns,
@@ -312,6 +318,7 @@ export class MapLoader {
             foodSpawners,
             playerSpawn,
             playerRotation,
+            exitPortalSpawn,
             doorPositions,
             foodItems,
             ammoItems,

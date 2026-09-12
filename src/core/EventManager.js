@@ -6,11 +6,12 @@ import { WaveEvent } from '../eventos/WaveEvent.js';
 
 //  Clase EventManager
 export class EventManager {
-    constructor(scene, enemyManager, audioManager, world) {
+    constructor(scene, enemyManager, audioManager, world, player = null) {
         this.scene = scene;
         this.enemyManager = enemyManager;
         this.audioManager = audioManager;
         this.world = world;
+        this.player = player;
 
         this.events = [];
         this.processedEvents = new Set();
@@ -24,7 +25,7 @@ export class EventManager {
 
         const genericSpawners = world.getGenericSpawners();
         if (genericSpawners && genericSpawners.length > 0) {
-            this.waveEvent = new WaveEvent(enemyManager, world, audioManager);
+            this.waveEvent = new WaveEvent(enemyManager, world, audioManager, player);
 
             console.log('Wave system initialized with', genericSpawners.length, 'generic spawners');
         }
@@ -58,7 +59,7 @@ export class EventManager {
 
         // Update wave event if active
         if (this.waveEvent) {
-            this.waveEvent.update(delta);
+            this.waveEvent.update(delta, playerPosition);
         }
 
         this.events.forEach(event => {

@@ -30,9 +30,11 @@ export class Player {
         this.isCrouching = false;
         this.canJump = false;
 
-        this.health = 100;
+        this.health = CONFIG.PLAYER_MAX_HEALTH;
         this.score = 0;
         this.isGameOver = false;
+        this.isDead = false;
+        this.deathAnimation = null;
 
         this.radius = 2.0;
 
@@ -68,9 +70,11 @@ export class Player {
         this.camera.position.copy(position);
         this.camera.position.y = CONFIG.PLAYER_HEIGHT;
         this.velocity.set(0, 0, 0);
+        this.canJump = true;
+        this.isCrouching = false;
 
         const rotationRadians = (rotation * Math.PI) / 180;
-        this.camera.rotation.y = rotationRadians;
+        this.camera.rotation.set(0, rotationRadians, 0);
 
         this.camera.updateMatrixWorld(true);
     }
@@ -89,11 +93,24 @@ export class Player {
             if (!this.isGameOver) this.controls.lock();
         });
         this.controls.addEventListener('lock', () => UIManager.togglePauseScreen(true, this.isGameOver));
-        this.controls.addEventListener('unlock', () => UIManager.togglePauseScreen(false, this.isGameOver));
+        this.controls.addEventListener('unlock', () => {
+            if (!this.isDead) {
+                UIManager.togglePauseScreen(false, this.isGameOver);
+            }
+            this.resetMovementState();
+        });
 
         document.addEventListener('keydown', (e) => this.onKey(e, true));
         document.addEventListener('keyup', (e) => this.onKey(e, false));
-        document.addEventListener('mousedown', () => this.onMouseDown());
+        // En macOS, Fn/Globe puede cambiar el foco o impedir que llegue el
+        // keyup de la tecla de movimiento que se estaba manteniendo pulsada.
+        // Limpiar el estado al perder el foco evita que el jugador se quede
+        // caminando lateralmente de forma indefinida.
+        window.addEventListener('blur', () => this.resetMovementState());
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) this.resetMovementState();
+        });
+        document.addEventListener('mousedown', (event) => this.onMouseDown(event));
         document.addEventListener('mouseup', () => this.onMouseUp());
 
         document.addEventListener('wheel', (e) => this.weaponSystem.switchWeapon(e.deltaY));
@@ -122,6 +139,27 @@ export class Player {
     // #region Control de Input (Teclado) Player
     // Descripción: Procesa las pulsaciones de teclas para movimiento, salto, interacción con puertas y habilidades especiales.
     onKey(event, isDown) {
+        // Las teclas Fn/Globe y Command no siempre tienen un keyup fiable en
+        // macOS. Si se pulsan mientras una tecla de movimiento está activa,
+        // dejamos el movimiento en un estado seguro inmediatamente.
+        const isMacModifierKey = [
+            'Fn', 'Globe', 'Function',
+            'Meta', 'MetaLeft', 'MetaRight'
+        ].includes(event.code)
+            || ['Fn', 'Globe', 'Function', 'Meta', 'Command'].includes(event.key);
+        const isCommandCombination = event.metaKey && isDown;
+        if (isMacModifierKey || isCommandCombination) {
+            this.resetMovementState();
+
+            // Mientras el pointer lock está activo, evitar que Command +
+            // otra tecla dispare atajos del navegador (por ejemplo cerrar la
+            // pestaña con Command+W) y saque al jugador del juego.
+            if (this.controls.isLocked && event.cancelable) {
+                event.preventDefault();
+            }
+            return;
+        }
+
         switch (event.code) {
             case 'ArrowUp':
             case 'KeyW':
@@ -162,6 +200,16 @@ export class Player {
                         if (this.audioManager) {
                             this.audioManager.playSound('doorOpen', 0.5);
                         }
+                    } else if (this.world?.tryEnterExitPortal?.(this.getPosition())) {
+                        const destinationMap = this.world.getExitPortalDestination?.();
+                        if (destinationMap && this.gameInstance?.loadMap) {
+                            this.gameInstance.loadMap(destinationMap);
+                        } else {
+                            UIManager.showEventMessage(
+                                'PORTAL ESTABLE — EL SIGUIENTE NIVEL SE AÑADIRÁ PRÓXIMAMENTE',
+                                4000
+                            );
+                        }
                     }
                 }
                 break;
@@ -201,6 +249,16 @@ export class Player {
             this.velocity.x *= CONFIG.CROUCH_SPEED_MULTIPLIER;
             this.velocity.z *= CONFIG.CROUCH_SPEED_MULTIPLIER;
         }
+    }
+
+    resetMovementState() {
+        this.moveFlags.fwd = false;
+        this.moveFlags.bwd = false;
+        this.moveFlags.left = false;
+        this.moveFlags.right = false;
+        this.isCrouching = false;
+        this.velocity.x = 0;
+        this.velocity.z = 0;
     }
     // #endregion
 
@@ -349,7 +407,14 @@ export class Player {
     }
 
     //  Control de Input (Ratón) Player
-    onMouseDown() {
+    onMouseDown(event = null) {
+        if (this.isDead) {
+            if (!event || event.button === 0) {
+                this.respawn();
+            }
+            return;
+        }
+
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
 
@@ -442,18 +507,125 @@ export class Player {
         }
 
         if (this.health <= 0) {
-            this.isGameOver = true;
-            this.controls.unlock();
-            UIManager.showGameOver();
-            if (this.audioManager) {
-                this.audioManager.stopMusic();
-            }
-
-            // Desactivar rayo al morir
-            if (this.rayActive) {
-                this.deactivateRay();
-            }
+            this.beginDeath(damageSource);
         }
+    }
+
+    beginDeath(damageSource = null) {
+        if (this.isDead) return;
+
+        this.isDead = true;
+        this.isGameOver = true;
+        UIManager.showRespawnHint();
+        if (this.gameInstance) {
+            this.gameInstance.isGameOver = true;
+            this.gameInstance.isPaused = false;
+        }
+
+        this.isShooting = false;
+        this.resetMovementState();
+        this.velocity.set(0, 0, 0);
+
+        const startRotation = this.camera.rotation.clone();
+        const incoming = damageSource
+            ? damageSource.x - this.camera.position.x
+            : 1;
+        const fallDirection = Math.sign(incoming) || 1;
+
+        this.deathAnimation = {
+            elapsed: 0,
+            duration: 650,
+            startY: this.camera.position.y,
+            targetY: 0.42,
+            startRotationX: startRotation.x,
+            startRotationZ: startRotation.z,
+            targetRotationX: startRotation.x + 0.18,
+            targetRotationZ: startRotation.z - fallDirection * Math.PI * 0.48
+        };
+
+        // Reutilizar el sonido que se reproduce al eliminar un enemigo.
+        if (this.audioManager) {
+            this.audioManager.playSound('enemyDeath', 0.5);
+        }
+
+        if (this.rayActive) {
+            this.deactivateRay();
+        }
+
+        // Liberar el pointer lock sin abrir la pantalla de game over. El
+        // bucle principal mantiene la escena viva para mostrar la caída.
+        if (this.controls.isLocked) {
+            this.controls.unlock();
+        }
+    }
+
+    updateDeath(delta) {
+        if (!this.isDead || !this.deathAnimation) return;
+
+        const animation = this.deathAnimation;
+        animation.elapsed = Math.min(
+            animation.duration,
+            animation.elapsed + Math.max(0, delta) * 1000
+        );
+
+        const progress = animation.duration > 0
+            ? animation.elapsed / animation.duration
+            : 1;
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+        this.camera.position.y = THREE.MathUtils.lerp(
+            animation.startY,
+            animation.targetY,
+            easedProgress
+        );
+        this.camera.rotation.x = THREE.MathUtils.lerp(
+            animation.startRotationX,
+            animation.targetRotationX,
+            easedProgress
+        );
+        this.camera.rotation.z = THREE.MathUtils.lerp(
+            animation.startRotationZ,
+            animation.targetRotationZ,
+            easedProgress
+        );
+    }
+
+    respawn() {
+        if (!this.isDead) return;
+
+        const spawnPosition = this.world?.getPlayerSpawn?.();
+        const spawnRotation = this.world?.getPlayerRotation?.() || 0;
+
+        this.isDead = false;
+        this.isGameOver = false;
+        this.deathAnimation = null;
+        UIManager.hideRespawnHint();
+        if (this.gameInstance) {
+            this.gameInstance.isGameOver = false;
+            this.gameInstance.isPaused = false;
+        }
+
+        this.health = CONFIG.PLAYER_MAX_HEALTH;
+        UIManager.updateHealth(this.health);
+        this.isShooting = false;
+        this.resetMovementState();
+
+        if (spawnPosition) {
+            this.teleport(spawnPosition, spawnRotation);
+        } else {
+            this.camera.position.y = CONFIG.PLAYER_HEIGHT;
+            this.camera.rotation.set(0, (spawnRotation * Math.PI) / 180, 0);
+            this.velocity.set(0, 0, 0);
+            this.canJump = true;
+        }
+
+        if (this.audioManager) {
+            this.audioManager.resume();
+        }
+
+        // El clic que solicita el respawn también es un gesto válido para
+        // recuperar el pointer lock y devolver el control al jugador.
+        this.controls.lock();
     }
 
     getDamageDirectionAngle(damageSource) {
@@ -479,20 +651,12 @@ export class Player {
     collectFood(amount, foodName = 'Comida') {
         if (this.isGameOver) return;
 
-        const previousHealth = this.health;
-        this.health = Math.min(100, this.health + amount);
+        this.health = Math.min(CONFIG.PLAYER_MAX_HEALTH, this.health + amount);
         UIManager.updateHealth(this.health);
+        UIManager.showHealFlash();
 
         if (this.audioManager) {
             this.audioManager.playSound('collectItem', 0.5);
-        }
-
-        const recovered = this.health - previousHealth;
-        if (recovered > 0 && foodName) {
-            UIManager.showEventMessage(
-                `${foodName}: +${Math.floor(recovered)} SALUD`,
-                1500
-            );
         }
     }
     // #endregion
@@ -504,7 +668,9 @@ export class Player {
         this.weaponSystem.addAmmo(amount, weaponIndex);
 
         if (this.audioManager) {
-            this.audioManager.playSound('collectItem', 0.5);
+            // La recogida de munición usa el mismo sonido que la recarga
+            // manual para reforzar claramente qué tipo de objeto se obtuvo.
+            this.audioManager.playSound('reload', 0.8, false, 0.95 + Math.random() * 0.08);
         }
     }
 
@@ -532,6 +698,52 @@ export class Player {
                 this.world.scene.remove(ammoMesh);
             }
         });
+    }
+
+    collectWeapon(weaponId, ammoAmount = 0) {
+        if (this.isGameOver) return false;
+
+        const unlocked = this.weaponSystem.unlockWeapon(
+            weaponId,
+            ammoAmount,
+            true
+        );
+        if (!unlocked) return false;
+
+        if (this.audioManager) {
+            this.audioManager.playSound('collectItem', 0.8);
+        }
+        UIManager.showEventMessage(
+            `¡${unlocked.weapon.name} DESBLOQUEADO!`,
+            3000
+        );
+        return true;
+    }
+
+    checkWeaponItems() {
+        const weaponItems = this.world.getWeaponMeshes?.() || [];
+        const playerPos = this.getPosition();
+
+        for (let i = weaponItems.length - 1; i >= 0; i--) {
+            const weaponMesh = weaponItems[i];
+            if (!weaponMesh || weaponMesh.userData?.collected) continue;
+
+            if (playerPos.distanceTo(weaponMesh.position) >= CONFIG.PICKUP_DISTANCE) {
+                continue;
+            }
+
+            const collected = this.collectWeapon(
+                weaponMesh.userData.weaponId,
+                weaponMesh.userData.ammoAmount
+            );
+            if (!collected) continue;
+
+            weaponMesh.userData.collected = true;
+            this.world.scene.remove(weaponMesh);
+            if (weaponMesh.material?.map) weaponMesh.material.map.dispose();
+            if (weaponMesh.material) weaponMesh.material.dispose();
+            weaponItems.splice(i, 1);
+        }
     }
     // #endregion
 
@@ -623,13 +835,6 @@ export class Player {
             }
         }
 
-        // NUEVA ESTRUCTURA: Actualizar las coordenadas del jugador
-        UIManager.updateCoordinates(
-            this.camera.position.x,
-            this.camera.position.y,
-            this.camera.position.z
-        );
-
         // Variable para detectar si hubo colisión con pared (bloqueo de movimiento)
         let wallSliding = false;
 
@@ -660,6 +865,7 @@ export class Player {
         }
 
         this.checkAmmoItems();
+        this.checkWeaponItems();
 
         // NUEVA ESTRUCTURA: Actualizar visualización del rayo azul
         if (this.rayActive) {
@@ -671,108 +877,238 @@ export class Player {
     // #region Gestión de Game Over Player
     // Descripción: Maneja el estado de fin de juego, desbloqueando controles y mostrando la pantalla final.
     gameOver() {
-        if (this.isGameOver) return;
-        this.isGameOver = true;
-
-        // Notificamos al Game que estamos en Game Over
-        if (this.gameInstance) {
-            this.gameInstance.isGameOver = true;
-        }
-
-        UIManager.showGameOver();
-        this.controls.unlock();
-
-        // Desactivar rayo al morir
-        if (this.rayActive) {
-            this.deactivateRay();
-        }
+        this.beginDeath();
     }
     // #endregion
 
     // #region Sistema de Colisiones Player
     // Descripción: Detecta colisiones con muros y puertas, impidiendo que el jugador atraviese objetos sólidos.
+    getPlayerCollisionBox(position) {
+        const horizontalHalfSize = CONFIG.PLAYER_COLLISION_OFFSET || 1.0;
+        const verticalHalfSize = 1.0;
+
+        return new THREE.Box3(
+            new THREE.Vector3(
+                position.x - horizontalHalfSize,
+                position.y - verticalHalfSize,
+                position.z - horizontalHalfSize
+            ),
+            new THREE.Vector3(
+                position.x + horizontalHalfSize,
+                position.y + verticalHalfSize,
+                position.z + horizontalHalfSize
+            )
+        );
+    }
+
+    getCollisionEntries() {
+        const entries = [];
+        const seenObjects = new Set();
+
+        const addObject = (object, boundingBox = object?.userData?.boundingBox) => {
+            if (!object || seenObjects.has(object) || !boundingBox || boundingBox.isEmpty()) return;
+
+            const min = boundingBox.min;
+            const max = boundingBox.max;
+            if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) return;
+
+            seenObjects.add(object);
+            entries.push({ object, box: boundingBox.clone() });
+        };
+
+        const worldObjects = [
+            ...(this.world?.getWalls?.() || []),
+            ...(this.world?.getStaticModels?.() || [])
+        ];
+        worldObjects.forEach(object => addObject(object));
+
+        // Las puertas cambian de altura mientras se abren y se cierran, por lo
+        // que su caja debe recalcularse antes de cada resolución de movimiento.
+        Door.instances.forEach(door => {
+            if (door.isOpen || !door.mesh) return;
+
+            door.mesh.updateMatrixWorld(true);
+            const doorBox = new THREE.Box3().setFromObject(door.mesh);
+            doorBox.min.x -= 0.2;
+            doorBox.max.x += 0.2;
+            doorBox.min.z -= 0.2;
+            doorBox.max.z += 0.2;
+
+            // Mantenerlo también en userData permite que el modo debug dibuje
+            // la misma caja que usa la física.
+            door.mesh.userData = door.mesh.userData || {};
+            door.mesh.userData.boundingBox = doorBox;
+            addObject(door.mesh, doorBox);
+        });
+
+        return entries;
+    }
+
+    rangesOverlap(minA, maxA, minB, maxB) {
+        // Ignorar el contacto exacto evita que caminar por la parte superior
+        // de un prop se interprete como una colisión lateral.
+        return Math.min(maxA, maxB) - Math.max(minA, minB) > 0.001;
+    }
+
+    movePlayerAlongAxis(position, axis, amount, collisionEntries) {
+        if (Math.abs(amount) < 0.000001) return false;
+
+        const offset = CONFIG.PLAYER_COLLISION_OFFSET || 1.0;
+        const halfSize = axis === 'y' ? 1.0 : offset;
+        const start = position[axis];
+        const desired = start + amount;
+        const direction = Math.sign(amount);
+        const separation = 0.02;
+        let resolved = desired;
+        let blocked = false;
+
+        for (const entry of collisionEntries) {
+            const box = entry.box;
+            const playerBox = this.getPlayerCollisionBox(position);
+
+            let overlapsOtherAxes = true;
+            for (const otherAxis of ['x', 'y', 'z']) {
+                if (otherAxis === axis) continue;
+                if (!this.rangesOverlap(
+                    playerBox.min[otherAxis],
+                    playerBox.max[otherAxis],
+                    box.min[otherAxis],
+                    box.max[otherAxis]
+                )) {
+                    overlapsOtherAxes = false;
+                    break;
+                }
+            }
+            if (!overlapsOtherAxes) continue;
+
+            const expandedMin = box.min[axis] - halfSize;
+            const expandedMax = box.max[axis] + halfSize;
+
+            // Detectar el cruce del volumen ampliado, no solo la posición
+            // final. Así no se puede atravesar una caja en un frame de salto.
+            if (direction > 0 && start <= expandedMin && desired > expandedMin) {
+                resolved = Math.min(resolved, expandedMin - separation);
+                blocked = true;
+            } else if (direction < 0 && start >= expandedMax && desired < expandedMax) {
+                resolved = Math.max(resolved, expandedMax + separation);
+                blocked = true;
+            }
+        }
+
+        position[axis] = resolved;
+
+        if (!blocked) return false;
+
+        if (axis === 'y') {
+            this.velocity.y = 0;
+            if (direction < 0) {
+                // El jugador ha descendido sobre la parte superior del prop.
+                this.canJump = true;
+            }
+        } else {
+            // x/z son los ejes locales que usa PointerLockControls. Mantener
+            // este corte de inercia evita que vuelva a penetrar en el siguiente
+            // frame, conservando el deslizamiento por el otro eje.
+            this.velocity[axis] = 0;
+        }
+
+        return true;
+    }
+
+    resolvePlayerPenetration(position, collisionEntries) {
+        const separation = 0.02;
+        const floorHeight = this.isCrouching ? CONFIG.CROUCH_HEIGHT : CONFIG.PLAYER_HEIGHT;
+        let grounded = false;
+
+        // Recuperación defensiva: si el jugador ya estaba dentro por un salto
+        // o por una caja mal colocada, expulsarlo por el eje de menor
+        // penetración antes de continuar con el movimiento.
+        for (let iteration = 0; iteration < 8; iteration++) {
+            const playerBox = this.getPlayerCollisionBox(position);
+            let bestResolution = null;
+
+            for (const entry of collisionEntries) {
+                const box = entry.box;
+                const overlap = {
+                    x: Math.min(playerBox.max.x, box.max.x) - Math.max(playerBox.min.x, box.min.x),
+                    y: Math.min(playerBox.max.y, box.max.y) - Math.max(playerBox.min.y, box.min.y),
+                    z: Math.min(playerBox.max.z, box.max.z) - Math.max(playerBox.min.z, box.min.z)
+                };
+
+                if (overlap.x <= 0.001 || overlap.y <= 0.001 || overlap.z <= 0.001) continue;
+
+                for (const axis of ['x', 'z', 'y']) {
+                    const direction = position[axis] < (box.min[axis] + box.max[axis]) / 2 ? -1 : 1;
+                    const amount = direction * (overlap[axis] + separation);
+
+                    // No expulsar al jugador por debajo del suelo cuando la
+                    // caja nace en el suelo; en ese caso se prioriza salir por
+                    // un lateral o por arriba.
+                    if (
+                        axis === 'y'
+                        && direction < 0
+                        && !this.debugState.flyMode
+                        && position.y + amount < floorHeight - separation
+                    ) {
+                        continue;
+                    }
+
+                    if (!bestResolution || Math.abs(amount) < Math.abs(bestResolution.amount)) {
+                        bestResolution = { axis, amount };
+                    }
+                }
+            }
+
+            if (!bestResolution) break;
+
+            position[bestResolution.axis] += bestResolution.amount;
+            if (bestResolution.axis === 'y') {
+                this.velocity.y = 0;
+                if (bestResolution.amount > 0) {
+                    this.canJump = true;
+                    grounded = true;
+                }
+            } else {
+                this.velocity[bestResolution.axis] = 0;
+            }
+        }
+
+        return grounded;
+    }
+
     checkCollisions(oldPosition) {
-        const playerPos = this.camera.position;
-        const offset = CONFIG.PLAYER_COLLISION_OFFSET;
+        const targetPosition = this.camera.position.clone();
+        const collisionEntries = this.getCollisionEntries();
+        if (collisionEntries.length === 0) return;
 
-        const playerBox = new THREE.Box3();
-        playerBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);
-        playerBox.max.set(playerPos.x + offset, playerPos.y + 1.0, playerPos.z + offset);
+        const movement = targetPosition.sub(oldPosition);
+        const resolvedPosition = oldPosition.clone();
 
-        for (const door of Door.instances) {
-            if (!door.isOpen) {
-                if (!door.mesh.userData.boundingBox) {
-                    door.mesh.geometry.computeBoundingBox();
-                    door.mesh.userData.boundingBox = new THREE.Box3().setFromObject(door.mesh);
-                }
+        this.resolvePlayerPenetration(resolvedPosition, collisionEntries);
 
-                const doorBox = door.mesh.userData.boundingBox.clone();
-                doorBox.min.x -= 0.2;
-                doorBox.max.x += 0.2;
-                doorBox.min.z -= 0.2;
-                doorBox.max.z += 0.2;
-
-                const playerTempBox = new THREE.Box3();
-                playerTempBox.min.set(playerPos.x - offset, playerPos.y - 1.0, playerPos.z - offset);
-                playerTempBox.max.set(playerPos.x + offset, playerPos.y + 1.0, playerPos.z + offset);
-                if (playerTempBox.intersectsBox(doorBox)) {
-                    playerPos.copy(oldPosition);
-                    this.velocity.x = 0;
-                    this.velocity.z = 0;
-                    return;
-                }
-            }
-        }
-
-        const walls = this.world.getWalls();
-        let collided = false;
-
-        for (const wall of walls) {
-            if (!wall.userData.boundingBox) continue;
-            if (playerBox.intersectsBox(wall.userData.boundingBox)) {
-                collided = true;
-                break;
-            }
-        }
-
-        if (!collided) return;
-        const slidePosX = new THREE.Vector3(oldPosition.x, playerPos.y, playerPos.z);
-        const slideBoxX = new THREE.Box3(
-            new THREE.Vector3(slidePosX.x - offset, slidePosX.y - 1.0, slidePosX.z - offset),
-            new THREE.Vector3(slidePosX.x + offset, slidePosX.y + 1.0, slidePosX.z + offset)
+        // Subdividir el desplazamiento evita el tunneling cuando la velocidad
+        // horizontal y el impulso de salto hacen que el jugador avance varios
+        // metros entre dos frames.
+        const largestMovement = Math.max(
+            Math.abs(movement.x),
+            Math.abs(movement.y),
+            Math.abs(movement.z)
         );
-        let blockedX = false;
-        for (const wall of walls) {
-            if (wall.userData.boundingBox && slideBoxX.intersectsBox(wall.userData.boundingBox)) {
-                blockedX = true;
-                break;
-            }
+        const maxStepDistance = 0.5;
+        const stepCount = Math.max(1, Math.min(128, Math.ceil(largestMovement / maxStepDistance)));
+        const stepMovement = movement.clone().multiplyScalar(1 / stepCount);
+
+        for (let step = 0; step < stepCount; step++) {
+            this.movePlayerAlongAxis(resolvedPosition, 'x', stepMovement.x, collisionEntries);
+            this.movePlayerAlongAxis(resolvedPosition, 'z', stepMovement.z, collisionEntries);
+            this.movePlayerAlongAxis(resolvedPosition, 'y', stepMovement.y, collisionEntries);
+            this.resolvePlayerPenetration(resolvedPosition, collisionEntries);
         }
 
-        const slidePosZ = new THREE.Vector3(playerPos.x, playerPos.y, oldPosition.z);
-        const slideBoxZ = new THREE.Box3(
-            new THREE.Vector3(slidePosZ.x - offset, slidePosZ.y - 1.0, slidePosZ.z - offset),
-            new THREE.Vector3(slidePosZ.x + offset, slidePosZ.y + 1.0, slidePosZ.z + offset)
-        );
-        let blockedZ = false;
-        for (const wall of walls) {
-            if (wall.userData.boundingBox && slideBoxZ.intersectsBox(wall.userData.boundingBox)) {
-                blockedZ = true;
-                break;
-            }
-        }
-        if (!blockedX) {
-            playerPos.copy(slidePosX);
-            this.velocity.z = 0;
-            return;
-        } if (!blockedZ) {
-            playerPos.copy(slidePosZ);
-            this.velocity.x = 0;
-            return;
-        }
-        playerPos.copy(oldPosition);
-        this.velocity.x = 0;
-        this.velocity.z = 0;
+        // Última garantía frente a cajas solapadas o a una posición heredada
+        // de una versión anterior de la física.
+        this.resolvePlayerPenetration(resolvedPosition, collisionEntries);
+        this.camera.position.copy(resolvedPosition);
     }
     // #endregion
 }

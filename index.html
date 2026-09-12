@@ -16,6 +16,16 @@
 
         <div id="hud-top-right" aria-label="Munición total">
             <div id="ammo-display">∞</div>
+            <div id="performance-overlay" aria-label="Uso de CPU, GPU y memoria">
+                <div><strong>FPS</strong> <span id="hud-fps-info">N/D</span></div>
+                <div><strong>CPU</strong> <span id="hud-cpu-info">N/D</span></div>
+                <div><strong>GPU</strong> <span id="hud-gpu-info">N/D</span></div>
+                <div><strong>RAM</strong> <span id="hud-ram-info">N/D</span></div>
+            </div>
+        </div>
+
+        <div id="respawn-hint" role="status" aria-live="polite">
+            Clic izquierdo para reaparecer
         </div>
     </div>
 
@@ -55,6 +65,16 @@
                     <span id="sfx-volume-value" class="volume-value">50%</span>
                 </label>
                 <input type="range" id="sfx-volume" class="volume-slider" min="0" max="100" value="50">
+            </div>
+
+            <div class="settings-section">
+                <label class="settings-label" for="resolution-select">
+                    <span><span class="label-icon">🖥️</span> Resolución</span>
+                    <select id="resolution-select" class="settings-select" aria-label="Resolución">
+                        <option value="1080p">1080p (1920 × 1080)</option>
+                        <option value="720p">720p (1280 × 720)</option>
+                    </select>
+                </label>
             </div>
 
             <button id="settings-close-btn" class="settings-btn">CERRAR</button>

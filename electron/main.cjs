@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const { spawn } = require('node:child_process');
 const http = require('node:http');
 const os = require('node:os');
@@ -113,11 +113,19 @@ function startVite() {
 }
 
 async function createWindow() {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { x, y, width, height } = primaryDisplay.workArea;
+
     const win = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        minWidth: 960,
-        minHeight: 600,
+        x,
+        y,
+        width,
+        height,
+        minWidth: Math.min(960, width),
+        minHeight: Math.min(600, height),
+        fullscreen: false,
+        kiosk: false,
+        resizable: true,
         backgroundColor: '#07070d',
         autoHideMenuBar: true,
         webPreferences: {

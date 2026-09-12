@@ -82,12 +82,20 @@ export class AudioManager {
             collectItem: 'assets/sound/collect.mp3',
             background: 'assets/sound/background_music.mp3',
             lpdpm: 'assets/sound/music/LPDPM.mp3',
-            lpdmc: 'assets/sound/music/LPDMC.mp3'
+            lpdmc: 'assets/sound/music/LPDMC.mp3',
+            cocayCocaina: 'assets/sound/music/CocayCocaina.mp3',
+            conejitoCocainomano: 'assets/sound/music/ConejitoCocainomano.mp3'
         };
         const loadPromises = Object.entries(soundFiles).map(async ([key, path]) => {
             try {
                 const buffer = await this.loadSound(path);
-                if (key === 'background' || key === 'lpdpm' || key === 'lpdmc') {
+                if (
+                    key === 'background'
+                    || key === 'lpdpm'
+                    || key === 'lpdmc'
+                    || key === 'cocayCocaina'
+                    || key === 'conejitoCocainomano'
+                ) {
                     this.music[key] = buffer;
                 } else {
                     this.sounds[key] = buffer;
@@ -125,6 +133,18 @@ export class AudioManager {
             return this.playDoorOpenSound(volume, pitch);
         }
 
+        if (soundName === 'enemySpawnTeleport' && !this.sounds[soundName]) {
+            return this.playTeleportSound(volume, pitch);
+        }
+
+        if (soundName === 'rocketLaunch' && !this.sounds[soundName]) {
+            return this.playRocketLaunchSound(volume, pitch);
+        }
+
+        if (soundName === 'rocketExplosion' && !this.sounds[soundName]) {
+            return this.playRocketExplosionSound(volume, pitch);
+        }
+
         if (!this.sounds[soundName]) {
             return null;
         }
@@ -146,6 +166,108 @@ export class AudioManager {
             return source;
         } catch (error) {
             console.warn(`Error reproduciendo sonido ${soundName}:`, error);
+            return null;
+        }
+    }
+
+    playRocketLaunchSound(volume = 1.0, pitch = 1.0) {
+        if (!this.audioContext || !this.sfxGain) return null;
+
+        try {
+            const context = this.audioContext;
+            const startTime = context.currentTime;
+            const duration = 0.42;
+            const safeVolume = Math.max(0, Math.min(1, volume));
+            const safePitch = Math.max(0.5, pitch);
+            const outputGain = context.createGain();
+            outputGain.gain.setValueAtTime(0.0001, startTime);
+            outputGain.gain.exponentialRampToValueAtTime(
+                Math.max(0.015, safeVolume * 0.34),
+                startTime + 0.025
+            );
+            outputGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            outputGain.connect(this.sfxGain);
+
+            const motor = context.createOscillator();
+            const motorGain = context.createGain();
+            const motorFilter = context.createBiquadFilter();
+            motor.type = 'sawtooth';
+            motor.frequency.setValueAtTime(145 * safePitch, startTime);
+            motor.frequency.exponentialRampToValueAtTime(48 * safePitch, startTime + duration);
+            motorFilter.type = 'lowpass';
+            motorFilter.frequency.setValueAtTime(1200, startTime);
+            motorFilter.frequency.exponentialRampToValueAtTime(260, startTime + duration);
+            motorGain.gain.value = 0.8;
+            motor.connect(motorFilter);
+            motorFilter.connect(motorGain);
+            motorGain.connect(outputGain);
+            motor.start(startTime);
+            motor.stop(startTime + duration);
+
+            return motor;
+        } catch (error) {
+            console.warn('Error reproduciendo sonido de lanzamiento del RPG:', error);
+            return null;
+        }
+    }
+
+    playRocketExplosionSound(volume = 1.0, pitch = 1.0) {
+        if (!this.audioContext || !this.sfxGain) return null;
+
+        try {
+            const context = this.audioContext;
+            const startTime = context.currentTime;
+            const duration = 0.58;
+            const safeVolume = Math.max(0, Math.min(1, volume));
+            const safePitch = Math.max(0.5, pitch);
+            const outputGain = context.createGain();
+            outputGain.gain.setValueAtTime(0.0001, startTime);
+            outputGain.gain.exponentialRampToValueAtTime(
+                Math.max(0.02, safeVolume * 0.55),
+                startTime + 0.015
+            );
+            outputGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            outputGain.connect(this.sfxGain);
+
+            const boom = context.createOscillator();
+            const boomGain = context.createGain();
+            boom.type = 'sine';
+            boom.frequency.setValueAtTime(115 * safePitch, startTime);
+            boom.frequency.exponentialRampToValueAtTime(34 * safePitch, startTime + duration);
+            boomGain.gain.value = 1.0;
+            boom.connect(boomGain);
+            boomGain.connect(outputGain);
+            boom.start(startTime);
+            boom.stop(startTime + duration);
+
+            if (!this.proceduralSoundBuffers.rocketExplosion) {
+                const frameCount = Math.floor(context.sampleRate * duration);
+                const noiseBuffer = context.createBuffer(1, frameCount, context.sampleRate);
+                const noiseData = noiseBuffer.getChannelData(0);
+                for (let index = 0; index < frameCount; index++) {
+                    const progress = index / frameCount;
+                    noiseData[index] = (Math.random() * 2 - 1) * (1 - progress * 0.9);
+                }
+                this.proceduralSoundBuffers.rocketExplosion = noiseBuffer;
+            }
+
+            const noise = context.createBufferSource();
+            const noiseFilter = context.createBiquadFilter();
+            const noiseGain = context.createGain();
+            noise.buffer = this.proceduralSoundBuffers.rocketExplosion;
+            noiseFilter.type = 'lowpass';
+            noiseFilter.frequency.setValueAtTime(2200, startTime);
+            noiseFilter.frequency.exponentialRampToValueAtTime(160, startTime + duration);
+            noiseGain.gain.value = 0.75;
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(outputGain);
+            noise.start(startTime);
+            noise.stop(startTime + duration);
+
+            return boom;
+        } catch (error) {
+            console.warn('Error reproduciendo sonido de explosión del RPG:', error);
             return null;
         }
     }
@@ -228,6 +350,123 @@ export class AudioManager {
             return null;
         }
     }
+
+    playTeleportSound(volume = 0.35, pitch = 1.0) {
+        if (!this.audioContext || !this.sfxGain) {
+            return null;
+        }
+
+        try {
+            const context = this.audioContext;
+            const startTime = context.currentTime;
+            const duration = 0.38;
+            const safeVolume = Math.max(0, Math.min(1, volume));
+            const safePitch = Math.max(0.5, pitch);
+
+            const outputGain = context.createGain();
+            outputGain.gain.setValueAtTime(0.0001, startTime);
+            outputGain.gain.exponentialRampToValueAtTime(
+                Math.max(0.02, safeVolume * 0.9),
+                startTime + 0.025
+            );
+            outputGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            outputGain.connect(this.sfxGain);
+
+            // Barrido grave descendente: da la sensación de cruzar un túnel
+            // temporal y cerrar el portal detrás del enemigo.
+            const warp = context.createOscillator();
+            const warpGain = context.createGain();
+            warp.type = 'sawtooth';
+            warp.frequency.setValueAtTime(1450 * safePitch, startTime);
+            warp.frequency.exponentialRampToValueAtTime(75 * safePitch, startTime + duration * 0.9);
+            warpGain.gain.setValueAtTime(0.0001, startTime);
+            warpGain.gain.exponentialRampToValueAtTime(0.55, startTime + 0.035);
+            warpGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            warp.connect(warpGain);
+            warpGain.connect(outputGain);
+            warp.start(startTime);
+            warp.stop(startTime + duration);
+
+            // Tono central que sube al abrirse y cae al materializarse.
+            const portalTone = context.createOscillator();
+            const portalGain = context.createGain();
+            portalTone.type = 'triangle';
+            portalTone.frequency.setValueAtTime(180 * safePitch, startTime);
+            portalTone.frequency.exponentialRampToValueAtTime(2300 * safePitch, startTime + 0.16);
+            portalTone.frequency.exponentialRampToValueAtTime(125 * safePitch, startTime + duration);
+            portalGain.gain.setValueAtTime(0.0001, startTime);
+            portalGain.gain.exponentialRampToValueAtTime(0.5, startTime + 0.045);
+            portalGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            portalTone.connect(portalGain);
+            portalGain.connect(outputGain);
+            portalTone.start(startTime);
+            portalTone.stop(startTime + duration);
+
+            // Vibrato breve para que el tono no suene como un simple pitido.
+            const modulation = context.createOscillator();
+            const modulationGain = context.createGain();
+            modulation.type = 'sine';
+            modulation.frequency.value = 24;
+            modulationGain.gain.value = 105;
+            modulation.connect(modulationGain);
+            modulationGain.connect(portalTone.frequency);
+            modulation.start(startTime);
+            modulation.stop(startTime + duration);
+
+            // Destello agudo, como energía del portal al atravesar el espacio.
+            const shimmer = context.createOscillator();
+            const shimmerGain = context.createGain();
+            shimmer.type = 'sine';
+            shimmer.frequency.setValueAtTime(3000 * safePitch, startTime);
+            shimmer.frequency.exponentialRampToValueAtTime(520 * safePitch, startTime + duration * 0.85);
+            shimmerGain.gain.setValueAtTime(0.0001, startTime);
+            shimmerGain.gain.exponentialRampToValueAtTime(0.28, startTime + 0.02);
+            shimmerGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.62);
+            shimmer.connect(shimmerGain);
+            shimmerGain.connect(outputGain);
+            shimmer.start(startTime);
+            shimmer.stop(startTime + duration);
+
+            if (!this.proceduralSoundBuffers.teleportPortal) {
+                const frameCount = Math.floor(context.sampleRate * duration);
+                const noiseBuffer = context.createBuffer(1, frameCount, context.sampleRate);
+                const noiseData = noiseBuffer.getChannelData(0);
+
+                for (let index = 0; index < frameCount; index++) {
+                    const progress = index / frameCount;
+                    noiseData[index] = (Math.random() * 2 - 1) * (1 - progress * 0.85);
+                }
+
+                this.proceduralSoundBuffers.teleportPortal = noiseBuffer;
+            }
+
+            const noise = context.createBufferSource();
+            const noiseFilter = context.createBiquadFilter();
+            const noiseGain = context.createGain();
+            noise.buffer = this.proceduralSoundBuffers.teleportPortal;
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.setValueAtTime(300, startTime);
+            noiseFilter.frequency.exponentialRampToValueAtTime(4500, startTime + duration * 0.48);
+            noiseFilter.frequency.exponentialRampToValueAtTime(500, startTime + duration);
+            noiseFilter.Q.value = 0.9;
+            noiseGain.gain.setValueAtTime(0.0001, startTime);
+            noiseGain.gain.exponentialRampToValueAtTime(
+                0.3,
+                startTime + 0.035
+            );
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(outputGain);
+            noise.start(startTime);
+            noise.stop(startTime + duration);
+
+            return portalTone;
+        } catch (error) {
+            console.warn('Error reproduciendo sonido de teletransporte:', error);
+            return null;
+        }
+    }
     // #endregion
     // #region Reproducción Música Audio
     // Descripción: Gestión de la música de fondo, incluyendo loops y cambio de pistas.
@@ -273,7 +512,7 @@ export class AudioManager {
         }
     }
 
-    playRandomMusic(previousMusicName = null, volume = 1.0) {
+    playRandomMusic(previousMusicName = null, volume = 1.0, excludedMusicNames = []) {
         const availableMusic = Object.entries(this.music)
             .filter(([, buffer]) => buffer)
             .map(([name]) => name);
@@ -282,8 +521,18 @@ export class AudioManager {
             return null;
         }
 
+        const excluded = new Set(
+            Array.isArray(excludedMusicNames) ? excludedMusicNames : []
+        );
+        const candidatesWithoutHistory = availableMusic.filter(name =>
+            name !== previousMusicName && !excluded.has(name)
+        );
+        // Si ya se han usado todas las pistas disponibles, empezar otro ciclo
+        // permitiendo las antiguas, pero seguir evitando repetir la anterior.
         const differentMusic = availableMusic.filter(name => name !== previousMusicName);
-        const candidates = differentMusic.length > 0 ? differentMusic : availableMusic;
+        const candidates = candidatesWithoutHistory.length > 0
+            ? candidatesWithoutHistory
+            : (differentMusic.length > 0 ? differentMusic : availableMusic);
         const musicName = candidates[Math.floor(Math.random() * candidates.length)];
 
         return this.playMusic(musicName, volume) ? musicName : null;
@@ -331,7 +580,7 @@ export class AudioManager {
         this.playSound(randomSound, randomVolume, false, randomPitch);
     }
 
-    play3DSound(soundName, listenerPos, soundPos, maxDistance = 50, volume = 1.0) {
+    play3DSound(soundName, listenerPos, soundPos, maxDistance = 50, volume = 1.0, loop = false, pitch = 1.0) {
         if (!this.initialized || !this.sounds[soundName]) {
             return null;
         }
@@ -341,7 +590,7 @@ export class AudioManager {
         const attenuation = 1 - (distance / maxDistance);
         const finalVolume = volume * attenuation * attenuation;
 
-        return this.playSound(soundName, finalVolume);
+        return this.playSound(soundName, finalVolume, loop, pitch);
     }
     // #endregion
 
