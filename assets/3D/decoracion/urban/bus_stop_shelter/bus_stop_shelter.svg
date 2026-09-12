@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+  <linearGradient id="atlasBase" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#071a22"/>
+    <stop offset="0.45" stop-color="#174b57"/>
+    <stop offset="1" stop-color="#06151c"/>
+  </linearGradient>
+  <linearGradient id="roofMetal" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#244f59"/>
+    <stop offset=".45" stop-color="#0e313c"/>
+    <stop offset="1" stop-color="#061b24"/>
+  </linearGradient>
+  <linearGradient id="seatMetal" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#4b9aa0"/>
+    <stop offset=".5" stop-color="#1a5b66"/>
+    <stop offset="1" stop-color="#0b303c"/>
+  </linearGradient>
+  <pattern id="brushed" width="32" height="32" patternUnits="userSpaceOnUse">
+    <path d="M0 4H32M0 13H32M0 25H32" stroke="#9bd8df" stroke-opacity=".13" stroke-width="2"/>
+    <path d="M0 8H32M0 29H32" stroke="#03141b" stroke-opacity=".22" stroke-width="2"/>
+  </pattern>
+  <pattern id="seatDots" width="26" height="26" patternUnits="userSpaceOnUse">
+    <circle cx="4" cy="4" r="1.7" fill="#c4f5f5" opacity=".3"/>
+    <circle cx="17" cy="17" r="1.3" fill="#06212b" opacity=".42"/>
+  </pattern>
+</defs>
+<!-- One atlas: roof / seat / sign / base. The OBJ assigns each part to one zone. -->
+<rect width="512" height="512" fill="#0b2730"/>
+
+<!-- Roof zone: u=.02..98, v=.02..26 -->
+<rect x="10" y="10" width="492" height="123" rx="12" fill="url(#roofMetal)" stroke="#061820" stroke-width="8"/>
+<rect x="18" y="18" width="476" height="107" fill="url(#brushed)" opacity=".82"/>
+<path d="M18 87H494" stroke="#f2c94c" stroke-width="14"/>
+<path d="M18 101H494" stroke="#d8f6f4" stroke-opacity=".45" stroke-width="4"/>
+<path d="M38 39H470M38 57H470" stroke="#9bd8df" stroke-opacity=".28" stroke-width="4"/>
+
+<!-- Seat zone: u=.02..62, v=.30..58 -->
+<rect x="10" y="154" width="307" height="143" rx="12" fill="url(#seatMetal)" stroke="#071b23" stroke-width="8"/>
+<rect x="18" y="162" width="291" height="127" fill="url(#seatDots)" opacity=".52"/>
+<path d="M25 181H301M25 270H301" stroke="#a9e4e5" stroke-opacity=".36" stroke-width="5"/>
+<path d="M37 224H290" stroke="#06242d" stroke-opacity=".62" stroke-width="12"/>
+<g fill="#f2c94c"><circle cx="39" cy="181" r="5"/><circle cx="288" cy="181" r="5"/><circle cx="39" cy="270" r="5"/><circle cx="288" cy="270" r="5"/></g>
+
+<!-- Sign zone: u=.66..98, v=.30..68 -->
+<rect x="338" y="154" width="164" height="194" rx="18" fill="#08212a" stroke="#f2c94c" stroke-width="10"/>
+<rect x="353" y="169" width="134" height="164" rx="12" fill="#276b77" stroke="#b7eef0" stroke-opacity=".62" stroke-width="5"/>
+<path d="M376 264V220c0-12 9-21 21-21h45c12 0 21 9 21 21v44" fill="none" stroke="#f7f4de" stroke-width="11" stroke-linejoin="round"/>
+<path d="M368 268h104M390 276v18M450 276v18" stroke="#f7f4de" stroke-width="11" stroke-linecap="round"/>
+<circle cx="398" cy="264" r="8" fill="#08212a"/><circle cx="446" cy="264" r="8" fill="#08212a"/>
+
+<!-- Base zone: u=.02..98, v=.70..98 -->
+<rect x="10" y="358" width="492" height="144" rx="12" fill="url(#atlasBase)" stroke="#061820" stroke-width="8"/>
+<path d="M-20 486L116 350H174L38 506Z" fill="#f2c94c" opacity=".86"/>
+<path d="M94 506L230 370H262L126 506Z" fill="#f2c94c" opacity=".28"/>
+<path d="M28 446H484" stroke="#b7eef0" stroke-opacity=".34" stroke-width="5"/>
+<path d="M28 468H484" stroke="#03141b" stroke-opacity=".7" stroke-width="6"/>
+</svg>

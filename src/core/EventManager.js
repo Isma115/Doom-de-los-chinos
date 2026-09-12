@@ -1,15 +1,17 @@
-/*sección [CONSTRUCTOR Y CONFIGURACIÓN] Inicialización del gestor de eventos y carga desde archivo*/
+//  Importaciones EventManager
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { UIManager } from '../UI.js';
 import { CONFIG } from '../Constants.js';
 import { WaveEvent } from '../eventos/WaveEvent.js';
 
+//  Clase EventManager
 export class EventManager {
-    constructor(scene, enemyManager, audioManager, world) {
+    constructor(scene, enemyManager, audioManager, world, player = null) {
         this.scene = scene;
         this.enemyManager = enemyManager;
         this.audioManager = audioManager;
         this.world = world;
+        this.player = player;
 
         this.events = [];
         this.processedEvents = new Set();
@@ -18,19 +20,18 @@ export class EventManager {
 
         this.postProcessingEnabled = false;
 
+        //  Inicialización
         this.initDefaultEvents();
 
         const genericSpawners = world.getGenericSpawners();
         if (genericSpawners && genericSpawners.length > 0) {
-            this.waveEvent = new WaveEvent(enemyManager, world);
-
-            // Asignar AudioManager al WaveEvent
-            this.waveEvent.audioManager = audioManager;
+            this.waveEvent = new WaveEvent(enemyManager, world, audioManager, player);
 
             console.log('Wave system initialized with', genericSpawners.length, 'generic spawners');
         }
     }
 
+    //  Carga de Eventos
     async loadEventsForMap(mapName) {
         try {
             const res = await fetch(`eventos/${mapName}_events.json`);
@@ -42,61 +43,23 @@ export class EventManager {
         } catch (err) {
             console.warn(`No hay archivo de eventos para este mapa (${mapName})`);
         }
-
-        // Activar música LPDPM si es el mapa de fortaleza
-        if (this.waveEvent && mapName === 'mapa1') {
-            this.waveEvent.isFortalezaMap = true;
-            console.log('Mapa de fortaleza detectado - Música LPDPM activada para rondas 1 y 2');
-        }
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [EVENTOS POR DEFECTO] Plantillas de eventos predefinidos*/
     initDefaultEvents() {
-        // // EVENTO 1: Emboscada por proximidad
-        // this.addEvent({
-        //     id: 'ambush_01',
-        //     trigger: {
-        //         type: 'AREA',
-        //         position: new THREE.Vector3(0, 0, 20), // Ajustar según mapa
-        //         radius: 5.0
-        //     },
-        //     actions: [
-        //         { type: 'MESSAGE', text: "¡ES UNA TRAMPA!", duration: 3000 },
-        //         { type: 'SOUND', id: 'roar1' },
-        //         { type: 'SPAWN', enemyType: 'pablo', count: 2, offset: 5 },
-        //         { type: 'LIGHT_FLASH', color: 0xff0000, duration: 500 }
-        //     ]
-        // });
 
-        // // EVENTO 2: Mensaje de atmósfera por tiempo
-        // this.addEvent({
-        //     id: 'creepy_atmosphere',
-        //     trigger: {
-        //         type: 'TIME',
-        //         value: 10 // A los 10 segundos
-        //     },
-        //     actions: [
-        //         { type: 'MESSAGE', text: "Algo te observa desde la oscuridad...", duration: 4000 },
-        //         { type: 'SOUND', id: 'hiss1', volume: 0.8 }
-        //     ]
-        // });
     }
 
     addEvent(eventData) {
         this.events.push(eventData);
     }
 
-    /*[Fin de sección]*/
-
-    /*sección [ACTUALIZACIÓN Y EJECUCIÓN] Detección de triggers y ejecución de acciones*/
+    //  Loop Principal EventManager
     update(delta, playerPosition) {
         this.timeElapsed += delta;
 
         // Update wave event if active
         if (this.waveEvent) {
-            this.waveEvent.update(delta);
+            this.waveEvent.update(delta, playerPosition);
         }
 
         this.events.forEach(event => {
@@ -125,6 +88,7 @@ export class EventManager {
         });
     }
 
+    //  Ejecución de Acciones
     executeActions(actions, playerPos) {
         actions.forEach(action => {
             switch (action.type) {
@@ -177,4 +141,3 @@ export class EventManager {
         });
     }
 }
-/*[Fin de sección]*/

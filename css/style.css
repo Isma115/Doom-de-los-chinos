@@ -1,6 +1,7 @@
-/*sección [ESTILO CSS] Estilo css*/
+/*  Global */
 body { margin: 0;
 overflow: hidden; font-family: 'Arial', sans-serif; background-color: #000;}
+/*  HUD */
 #ui-layer {
     position: absolute;
     top: 0; left: 0; width: 100%;
@@ -10,22 +11,164 @@ pointer-events: none;
     flex-direction: column;
     justify-content: space-between;
 }
-#hud-top {
-    display: flex;
-    justify-content: space-between;
-    padding: 20px;
-    font-size: 24px;
-    color: #ffffff;
-    text-shadow: 2px 2px 2px #000;
+
+/* Indicador direccional de daño: óvalo rojo difuminado en el borde de la pantalla. */
+#damage-direction-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    overflow: hidden;
+    transition: opacity 0.08s ease-out;
+    will-change: opacity;
 }
 
-#hud-bottom {
-    padding: 20px;
-    text-align: right;
-    font-size: 30px;
-color: #ffcc00;
-    text-shadow: 2px 2px 2px #000;
+#damage-direction-overlay::before {
+    content: '';
+    position: absolute;
+    left: var(--damage-x, 50%);
+    top: var(--damage-y, 8%);
+    width: 46vw;
+    height: 28vh;
+    min-width: 260px;
+    min-height: 170px;
+    border-radius: 50%;
+    background:
+        radial-gradient(
+            ellipse at center,
+            rgba(255, 35, 35, 0.78) 0%,
+            rgba(255, 15, 15, 0.48) 34%,
+            rgba(165, 0, 0, 0.22) 65%,
+            rgba(120, 0, 0, 0) 100%
+        ),
+        linear-gradient(
+            to bottom,
+            rgba(190, 0, 0, 0.8) 0%,
+            rgba(215, 10, 10, 0.35) 48%,
+            rgba(120, 0, 0, 0) 100%
+        );
+    box-shadow: 0 0 55px rgba(255, 0, 0, 0.3);
+    filter: blur(18px);
+    opacity: var(--damage-opacity, 0.7);
+    transform: translate(-50%, -50%) rotate(var(--damage-angle, 0deg));
 }
+
+#damage-direction-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        ellipse at center,
+        rgba(130, 0, 0, 0) 40%,
+        rgba(130, 0, 0, 0.22) 100%
+    );
+    filter: blur(5px);
+    opacity: 0.45;
+}
+
+/* Destello global muy breve al recibir daño. La opacidad baja evita tapar la escena. */
+#damage-flash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    background: rgba(255, 25, 25, 0.13);
+    opacity: 0;
+    transition: opacity 0.025s linear;
+    will-change: opacity;
+}
+
+#damage-flash-overlay.active {
+    opacity: 1;
+}
+
+/* Destello global verde al recoger comida y recuperar salud. */
+#heal-flash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    background: rgba(45, 255, 95, 0.13);
+    opacity: 0;
+    transition: opacity 0.025s linear;
+    will-change: opacity;
+}
+
+#heal-flash-overlay.active {
+    opacity: 1;
+}
+
+#hud-top-right {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    z-index: 100;
+    pointer-events: none;
+}
+
+#ammo-display {
+    min-width: 1.2em;
+    color: #ffffff;
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 1px 1px 2px #000;
+}
+
+#performance-overlay {
+    margin-top: 9px;
+    color: #d8d8d8;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: right;
+    text-shadow: 1px 1px 2px #000;
+    white-space: nowrap;
+}
+
+#performance-overlay div + div {
+    margin-top: 2px;
+}
+
+#performance-overlay strong {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+#respawn-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 12%;
+    transform: translateX(-50%);
+    display: none;
+    padding: 7px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-align: center;
+    text-shadow: 1px 1px 3px #000;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 200;
+}
+
+#respawn-hint.visible {
+    display: block;
+    animation: respawn-hint-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes respawn-hint-pulse {
+    0%, 100% { opacity: 0.78; }
+    50% { opacity: 1; }
+}
+/*  Mensajes y Countdown */
 /* Estilo para mensajes de eventos */
 #event-message {
     position: absolute;
@@ -68,6 +211,7 @@ color: #ffcc00;
     margin-bottom: 10px;
 }
 
+/*  Barra de Vida */
 /* Barra de vida gráfica */
 #health-bar-container {
     position: absolute;
@@ -75,37 +219,18 @@ color: #ffcc00;
     left: 20px;
     width: 260px;
     height: 18px;                    /* aún más delgada */
-    background: rgba(0, 0, 0, 0.8);
-    border: 2px solid #880000;
-    border-radius: 6px;
+    background: #000000;
+    border: none;
+    border-radius: 0;
     pointer-events: none;
     z-index: 100;
-}
-
-
-#coordinates-display {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
-    color: #00ff00;
-    font-family: 'Courier New', monospace;
-    font-size: 16px;
-    padding: 5px 15px;
-    border-radius: 5px;
-    border: 2px solid #008800;
-    text-shadow: 0 0 5px #00ff00;
-    pointer-events: none;
-    z-index: 100;
-    display: none;
 }
 
 #health-bar-bg {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background: #000000;
-    border-radius: 4px;
+    border-radius: 0;
 }
 
 #health-bar-fill {
@@ -114,8 +239,8 @@ color: #ffcc00;
     height: 100%;
     width: 100%;
     background: #ff0000;
-    border-radius: 4px;
-    transition: width 0.25s ease;
+    border-radius: 0;
+    transition: none;
     box-shadow: none;
 }
 
@@ -138,6 +263,7 @@ color: #ffcc00;
         transform: scale(1.1);
     }
 }
+/*  Crosshair */
 #crosshair {
     position: absolute;
     top: 50%; 
@@ -158,6 +284,7 @@ color: #ffcc00;
     background: #ff0000;
     transform: translate(-50%, -50%);
 }
+/*  Pantalla de Inicio */
 #start-screen {
     position: absolute;
 top: 0; left: 0; width: 100%; height: 100%;
@@ -170,7 +297,7 @@ top: 0; left: 0; width: 100%; height: 100%;
 pointer-events: auto;
     z-index: 10;
 }
-
+/*  Selector de Mapas */
 /* Estilos para el selector de mapas */
 #map-selector {
     position: absolute;
@@ -214,7 +341,6 @@ pointer-events: auto;
     background: #ff0000;
     color: #000;
     border-color: #ff3333;
-    box-shadow: 0 0 15px #ff0000;
     transform: scale(1.05);
 }
 
@@ -240,8 +366,7 @@ p { font-size: 20px;
     font-size: 22px;
     color: #ffcc00;
     margin-bottom: 10px;
-}
-
+}/*  Menú de Pausa */
 /* Botones del menú de pausa */
 #pause-buttons {
     display: none; /* Ocultos por defecto, visibles solo en pausa */
@@ -273,10 +398,9 @@ p { font-size: 20px;
     background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
     color: #fff;
     border-color: #ff3333;
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
     transform: scale(1.05);
 }
-
+/*  Menú de Ajustes */
 /* ⚙️ MENÚ DE AJUSTES */
 .settings-overlay {
     position: fixed;
@@ -341,6 +465,30 @@ p { font-size: 20px;
     text-align: right;
 }
 
+.settings-select {
+    min-width: 190px;
+    padding: 8px 10px;
+    border: 2px solid #660000;
+    border-radius: 4px;
+    background: #0d0d0d;
+    color: #ffcccc;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    outline: none;
+}
+
+.settings-select:focus {
+    border-color: #ff3333;
+    box-shadow: 0 0 8px rgba(255, 51, 51, 0.45);
+}
+
+.settings-select option {
+    background: #0d0d0d;
+    color: #ffcccc;
+}
+
 .volume-slider {
     width: 100%;
     height: 12px;
@@ -362,13 +510,11 @@ p { font-size: 20px;
     border: 3px solid #ff6666;
     border-radius: 50%;
     cursor: pointer;
-    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.2s;
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
     transform: scale(1.15);
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
 }
 
 .volume-slider::-moz-range-thumb {
@@ -378,7 +524,6 @@ p { font-size: 20px;
     border: 3px solid #ff6666;
     border-radius: 50%;
     cursor: pointer;
-    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
 }
 
 .settings-btn {
@@ -401,9 +546,10 @@ p { font-size: 20px;
     background: linear-gradient(90deg, #ff0000 0%, #990000 100%);
     color: #fff;
     border-color: #ff3333;
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
     transform: scale(1.02);
 }
+
+/*  Panel Debug */
 .debug-panel {
     position: fixed;
     top: 50%;
@@ -480,6 +626,38 @@ p { font-size: 20px;
     font-size: 14px;
     text-transform: uppercase;
     letter-spacing: 1px;
+}
+
+.debug-performance-section {
+    border-color: #333366;
+    background: linear-gradient(135deg, rgba(15, 15, 55, 0.55), rgba(0, 0, 0, 0.35));
+}
+
+.debug-performance-section h4 {
+    color: #8888ff;
+}
+
+.debug-performance-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 14px;
+}
+
+.debug-performance-info p {
+    margin: 0;
+    color: #ddddff;
+    font-size: 13px;
+}
+
+.debug-performance-info strong {
+    color: #aaaaff;
+}
+
+#debug-metrics-source {
+    display: block;
+    margin-top: 10px;
+    color: #8888aa;
+    font-size: 11px;
 }
 
 .debug-toggle {
@@ -603,5 +781,3 @@ p { font-size: 20px;
     box-shadow: 0 0 20px rgba(100, 100, 255, 0.6);
     transform: scale(1.05);
 }
-
-/*[Fin de sección]*/

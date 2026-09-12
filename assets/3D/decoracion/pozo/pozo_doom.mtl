@@ -1,0 +1,7 @@
+newmtl wall
+Kd 1 1 1
+map_Kd pozo_doom_wall.png
+
+newmtl water
+Kd 1 1 1
+map_Kd pozo_doom_water.png

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple 3D Creator</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Simple 3D Creator</h1>
+            <div class="controls">
+                <button id="btn-clear" class="btn secondary">Clear All</button>
+                <button id="btn-transform" class="btn primary">Transform</button>
+                <button id="btn-export" class="btn secondary">Export JSON</button>
+            </div>
+        </header>
+
+        <div class="grid-container">
+            <!-- Top View (X-Z) -->
+            <div class="view-panel" id="panel-top">
+                <div class="panel-label">TOP VIEW (X-Z)</div>
+                <canvas id="canvas-top"></canvas>
+            </div>
+
+            <!-- Front View (X-Y) -->
+            <div class="view-panel" id="panel-front">
+                <div class="panel-label">FRONT VIEW (X-Y)</div>
+                <canvas id="canvas-front"></canvas>
+            </div>
+
+            <!-- Side View (Z-Y) -->
+            <div class="view-panel" id="panel-side">
+                <div class="panel-label">SIDE VIEW (Z-Y)</div>
+                <canvas id="canvas-side"></canvas>
+            </div>
+
+            <!-- 3D Preview -->
+            <div class="view-panel preview-panel" id="panel-preview">
+                <div class="panel-label">3D PREVIEW</div>
+                <div id="three-container"></div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <span>Vertices: <span id="vertex-count">0</span></span>
+            <span>Edges: <span id="edge-count">0</span></span>
+            <span id="help-text">Click to add points. Select two points and press 'L' to link.</span>
+        </div>
+    </div>
+    <script type="module" src="script.js"></script>
+</body>
+
+</html>

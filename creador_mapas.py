@@ -1,20 +1,23 @@
-# sección [IMPORTACIONES Y CONSTRUCTOR] Configuración inicial del editor de mapas
+#  Importaciones MapEditor
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import json
 
+#  Clase e Inicialización MapEditor
 class MapEditor:
     def __init__(self, root):
         self.root = root
+        
+        #  Configuración de Ventana
         self.root.title("Doom Map Editor")
         self.root.geometry("1200x800")
         
-        # Configuración del grid
+        #  Configuración del Grid
         self.grid_width = 40
         self.grid_height = 30
         self.cell_size = 20
         
-        # Tipo de bloque seleccionado
+        #  Inicialización de Estado
         self.selected_block = "."
         
         # Historial para hacer/deshacer
@@ -26,47 +29,46 @@ class MapEditor:
         self.properties_dialog = None
         self.editing_cell = None
         
-        # Definición de tipos de bloques con sus colores
-self.block_types = {
-    "#": {"name": "Muro", "color": "#888888"},
-    "D": {"name": "Puerta", "color": "#00FFFF"},
-    "+": {"name": "Comida", "color": "#FF0000"},
-    ".": {"name": "Suelo", "color": "#44AA44"},
-    "P": {"name": "Jugador", "color": "#0000FF"},
-    "1": {"name": "Enemigo Pablo", "color": "#FF00FF"},
-    "2": {"name": "Enemigo Pera", "color": "#FF8800"},
-    "3": {"name": "Enemigo Slow", "color": "#8800FF"},
-    "4": {"name": "Enemigo Medium", "color": "#FF0088"},
-    "5": {"name": "Enemigo Medium 2", "color": "#00FF88"},
-    "6": {"name": "Enemigo Shooter", "color": "#880088"},
-    "7": {"name": "Enemigo Charo (Cuerpo a Cuerpo)", "color": "#FF5500"},
-    "S": {"name": "Spawner Genérico", "color": "#CCFF00"},
-    "MP": {"name": "Munición Pistola", "color": "#FFFF00"},
-    "MA": {"name": "Munición Ametralladora", "color": "#FF8800"},
-    "T": {"name": "Árbol 3D", "color": "#228822"},
-    "B": {"name": "Arbusto", "color": "#336633"},
-    "L": {"name": "Ladrillo", "color": "#AA4444"},
-    "IMG": {"name": "Imagen Decorativa", "color": "#FFD700"},  # NUEVA ESTRUCTURA: Imagen decorativa
-    " ": {"name": "Vacío", "color": "#222222"}
-}
+        #  Definición de Bloques
+        self.block_types = {
+            "#": {"name": "Muro", "color": "#888888"},
+            "D": {"name": "Puerta", "color": "#00FFFF"},
+            "+": {"name": "Comida", "color": "#FF0000"},
+            ".": {"name": "Suelo", "color": "#44AA44"},
+            "P": {"name": "Jugador", "color": "#0000FF"},
+            "1": {"name": "Enemigo Pablo", "color": "#FF00FF"},
+            "2": {"name": "Enemigo Pera", "color": "#FF8800"},
+            "3": {"name": "Enemigo Slow", "color": "#8800FF"},
+            "4": {"name": "Enemigo Medium", "color": "#FF0088"},
+            "5": {"name": "Enemigo Medium 2", "color": "#00FF88"},
+            "6": {"name": "Enemigo Shooter", "color": "#880088"},
+            "7": {"name": "Enemigo Charo (Cuerpo a Cuerpo)", "color": "#FF5500"},
+            "S": {"name": "Spawner Genérico", "color": "#CCFF00"},
+            "MP": {"name": "Munición Pistola", "color": "#FFFF00"},
+            "MA": {"name": "Munición Ametralladora", "color": "#FF8800"},
+            "T": {"name": "Árbol 3D", "color": "#228822"},
+            "B": {"name": "Arbusto", "color": "#336633"},
+            "L": {"name": "Ladrillo", "color": "#AA4444"},
+            "IMG": {"name": "Imagen Decorativa", "color": "#FFD700"},  # NUEVA ESTRUCTURA: Imagen decorativa
+            " ": {"name": "Vacío", "color": "#222222"}
         }
-        }
-        
+
         # Inicializar grid del mapa
         self.map_grid = [["." for _ in range(self.grid_width)] for _ in range(self.grid_height)]
         
         # Crear interfaz
         self.create_ui()
 
-# [Fin de sección]
 
-# sección [INTERFAZ DE USUARIO] Creación de la UI principal, canvas y controles
+
+#  Configuración de Interfaz MapEditor
     def create_ui(self):
+        #  Configuración de Layout Principal
         # Frame principal
         main_frame = tk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Frame izquierdo para la leyenda
+        #  Panel de Leyenda
         legend_frame = tk.Frame(main_frame, width=200, bg="#333333")
         legend_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         
@@ -77,6 +79,7 @@ self.block_types = {
         # Crear botones de la leyenda
         self.create_legend(legend_frame)
         
+        #  Panel de Controles
         # Frame derecho para el canvas y controles
         right_frame = tk.Frame(main_frame)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -133,7 +136,7 @@ self.block_types = {
         self.selected_label = tk.Label(controls_frame, text=f"Seleccionado: {self.block_types[self.selected_block]['name']}", font=("Arial", 10), bg="white", padx=10)
         self.selected_label.pack(side=tk.LEFT, padx=20)
         
-        # Frame para el canvas con scrollbars
+        #  Canvas y Scrollbars
         canvas_frame = tk.Frame(right_frame)
         canvas_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         
@@ -162,7 +165,7 @@ self.block_types = {
         # Dibujar grid inicial
         self.draw_grid()
         
-        # Bind eventos del mouse
+        #  Eventos Globales
         self.canvas.bind("<Button-1>", self.paint_block)
         self.canvas.bind("<B1-Motion>", self.paint_block)
         self.canvas.bind("<ButtonRelease-1>", self.stop_painting)
@@ -176,10 +179,11 @@ self.block_types = {
         self.root.bind("<Control-x>", lambda e: self.redo())
         self.root.bind("<Control-X>", lambda e: self.redo())
         
-# [Fin de sección]
 
-# sección [DIÁLOGO DE PROPIEDADES] Edición de propiedades de bloques (rotación, spawns, etc.)
+
+#  Diálogo de Propiedades MapEditor
     def open_properties_dialog(self, event):
+        #  Cálculos de Posición
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
         
@@ -215,12 +219,15 @@ self.block_types = {
         if self.properties_dialog:
             self.properties_dialog.destroy()
         
+        #  Configuración de Ventana Modal
+        
         self.properties_dialog = tk.Toplevel(self.root)
         self.properties_dialog.title(f"Propiedades: {self.block_types.get(block_type, {}).get('name', block_type)}")
         self.properties_dialog.geometry("350x300")
         self.properties_dialog.transient(self.root)
         self.properties_dialog.grab_set()
         
+        #  Campos de Edición
         main_frame = tk.Frame(self.properties_dialog, padx=20, pady=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -284,6 +291,8 @@ self.block_types = {
             self.max_spawns_var = None
             self.spawn_rate_var = None
         
+        
+        #  Botones de Acción
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(side=tk.BOTTOM, pady=15)
         
@@ -311,6 +320,7 @@ self.block_types = {
         )
         btn_cancel.pack(side=tk.LEFT, padx=5)
 
+#  Lógica de Propiedades MapEditor
     def apply_properties(self):
         if not self.editing_cell:
             return
@@ -377,9 +387,9 @@ self.block_types = {
         
         messagebox.showinfo("Éxito", "Propiedades actualizadas correctamente")
 
-# [Fin de sección]
 
-# sección [LEYENDA Y BÚSQUEDA] Panel de selección de bloques con filtrado
+
+#  Sistema de Leyenda MapEditor
     def create_legend(self, parent):
         # Frame para el buscador
         search_frame = tk.Frame(parent, bg="#333333")
@@ -516,13 +526,14 @@ self.block_types = {
         if legend_canvas:
             legend_canvas.configure(scrollregion=legend_canvas.bbox("all"))
 
+#  Selección de Bloques MapEditor
     def select_block(self, block_type):
         self.selected_block = block_type
         self.selected_label.config(text=f"Seleccionado: {self.block_types[block_type]['name']}")
 
-# [Fin de sección]
 
-# sección [HISTORIAL] Sistema de deshacer/rehacer acciones
+
+#  Sistema de Historial MapEditor
     def add_to_history(self):
         """Agrega el estado actual al historial"""
         # Crear una copia profunda del grid actual
@@ -555,11 +566,14 @@ self.block_types = {
             self.map_grid = [row[:] for row in self.history[self.history_index]]
             self.draw_grid()
 
-# [Fin de sección]
 
-# sección [DIBUJADO Y PINTADO] Renderizado del grid y pintado de celdas
+
+#  Sistema de Dibujado MapEditor
     def draw_grid(self):
+        #  Limpieza y Configuración
         self.canvas.delete("all")
+        
+        #  Renderizado de Celdas
         for y in range(self.grid_height):
             for x in range(self.grid_width):
                 x1 = x * self.cell_size
@@ -589,6 +603,7 @@ self.block_types = {
                     tags=f"cell_{x}_{y}"
                 )
                 
+                #  Renderizado de Etiquetas
                 if block_type != ".":
                     display_text = block_type
                     font_size = 8
@@ -615,6 +630,7 @@ self.block_types = {
         
         self.canvas.config(scrollregion=(0, 0, self.grid_width * self.cell_size, self.grid_height * self.cell_size))
         
+#  Lógica de Pintado MapEditor
     def stop_painting(self, event):
         """Reinicia la bandera de pintado al soltar el mouse"""
         if hasattr(self, '_painting'):
@@ -666,9 +682,9 @@ self.block_types = {
                         tags=f"cell_{grid_x}_{grid_y}"
                     )
 
-# [Fin de sección]
 
-# sección [GUARDAR Y CARGAR] Persistencia de mapas en archivos
+
+#  Sistema de Archivos MapEditor
     def save_map(self):
         filename = filedialog.asksaveasfilename(
             defaultextension=".txt",
@@ -764,6 +780,7 @@ self.block_types = {
             except Exception as e:
                 messagebox.showerror("Error", f"Error al cargar el mapa:\n{str(e)}")
         
+#  Gestión del Mapa MapEditor
     def clear_map(self):
         if messagebox.askyesno("Confirmar", "¿Estás seguro de que quieres limpiar el mapa?"):
             # Agregar estado actual al historial antes de limpiar
@@ -773,9 +790,9 @@ self.block_types = {
             self.draw_grid()
             messagebox.showinfo("Éxito", "Mapa limpiado correctamente")
 
-# [Fin de sección]
 
-# sección [REDIMENSIONADO] Cambio de tamaño del mapa
+
+#  Redimensionado MapEditor
     def resize_map(self):
         """Redimensiona el mapa al tamaño especificado"""
         try:
@@ -819,4 +836,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     editor = MapEditor(root)
     root.mainloop()
-# [Fin de sección]
