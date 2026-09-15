@@ -1,6 +1,7 @@
 // #region Importaciones UI
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { CONFIG, WEAPONS_DATA } from './Constants.js';
+import { getAimAssistStrength, setAimAssistStrength } from './core/AimAssist.js';
 // #endregion
 
 // #region Clase UIManager
@@ -251,6 +252,8 @@ export class SettingsManager {
         this.musicValueEl = document.getElementById('music-volume-value');
         this.sfxValueEl = document.getElementById('sfx-volume-value');
         this.resolutionSelect = document.getElementById('resolution-select');
+        this.aimSlider = document.getElementById('aim-assist-strength');
+        this.aimValueEl = document.getElementById('aim-assist-value');
 
         if (typeof AUDIO_CONFIG === 'undefined') {
             window.AUDIO_CONFIG = {
@@ -288,6 +291,7 @@ export class SettingsManager {
 
         this.updateMusicVolume();
         this.updateSFXVolume();
+        this.updateAimAssistUI();
         this.applyResolution();
     }
 
@@ -331,6 +335,14 @@ export class SettingsManager {
             this.saveSettings();
         });
 
+        if (this.aimSlider) {
+            this.aimSlider.addEventListener('input', () => {
+                const strength = setAimAssistStrength(this.aimSlider.value);
+                this.aimSlider.value = strength;
+                this.updateAimAssistUI();
+            });
+        }
+
         if (this.resolutionSelect) {
             this.resolutionSelect.addEventListener('change', () => {
                 this.applyResolution();
@@ -368,6 +380,14 @@ export class SettingsManager {
         if (this.audioManager) {
             const normalizedVolume = (value / 100) * AUDIO_CONFIG.MAX_VOLUME_MULTIPLIER;
             this.audioManager.setSFXVolume(normalizedVolume);
+        }
+    }
+
+    updateAimAssistUI() {
+        const strength = getAimAssistStrength();
+        if (this.aimSlider) this.aimSlider.value = strength;
+        if (this.aimValueEl) {
+            this.aimValueEl.textContent = strength === 0 ? 'OFF' : `${strength}`;
         }
     }
 

@@ -1,6 +1,7 @@
 // #region Importaciones BloodDecalManager
 // Descripción: Importa Three.js para crear decals de sangre persistentes en el escenario.
 import * as THREE from '../../node_modules/three/build/three.module.js';
+import { isMobileMode } from '../mobile/isMobile.js';
 // #endregion
 
 // #region Clase BloodDecalManager
@@ -13,6 +14,9 @@ export class BloodDecalManager {
         this.world = world;
         this.decals = [];
         this.maxDecals = 2880; // Cuatro veces el límite anterior de manchas persistentes
+        // En móvil se desactivan las manchas del suelo: ahorra texturas,
+        // raycasts y planos persistentes (draw calls). Paredes intactas.
+        this.floorBloodEnabled = !isMobileMode();
 
         // Cargar texturas de charcos de sangre
         const textureLoader = new THREE.TextureLoader();
@@ -33,36 +37,44 @@ export class BloodDecalManager {
         // Las manchas del suelo usan copias de 64 px para mantener un coste
         // bajo sin que se vean excesivamente pixeladas. Las salpicaduras de
         // pared conservan las texturas originales.
-        this.floorBloodTextures = [
-            textureLoader.load('assets/textures/blood_floor_lowres/blood_puddle_1.png'),
-            textureLoader.load('assets/textures/blood_floor_lowres/blood_splash.png'),
-            textureLoader.load('assets/textures/blood_floor_lowres/blood_splash2.png'),
-            textureLoader.load('assets/textures/blood_floor_lowres/blood_splash3.png'),
-            textureLoader.load('assets/textures/blood_floor_lowres/blood_splash4.png'),
-            textureLoader.load('assets/textures/blood_floor_lowres/blood_droplets.png'),
-            textureLoader.load('assets/textures/blood_floor_lowres/blood_streak.png')
-        ];
-        this.floorBloodTextures.forEach(texture => {
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.minFilter = THREE.LinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-            texture.generateMipmaps = false;
-            texture.needsUpdate = true;
-        });
+        // En móvil no se cargan: los decals de suelo están desactivados.
+        if (this.floorBloodEnabled) {
+            this.floorBloodTextures = [
+                textureLoader.load('assets/textures/blood_floor_lowres/blood_puddle_1.png'),
+                textureLoader.load('assets/textures/blood_floor_lowres/blood_splash.png'),
+                textureLoader.load('assets/textures/blood_floor_lowres/blood_splash2.png'),
+                textureLoader.load('assets/textures/blood_floor_lowres/blood_splash3.png'),
+                textureLoader.load('assets/textures/blood_floor_lowres/blood_splash4.png'),
+                textureLoader.load('assets/textures/blood_floor_lowres/blood_droplets.png'),
+                textureLoader.load('assets/textures/blood_floor_lowres/blood_streak.png')
+            ];
+            this.floorBloodTextures.forEach(texture => {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.generateMipmaps = false;
+                texture.needsUpdate = true;
+            });
+        } else {
+            this.floorBloodTextures = [];
+        }
 
         // El alien utiliza una salpicadura propia de sangre blanca.
         this.whiteBloodTexture = textureLoader.load('assets/textures/white_blood_splash.png');
         this.whiteBloodTexture.colorSpace = THREE.SRGBColorSpace;
         this.whiteBloodTexture.needsUpdate = true;
 
-        this.floorWhiteBloodTexture = textureLoader.load(
-            'assets/textures/blood_floor_lowres/white_blood_splash.png'
-        );
-        this.floorWhiteBloodTexture.colorSpace = THREE.SRGBColorSpace;
-        this.floorWhiteBloodTexture.minFilter = THREE.LinearFilter;
-        this.floorWhiteBloodTexture.magFilter = THREE.LinearFilter;
-        this.floorWhiteBloodTexture.generateMipmaps = false;
-        this.floorWhiteBloodTexture.needsUpdate = true;
+        this.floorWhiteBloodTexture = null;
+        if (this.floorBloodEnabled) {
+            this.floorWhiteBloodTexture = textureLoader.load(
+                'assets/textures/blood_floor_lowres/white_blood_splash.png'
+            );
+            this.floorWhiteBloodTexture.colorSpace = THREE.SRGBColorSpace;
+            this.floorWhiteBloodTexture.minFilter = THREE.LinearFilter;
+            this.floorWhiteBloodTexture.magFilter = THREE.LinearFilter;
+            this.floorWhiteBloodTexture.generateMipmaps = false;
+            this.floorWhiteBloodTexture.needsUpdate = true;
+        }
 
         // Raycaster para detectar superficies
         this.raycaster = new THREE.Raycaster();
@@ -159,6 +171,8 @@ export class BloodDecalManager {
     // #region Creación de Decals en Suelo BloodDecalManager
     // Descripción: Crea un charco de sangre en el suelo cerca del punto especificado.
     createFloorDecal(position, bloodType = 'red') {
+        // En móvil los decals de suelo están desactivados (rendimiento).
+        if (!this.floorBloodEnabled) return null;
         // Raycast hacia abajo para encontrar el suelo - desde MÁS ALTO
         const downDirection = new THREE.Vector3(0, -1, 0);
         // Comenzar desde 10 unidades arriba para asegurar que detecte el suelo

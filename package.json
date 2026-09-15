@@ -5,13 +5,20 @@
     "dev": "vite",
     "desktop": "electron electron/main.cjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mobile:copy-assets": "node scripts/copy-mobile-assets.mjs",
+    "mobile:build": "vite build && node scripts/copy-mobile-assets.mjs",
+    "mobile:sync": "npx cap sync android",
+    "mobile:apk": "npm run mobile:build && npx cap sync android && node scripts/build-apk.mjs"
   },
   "devDependencies": {
     "electron": "^42.5.1",
     "vite": "^5.0.0"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "three": "^0.169.0"
   }
 }

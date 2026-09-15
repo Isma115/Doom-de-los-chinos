@@ -681,6 +681,34 @@ export const ENEMY_TYPES = [
 ];
 // #endregion
 
+// #region Asistencia de Apuntado Constants
+// Descripción: Imán de cruceta sutil. Solo corrige cuando el jugador ya
+// apunta cerca del enemigo (cono pequeño) y sin raycasts para no gastar CPU.
+export const AIM_ASSIST = {
+    ENABLED: true,
+    // Nivel de referencia (5): cono y alcance base. Los demás niveles
+    // escalan desde aquí (ver DIST_PER_LEVEL y ANGLE_PER_LEVEL).
+    MAX_ANGLE_DEG: 7,
+    MAX_DISTANCE: 60,
+    // Alcance según nivel (0-10): 15 + nivel * 9.
+    // Nivel 1 ≈ 24 m · nivel 5 = 60 m · nivel 10 ≈ 105 m.
+    MIN_RANGE: 15,
+    DIST_PER_LEVEL: 9,
+    // Cono según nivel: 5 + nivel * 0.4.
+    // Nivel 1 ≈ 5.4° · nivel 5 = 7° · nivel 10 = 9°.
+    MIN_ANGLE_DEG: 5,
+    ANGLE_PER_LEVEL: 0.4,
+    // Distancia mínima: de cerca no se necesita ayuda.
+    MIN_DISTANCE: 2,
+    // Fracción del error angular corregida por segundo (3 = ~95% en 1s si
+    // el objetivo está quieto; el tope de abajo lo mantiene sutil).
+    PULL_PER_SEC: 3.0,
+    // Tope de corrección en grados/segundo: el jugador siempre puede más.
+    MAX_DEG_PER_SEC: 12,
+    // Multiplicador mientras se dispara (mantener el fuego sobre el blanco).
+    FIRE_BOOST: 1.4
+};
+// #endregion
 // #region Bloques de Mapa Constants
 // Descripción: Propiedades de los bloques que componen el nivel.
 export const MAP_BLOCKS = {

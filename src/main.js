@@ -9,23 +9,31 @@ import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js';
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { AudioManager } from './core/AudioManager.js';
 import { EventManager } from './core/EventManager.js';
+import { isMobileMode } from './mobile/isMobile.js';
 // #endregion
+
+// En móvil se marca el body para aplicar la UI compacta (ver touch.css).
+if (typeof document !== 'undefined' && isMobileMode()) {
+    document.body.classList.add('is-mobile');
+}
 
 const DISPLAY_RESOLUTIONS = Object.freeze({
     '1080p': { width: 1920, height: 1080 },
     '720p': { width: 1280, height: 720 }
 });
 const DEFAULT_RESOLUTION = '1080p';
+const MOBILE_DEFAULT_RESOLUTION = '720p';
 
 class Game {
     // #region Constructor Game
     // Descripción: Inicializa la instancia del juego, configurando la escena, cámara, renderizador, y los gestores básicos de estado y audio.
     constructor(mapName) {
         this.autoStart = new URLSearchParams(window.location.search).get('autostart') === '1';
+        this.isMobile = isMobileMode();
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({
-            antialias: true,
+            antialias: !this.isMobile,
             powerPreference: 'high-performance',
             stencil: false,
             depth: true
@@ -356,7 +364,7 @@ class Game {
         } catch (error) {
             console.warn('No se pudo leer la resolución guardada:', error);
         }
-        return DEFAULT_RESOLUTION;
+        return this.isMobile ? MOBILE_DEFAULT_RESOLUTION : DEFAULT_RESOLUTION;
     }
 
     setResolution(resolutionId = DEFAULT_RESOLUTION) {

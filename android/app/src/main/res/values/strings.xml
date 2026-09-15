@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Doom3D Arena</string>
+    <string name="title_activity_main">Doom3D Arena</string>
+    <string name="package_name">com.doom3d.arena</string>
+    <string name="custom_url_scheme">com.doom3d.arena</string>
+</resources>

@@ -6,6 +6,9 @@ import { WeaponSystem } from './Weapon.js';
 import { UIManager } from '../UI.js';
 import { Door } from '../entities/Door.js';
 import { PointerLockControls } from '../../node_modules/three/examples/jsm/controls/PointerLockControls.js';
+import { isMobileMode } from '../mobile/isMobile.js';
+import { attachTouchControls } from '../mobile/TouchControls.js';
+import { AimAssist } from '../core/AimAssist.js';
 // #endregion
 
 // #region Clase Player
@@ -20,6 +23,24 @@ export class Player {
         this.audioManager = audioManager;
         this.enemyManager = enemyManager;
         this.gameInstance = gameInstance;
+        this.isMobile = isMobileMode();
+        this.touchState = { moveX: 0, moveY: 0, active: false };
+
+        // En móvil no hay Pointer Lock: simular lock/unlock para reutilizar
+        // el mismo flujo de pausa, HUD y disparo que en escritorio.
+        if (this.isMobile) {
+            this.controls.isLocked = false;
+            this.controls.lock = () => {
+                if (this.controls.isLocked) return;
+                this.controls.isLocked = true;
+                this.controls.dispatchEvent({ type: 'lock' });
+            };
+            this.controls.unlock = () => {
+                if (!this.controls.isLocked) return;
+                this.controls.isLocked = false;
+                this.controls.dispatchEvent({ type: 'unlock' });
+            };
+        }
 
         scene.add(camera);
 
@@ -59,6 +80,8 @@ export class Player {
 
         this.weaponSystem = new WeaponSystem(camera, enemyManager, audioManager, this, scene);
         this.isShooting = false;
+        // Imán de cruceta sutil: barato (mates vectoriales, sin raycasts).
+        this.aimAssist = new AimAssist(camera, () => this.enemyManager?.enemies);
 
         this.initEvents(domElement);
     }
@@ -118,6 +141,10 @@ export class Player {
         const screamButton = document.getElementById('scream-button');
         if (screamButton) {
             screamButton.addEventListener('click', () => this.scream());
+        }
+
+        if (this.isMobile) {
+            attachTouchControls(this);
         }
     }
     // #endregion
@@ -179,12 +206,7 @@ export class Player {
                 break;
             case 'Space':
                 if (isDown) {
-                    if (this.debugState.flyMode) {
-                        this.velocity.y = CONFIG.JUMP_FORCE * 1.5;
-                    } else if (this.canJump) {
-                        this.velocity.y += CONFIG.JUMP_FORCE;
-                        this.canJump = false;
-                    }
+                    this.jumpPressed();
                 }
                 break;
             case 'ShiftLeft':
@@ -195,22 +217,7 @@ export class Player {
                 break;
             case 'KeyE':
                 if (isDown) {
-                    if (Door.tryOpenNearest(this.getPosition())) {
-                        console.log("PUERTA ABIERTA");
-                        if (this.audioManager) {
-                            this.audioManager.playSound('doorOpen', 0.5);
-                        }
-                    } else if (this.world?.tryEnterExitPortal?.(this.getPosition())) {
-                        const destinationMap = this.world.getExitPortalDestination?.();
-                        if (destinationMap && this.gameInstance?.loadMap) {
-                            this.gameInstance.loadMap(destinationMap);
-                        } else {
-                            UIManager.showEventMessage(
-                                'PORTAL ESTABLE — EL SIGUIENTE NIVEL SE AÑADIRÁ PRÓXIMAMENTE',
-                                4000
-                            );
-                        }
-                    }
+                    this.tryInteract();
                 }
                 break;
             case 'KeyV':
@@ -259,6 +266,43 @@ export class Player {
         this.isCrouching = false;
         this.velocity.x = 0;
         this.velocity.z = 0;
+        if (this.touchState) {
+            this.touchState.moveX = 0;
+            this.touchState.moveY = 0;
+            this.touchState.active = false;
+        }
+    }
+
+    jumpPressed() {
+        if (this.debugState.flyMode) {
+            this.velocity.y = CONFIG.JUMP_FORCE * 1.5;
+        } else if (this.canJump) {
+            this.velocity.y += CONFIG.JUMP_FORCE;
+            this.canJump = false;
+        }
+    }
+
+    tryInteract() {
+        if (Door.tryOpenNearest(this.getPosition())) {
+            console.log("PUERTA ABIERTA");
+            if (this.audioManager) {
+                this.audioManager.playSound('doorOpen', 0.5);
+            }
+            return true;
+        }
+        if (this.world?.tryEnterExitPortal?.(this.getPosition())) {
+            const destinationMap = this.world.getExitPortalDestination?.();
+            if (destinationMap && this.gameInstance?.loadMap) {
+                this.gameInstance.loadMap(destinationMap);
+            } else {
+                UIManager.showEventMessage(
+                    'PORTAL ESTABLE — EL SIGUIENTE NIVEL SE AÑADIRÁ PRÓXIMAMENTE',
+                    4000
+                );
+            }
+            return true;
+        }
+        return false;
     }
     // #endregion
 
@@ -795,18 +839,26 @@ export class Player {
 
         this.direction.z = Number(this.moveFlags.fwd) - Number(this.moveFlags.bwd);
         this.direction.x = Number(this.moveFlags.right) - Number(this.moveFlags.left);
+        // Joystick táctil: moveY negativo = avanzar, moveX = strafe.
+        if (this.touchState?.active) {
+            this.direction.z += -this.touchState.moveY;
+            this.direction.x += this.touchState.moveX;
+        }
         this.direction.normalize();
 
         // Detectar si el jugador está intentando moverse (presiona teclas de movimiento)
-        const isTryingToMove = this.moveFlags.fwd || this.moveFlags.bwd || this.moveFlags.left || this.moveFlags.right;
+        const isTryingToMove = this.moveFlags.fwd || this.moveFlags.bwd || this.moveFlags.left || this.moveFlags.right || this.touchState?.active;
 
         // Guardar posición antes de aplicar movimiento para detectar colisión posterior
         const oldPosition = this.camera.position.clone();
 
-        if (this.moveFlags.fwd || this.moveFlags.bwd) {
+        // El joystick táctil también debe integrar velocidad: antes solo
+        // lo hacían las teclas y el jugador móvil no se movía.
+        const touchActive = Boolean(this.touchState?.active);
+        if (this.moveFlags.fwd || this.moveFlags.bwd || touchActive) {
             this.velocity.z -= this.direction.z * CONFIG.PLAYER_SPEED * delta * movementMultiplier;
         }
-        if (this.moveFlags.left || this.moveFlags.right) {
+        if (this.moveFlags.left || this.moveFlags.right || touchActive) {
             this.velocity.x -= this.direction.x * CONFIG.PLAYER_SPEED * delta * movementMultiplier;
         }
 
@@ -866,6 +918,9 @@ export class Player {
 
         this.checkAmmoItems();
         this.checkWeaponItems();
+
+        // Corrección sutil hacia el enemigo encarado (si lo hay).
+        this.aimAssist?.update(delta, this.isShooting);
 
         // NUEVA ESTRUCTURA: Actualizar visualización del rayo azul
         if (this.rayActive) {
