@@ -297,6 +297,63 @@ top: 0; left: 0; width: 100%; height: 100%;
 pointer-events: auto;
     z-index: 10;
 }
+
+/* Pantalla de carga breve entre mapas. Bloquea la interacción mientras el
+   mundo, sus modelos y sus texturas terminan de inicializarse. */
+#loading-screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 4, 8, 0.94);
+    color: #ffffff;
+    pointer-events: auto;
+    z-index: 1000;
+}
+
+#loading-screen.visible {
+    display: flex;
+}
+
+.loading-card {
+    min-width: 230px;
+    padding: 28px 34px;
+    border: 2px solid #660000;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #1a0000 0%, #0d0d0d 55%, #1a0000 100%);
+    box-shadow: 0 0 28px rgba(255, 0, 0, 0.22);
+    text-align: center;
+}
+
+.loading-title {
+    color: #ff3333;
+    font-family: 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 3px;
+}
+
+.loading-map-name {
+    margin-top: 8px;
+    color: #ffcc00;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    margin: 22px auto 0;
+    border: 3px solid rgba(255, 255, 255, 0.22);
+    border-top-color: #ff3333;
+    border-radius: 50%;
+    animation: loading-spinner-rotation 0.8s linear infinite;
+}
+
+@keyframes loading-spinner-rotation {
+    to { transform: rotate(360deg); }
+}
 /*  Selector de Mapas */
 /* Estilos para el selector de mapas */
 #map-selector {

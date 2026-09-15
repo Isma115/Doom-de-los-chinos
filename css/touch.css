@@ -14,6 +14,24 @@
   display: block;
 }
 
+#touch-menu {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.touch-btn-menu {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  font-size: 27px;
+  line-height: 1;
+  background: rgba(0, 0, 0, 0.62);
+}
+
 #touch-look-area {
   position: absolute;
   top: 0;
@@ -116,6 +134,11 @@
     height: 80px;
     font-size: 30px;
   }
+  .touch-btn-menu {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+  }
 }
 
 /* UI compacta solo en móvil (body.is-mobile lo activa el juego). */
@@ -156,6 +179,17 @@
 .is-mobile #event-message {
   font-size: 22px;
   width: 90%;
+}
+.is-mobile .loading-card {
+  min-width: 0;
+  width: 68vw;
+  padding: 22px 20px;
+}
+.is-mobile .loading-title {
+  font-size: 19px;
+}
+.is-mobile .loading-map-name {
+  font-size: 16px;
 }
 .is-mobile .countdown-number {
   font-size: 64px;

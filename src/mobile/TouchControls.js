@@ -15,6 +15,9 @@ function ensureTouchRoot() {
       <div id="touch-joystick-knob"></div>
     </div>
     <div id="touch-look-area" aria-hidden="true"></div>
+    <div id="touch-menu">
+      <button id="touch-btn-menu" class="touch-btn touch-btn-menu" aria-label="Abrir menú" title="Menú">☰</button>
+    </div>
     <div id="touch-buttons">
       <button id="touch-btn-fire" class="touch-btn touch-btn-fire" aria-label="Disparar">🔥</button>
       <button id="touch-btn-jump" class="touch-btn" aria-label="Saltar">▲</button>
@@ -37,6 +40,7 @@ export function attachTouchControls(player) {
   const joystick = root.querySelector('#touch-joystick');
   const knob = root.querySelector('#touch-joystick-knob');
   const lookArea = root.querySelector('#touch-look-area');
+  const btnMenu = root.querySelector('#touch-btn-menu');
   const btnFire = root.querySelector('#touch-btn-fire');
   const btnJump = root.querySelector('#touch-btn-jump');
   const btnReload = root.querySelector('#touch-btn-reload');
@@ -173,6 +177,15 @@ export function attachTouchControls(player) {
       player.tryInteract();
     }
   };
+  const pressMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!player.controls.isLocked || player.isGameOver) return;
+
+    player.audioManager?.resume?.();
+    player.onMouseUp();
+    player.controls.unlock();
+  };
 
   moveArea.addEventListener('touchstart', onJoyStart, { passive: false });
   window.addEventListener('touchmove', onJoyMove, { passive: false });
@@ -190,6 +203,7 @@ export function attachTouchControls(player) {
   btnReload.addEventListener('touchstart', pressReload, { passive: false });
   btnWeapon.addEventListener('touchstart', pressWeapon, { passive: false });
   btnUse.addEventListener('touchstart', pressUse, { passive: false });
+  btnMenu.addEventListener('touchstart', pressMenu, { passive: false });
 
   // Mostrar UI táctil solo cuando el juego está en marcha (lock).
   const syncVisibility = () => {
@@ -217,6 +231,17 @@ export function attachTouchControls(player) {
     window.removeEventListener('touchmove', onLookMove);
     window.removeEventListener('touchend', onLookEnd);
     window.removeEventListener('touchcancel', onLookEnd);
+    btnFire.removeEventListener('touchstart', pressFire);
+    btnFire.removeEventListener('touchend', releaseFire);
+    btnFire.removeEventListener('touchcancel', releaseFire);
+    btnJump.removeEventListener('touchstart', pressJump);
+    btnReload.removeEventListener('touchstart', pressReload);
+    btnWeapon.removeEventListener('touchstart', pressWeapon);
+    btnUse.removeEventListener('touchstart', pressUse);
+    btnMenu.removeEventListener('touchstart', pressMenu);
+    player.controls.removeEventListener('lock', syncVisibility);
+    player.controls.removeEventListener('unlock', syncVisibility);
+    root.classList.remove('visible');
   };
 }
 

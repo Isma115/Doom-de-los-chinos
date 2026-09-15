@@ -99,7 +99,7 @@ export const AVAILABLE_MAPS = [
 
 // #region Configuración del Portal de Salida Constants
 // Descripción: Atlas animado que aparece al completar las rondas de Parque.
-// El destino queda vacío hasta que exista el siguiente nivel.
+// Al terminar Parque, el portal lleva al patio de El Hormiguero.
 export const EXIT_PORTAL_CONFIG = {
     // Cambiar la revisión evita que el navegador conserve una versión previa
     // del atlas con el checkerboard incrustado.
@@ -114,7 +114,7 @@ export const EXIT_PORTAL_CONFIG = {
     height: 7.2,
     groundOffset: 0.55,
     activationDistance: 4.5,
-    destinationMap: null
+    destinationMap: 'mapa2'
 };
 // #endregion
 
@@ -198,6 +198,7 @@ export const WEAPONS_DATA = [
         delay: 100,
         ammo: 600,
         maxAmmo: 600,
+        ammoGroup: 'machinegun',
         geo: machineGunGeometry,
         shootSound: 'machinegun',
         sprite: 'ametralla.png',
@@ -250,13 +251,39 @@ export const WEAPONS_DATA = [
         rocketRadius: 0.22,
         // Evita que el cohete choque con el suelo o una pared pegados al jugador.
         armingDistance: 2.0,
-        explosionRadius: 8.5,
+        // Radio de efecto duplicado para cubrir una zona mucho más amplia.
+        explosionRadius: 17.0,
+        // El RPG no hiere al jugador: la explosión le transmite este impulso.
+        rocketJumpStrength: 24,
         explosionDamage: 340,
         explosionFalloff: 0.55,
         pickupAmmo: 6,
         pickupTexture: 'assets/textures/rpg_pickup.png',
         pickupScale: 1.35,
         requiresPickup: true
+    },
+    {
+        id: 'minigun',
+        name: "MINIGUN",
+        color: 0x7c8791,
+        // Supera a la ametralladora tanto en daño (10) como en cadencia
+        // (100 ms entre disparos). El intervalo corto representa el giro
+        // continuo del conjunto de cañones.
+        damage: 18,
+        delay: 32,
+        ammo: 600,
+        maxAmmo: 600,
+        ammoGroup: 'machinegun',
+        geo: machineGunGeometry,
+        shootSound: 'machinegun',
+        sprite: 'minigun.png',
+        flash: 'minigun_flash.png',
+        flashDuration: 50,
+        recoil: 5,
+        viewRecoilDistance: 0.1,
+        viewRecoilDrop: 0.02,
+        viewRecoilDuration: 70,
+        isMelee: false
     }
 ];
 // #endregion// #region Tipos de Enemigos Constants
@@ -530,6 +557,44 @@ export const ENEMY_TYPES = [
         isMelee: true
     },
     {
+        id: 'black_hat_man',
+        speed: 4.0,
+        damage: 4,
+        hp: 65,
+        // Recorte fotográfico de cuerpo completo a baja resolución; la
+        // variante de paso está invertida horizontalmente como el resto de
+        // NPC humanos de un solo sprite.
+        texture: 'assets/enemies/black_hat_man.png',
+        textureWalk: 'assets/enemies/black_hat_man_walk.png',
+        spawnWeight: 1,
+        width: 1.8,
+        height: 3.0,
+        movementBehavior: 'wander_flee',
+        spriteOffsetY: -0.10,
+        projectileSize: 0.2,
+        sounds: ['grunt1', 'hiss1', 'growl2'],
+        isMelee: true
+    },
+    {
+        id: 'curly_black_tshirt_man',
+        speed: 4.0,
+        damage: 4,
+        hp: 65,
+        // Recorte fotográfico de cuerpo completo reducido a 96x160 para
+        // conservar la lectura pixelada sin convertirlo en cartoon.
+        // La variante walk es el mismo sprite invertido horizontalmente.
+        texture: 'assets/enemies/curly_black_tshirt_man.png',
+        textureWalk: 'assets/enemies/curly_black_tshirt_man_walk.png',
+        spawnWeight: 1,
+        width: 1.8,
+        height: 3.0,
+        movementBehavior: 'wander_flee',
+        spriteOffsetY: -0.10,
+        projectileSize: 0.2,
+        sounds: ['grunt1', 'hiss1', 'growl2'],
+        isMelee: true
+    },
+    {
         id: 'young_man',
         speed: 4.0,
         damage: 4,
@@ -630,6 +695,25 @@ export const ENEMY_TYPES = [
         width: 1.8,
         height: 3.0,
         // La anciana comparte la excepción del anciano y sí ataca.
+        movementBehavior: 'chase_attack',
+        spriteOffsetY: -0.10,
+        projectileSize: 0.2,
+        sounds: ['grunt1', 'hiss1', 'growl2'],
+        isMelee: true
+    },
+    {
+        id: 'old_woman_flag',
+        speed: 4.0,
+        damage: 5,
+        hp: 70,
+        // Recorte fotográfico de cuerpo completo de la anciana de la bandera.
+        // La versión de paso es el mismo recorte invertido horizontalmente,
+        // como en los demás NPC de un solo sprite.
+        texture: 'assets/enemies/old_woman_flag.png',
+        textureWalk: 'assets/enemies/old_woman_flag_walk.png',
+        spawnWeight: 0,
+        width: 1.8,
+        height: 3.0,
         movementBehavior: 'chase_attack',
         spriteOffsetY: -0.10,
         projectileSize: 0.2,

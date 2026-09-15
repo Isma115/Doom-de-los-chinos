@@ -16,6 +16,14 @@ import { MTLLoader } from '../../node_modules/three/examples/jsm/loaders/MTLLoad
 import { TDSLoader } from '../../node_modules/three/examples/jsm/loaders/TDSLoader.js';
 // #endregion
 
+const HORMIGUERO_TEXTURES = Object.freeze({
+    floor: 'assets/textures/hormiguero/studio_floor.png',
+    wood: 'assets/textures/hormiguero/crate_wood.png',
+    metal: 'assets/textures/hormiguero/studio_metal.png',
+    concrete: 'assets/textures/hormiguero/studio_concrete.jpg',
+    buildingWall: 'assets/textures/hormiguero/concrete_wall.png'
+});
+
 // #region Clase World
 // Descripción: Clase principal que gestiona la creación y renderizado del entorno del juego (mapa), incluyendo suelos, paredes, modelos 3D y spawners.
 export class World {
@@ -23,6 +31,7 @@ export class World {
     // Descripción: Inicializa las estructuras de datos para almacenar geometrías, materiales y referencias a objetos del mundo como paredes y spawners.
     constructor(scene) {
         this.scene = scene;
+        this.preexistingSceneChildren = new Set(scene.children);
         this.sharedMaterials = {};
         this.sharedGeometries = {};
         this.mapData = null;
@@ -42,10 +51,68 @@ export class World {
         this.floorGroup = null;
         this.parkGroundTerrain = null;
         this.collisionHelpers = new Map();
+        this.spawnerHelpers = new Map();
+        this.ventilationGateColliders = new Map();
+        this.ventilationOpen = false;
         this.exitPortal = null;
         this.exitPortalSpawn = null;
+        this.surfaceTextures = new Set();
+        this.environmentLights = [];
+        this.backgroundTexture = null;
     }
     // #endregion
+
+    loadTiledTexture(path, repeatX = 1, repeatY = 1) {
+        const textureLoader = new THREE.TextureLoader();
+        const texture = textureLoader.load(
+            path,
+            () => { },
+            undefined,
+            () => console.error(`No se pudo cargar textura de superficie: ${path}`)
+        );
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(repeatX, repeatY);
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.generateMipmaps = true;
+        texture.needsUpdate = true;
+        this.surfaceTextures.add(texture);
+        return texture;
+    }
+
+    createTexturedStandardMaterial(
+        color,
+        texturePath,
+        repeatX = 1,
+        repeatY = 1,
+        options = {}
+    ) {
+        const map = texturePath
+            ? this.loadTiledTexture(texturePath, repeatX, repeatY)
+            : null;
+
+        const material = new THREE.MeshStandardMaterial({
+            color,
+            map,
+            ...options
+        });
+
+        // El plató no usa un entorno HDRI y sus superficies metálicas
+        // terminaban perdiendo casi toda la luz. Mantener un mínimo de
+        // difusión y un relleno muy sutil solo en mapa2 aclara las texturas
+        // sin convertirlas en materiales planos ni afectar al Parque.
+        if (this.currentMapName === 'mapa2' && map) {
+            material.metalness = Math.min(0.45, material.metalness);
+            if (material.emissive?.getHex?.() === 0) {
+                material.emissive.set(0x202838);
+                material.emissiveIntensity = 0.28;
+            }
+        }
+
+        return material;
+    }
 
     // #region Inicialización World
     // Descripción: Carga los datos del mapa, configura el skybox (cielo), iluminación, genera el suelo y crea los objetos iniciales del nivel.
@@ -78,6 +145,7 @@ export class World {
 
         if (mapName === 'mapa2') {
             skyTexture?.dispose();
+            skyTexture = null;
             this.scene.background = new THREE.Color(0x080611);
             this.scene.environment = null;
             this.scene.fog = new THREE.Fog(0x080611, 90, 240);
@@ -103,16 +171,32 @@ export class World {
             this.scene.background = new THREE.Color(skyColor);
             this.scene.fog = new THREE.Fog(skyColor, 120, 350);
         }
+        this.backgroundTexture = skyTexture;
 
         // Iluminación
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+        const isHormigueroMap = mapName === 'mapa2';
+        const hemiLight = new THREE.HemisphereLight(
+            isHormigueroMap ? 0xfff4e1 : 0xffffff,
+            isHormigueroMap ? 0x5d687c : 0x444444,
+            isHormigueroMap ? 0.95 : 0.8
+        );
         hemiLight.position.set(0, 20, 0);
         this.scene.add(hemiLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        const dirLight = new THREE.DirectionalLight(
+            isHormigueroMap ? 0xffe8ca : 0xffffff,
+            isHormigueroMap ? 0.9 : 0.6
+        );
         dirLight.position.set(50, 200, 100);
         dirLight.castShadow = false;
         this.scene.add(dirLight);
+        this.environmentLights.push(hemiLight, dirLight);
+
+        if (isHormigueroMap) {
+            const studioFillLight = new THREE.AmbientLight(0xaab8cc, 0.38);
+            this.scene.add(studioFillLight);
+            this.environmentLights.push(studioFillLight);
+        }
         const mapWidth = this.mapData.width * CONFIG.BLOCK_SIZE;
         const mapHeight = this.mapData.height * CONFIG.BLOCK_SIZE;
         const terrainBounds = this.mapData.terrainBounds || {
@@ -172,10 +256,18 @@ export class World {
         } else if (mapName === 'mapa2') {
             const studioFloorGeometry = new THREE.PlaneGeometry(floorWidth, floorDepth);
             studioFloorGeometry.rotateX(-Math.PI / 2);
+            const studioFloorTexture = this.loadTiledTexture(
+                HORMIGUERO_TEXTURES.floor,
+                Math.max(1, floorWidth / 48),
+                Math.max(1, floorDepth / 48)
+            );
             const studioFloorMaterial = new THREE.MeshStandardMaterial({
-                color: 0x17131f,
+                color: 0xffffff,
+                map: studioFloorTexture,
                 roughness: 0.92,
                 metalness: 0.08,
+                emissive: 0x202838,
+                emissiveIntensity: 0.28,
                 flatShading: true
             });
             const studioFloor = new THREE.Mesh(
@@ -183,7 +275,10 @@ export class World {
                 studioFloorMaterial
             );
             studioFloor.name = 'hormiguero_studio_floor';
-            studioFloor.position.set(floorCenterX, 0, floorCenterZ);
+            // El suelo base queda ligeramente por debajo de los suelos
+            // modulares del mapa. Así no comparte profundidad con el suelo
+            // técnico de los conductos ni con las plataformas apoyadas en Y=0.
+            studioFloor.position.set(floorCenterX, -0.04, floorCenterZ);
             studioFloor.renderOrder = -20;
             studioFloor.userData = {
                 type: 'floor',
@@ -257,6 +352,7 @@ export class World {
 
         // Cargar modelos 3D desde JSON externo
         await this.load3DModelsFromJSON(mapName);
+        this.createEnemySpawnerDebugBounds();
     }
     // #endregion
 
@@ -282,19 +378,39 @@ export class World {
             isStatic: true
         };
 
-        const makeMaterial = (color, options = {}) => new THREE.MeshStandardMaterial({
-            color,
-            roughness: 0.82,
-            metalness: 0.08,
-            flatShading: true,
-            ...options
-        });
+        const makeMaterial = (color, options = {}) => {
+            const {
+                texturePath,
+                textureRepeatX = 1,
+                textureRepeatY = 1,
+                ...materialOptions
+            } = options;
 
-        const backdropMaterial = makeMaterial(0x1b1631, {
+            return this.createTexturedStandardMaterial(
+                color,
+                texturePath,
+                textureRepeatX,
+                textureRepeatY,
+                {
+                    roughness: 0.82,
+                    metalness: 0.08,
+                    flatShading: true,
+                    ...materialOptions
+                }
+            );
+        };
+
+        const backdropMaterial = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.metal,
+            textureRepeatX: 4,
+            textureRepeatY: 2,
             roughness: 0.96,
             metalness: 0.02
         });
-        const stageMaterial = makeMaterial(0x30203e, {
+        const stageMaterial = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.floor,
+            textureRepeatX: 4,
+            textureRepeatY: 2,
             roughness: 0.9
         });
         const carpetMaterial = makeMaterial(0x651f30, {
@@ -319,15 +435,24 @@ export class World {
             roughness: 0.45,
             metalness: 0.2
         });
-        const frameMaterial = makeMaterial(0x3b2d50, {
+        const frameMaterial = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.metal,
+            textureRepeatX: 2,
+            textureRepeatY: 2,
             metalness: 0.38,
             roughness: 0.62
         });
-        const metalMaterial = makeMaterial(0x4a4654, {
+        const metalMaterial = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.metal,
+            textureRepeatX: 2,
+            textureRepeatY: 2,
             metalness: 0.7,
             roughness: 0.42
         });
-        const deskMaterial = makeMaterial(0x5b2f38, {
+        const deskMaterial = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.wood,
+            textureRepeatX: 2,
+            textureRepeatY: 1,
             metalness: 0.18,
             roughness: 0.68
         });
@@ -335,6 +460,13 @@ export class World {
             emissive: 0xff6a16,
             emissiveIntensity: 1.8,
             roughness: 0.45
+        });
+        const buildingWallMaterial = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.buildingWall,
+            textureRepeatX: 7,
+            textureRepeatY: 3,
+            roughness: 0.98,
+            metalness: 0
         });
 
         const addBox = (name, dimensions, coordinates, material, rotation = {}) => {
@@ -399,6 +531,71 @@ export class World {
             root.add(mesh);
             return mesh;
         };
+
+        // El plató queda dentro de una carcasa de edificio. La fachada frontal
+        // es continua para que desde el patio no se vea el escenario; se deja
+        // una entrada lateral con dintel para conservar el acceso jugable.
+        const building = {
+            minX: -44,
+            maxX: 44,
+            frontZ: -14,
+            backZ: -64,
+            wallHeight: 24,
+            wallThickness: 1.6,
+            sideEntryCenterZ: -39,
+            sideEntryWidth: 14,
+            sideEntryHeight: 10
+        };
+        const buildingCenterZ = (building.frontZ + building.backZ) / 2;
+        const buildingDepth = building.frontZ - building.backZ;
+        const sideWallX = building.maxX - building.wallThickness / 2;
+        const leftWallX = building.minX + building.wallThickness / 2;
+        const sideSectionDepth = (buildingDepth - building.sideEntryWidth) / 2;
+        const frontSectionCenterZ = building.frontZ - sideSectionDepth / 2;
+        const backSectionCenterZ = building.backZ + sideSectionDepth / 2;
+
+        addBox(
+            'hormiguero-building-front-wall',
+            [building.maxX - building.minX, building.wallHeight, building.wallThickness],
+            [0, building.wallHeight / 2, building.frontZ],
+            buildingWallMaterial
+        );
+        addBox(
+            'hormiguero-building-back-wall',
+            [building.maxX - building.minX, building.wallHeight, building.wallThickness],
+            [0, building.wallHeight / 2, building.backZ],
+            buildingWallMaterial
+        );
+        addBox(
+            'hormiguero-building-left-wall',
+            [building.wallThickness, building.wallHeight, buildingDepth],
+            [leftWallX, building.wallHeight / 2, buildingCenterZ],
+            buildingWallMaterial
+        );
+        addBox(
+            'hormiguero-building-right-wall-front',
+            [building.wallThickness, building.wallHeight, sideSectionDepth],
+            [sideWallX, building.wallHeight / 2, frontSectionCenterZ],
+            buildingWallMaterial
+        );
+        addBox(
+            'hormiguero-building-right-wall-back',
+            [building.wallThickness, building.wallHeight, sideSectionDepth],
+            [sideWallX, building.wallHeight / 2, backSectionCenterZ],
+            buildingWallMaterial
+        );
+        addBox(
+            'hormiguero-building-right-entry-lintel',
+            [building.wallThickness, building.wallHeight - building.sideEntryHeight, building.sideEntryWidth],
+            [sideWallX, building.sideEntryHeight + (building.wallHeight - building.sideEntryHeight) / 2, building.sideEntryCenterZ],
+            buildingWallMaterial
+        );
+        addBox(
+            'hormiguero-building-roof',
+            [building.maxX - building.minX, building.wallThickness, buildingDepth],
+            [0, building.wallHeight + building.wallThickness / 2, buildingCenterZ],
+            buildingWallMaterial
+        );
 
         // Escenario, alfombra y pared de fondo.
         addBox('hormiguero-stage-platform', [76, 1.2, 34], [0, 0.6, -38], stageMaterial);
@@ -556,6 +753,41 @@ export class World {
         addCollider('backdrop', [-38, 0, -55.6], [38, 20.4, -54.1]);
         addCollider('desk', [-10, 1.25, -34.2], [10, 4.9, -29.5]);
         addCollider('camera', [-30, 0, -25], [-26, 6, -21.5]);
+        addCollider(
+            'building-front-wall',
+            [building.minX, 0, building.frontZ - building.wallThickness / 2],
+            [building.maxX, building.wallHeight, building.frontZ + building.wallThickness / 2]
+        );
+        addCollider(
+            'building-back-wall',
+            [building.minX, 0, building.backZ - building.wallThickness / 2],
+            [building.maxX, building.wallHeight, building.backZ + building.wallThickness / 2]
+        );
+        addCollider(
+            'building-left-wall',
+            [building.minX - building.wallThickness / 2, 0, building.backZ],
+            [building.minX + building.wallThickness / 2, building.wallHeight, building.frontZ]
+        );
+        addCollider(
+            'building-right-wall-front',
+            [building.maxX - building.wallThickness / 2, 0, building.frontZ - sideSectionDepth],
+            [building.maxX + building.wallThickness / 2, building.wallHeight, building.frontZ]
+        );
+        addCollider(
+            'building-right-wall-back',
+            [building.maxX - building.wallThickness / 2, 0, building.backZ],
+            [building.maxX + building.wallThickness / 2, building.wallHeight, building.backZ + sideSectionDepth]
+        );
+        addCollider(
+            'building-right-entry-lintel',
+            [building.maxX - building.wallThickness / 2, building.sideEntryHeight, building.sideEntryCenterZ - building.sideEntryWidth / 2],
+            [building.maxX + building.wallThickness / 2, building.wallHeight, building.sideEntryCenterZ + building.sideEntryWidth / 2]
+        );
+        addCollider(
+            'building-roof',
+            [building.minX, building.wallHeight, building.backZ],
+            [building.maxX, building.wallHeight + building.wallThickness, building.frontZ]
+        );
 
         this.staticModels.push(root);
         console.log('Plató low poly de El Hormiguero cargado');
@@ -683,6 +915,99 @@ export class World {
 
     // #region Getters de Objetos World
     // Descripción: Proporciona acceso a las listas de objetos colisionables, spawners y mallas del mundo.
+    createEnemySpawnerDebugBounds() {
+        this.spawnerHelpers.forEach(helper => this.scene.remove(helper));
+        this.spawnerHelpers.clear();
+
+        // Los spawners del patio deben poder localizarse durante la partida.
+        // Se dibujan como cajas de depuración independientes de los hitboxes
+        // generales, con profundidad desactivada para que nunca queden ocultas
+        // detrás del suelo o de los decorados.
+        if (this.currentMapName !== 'mapa2') return;
+
+        const halfSize = 3.5;
+        const minY = 0.05;
+        const maxY = 4.2;
+        const purple = 0xb04cff;
+
+        (this.genericSpawners || []).forEach(spawner => {
+            if (!spawner?.position) return;
+
+            const bounds = new THREE.Box3(
+                new THREE.Vector3(
+                    spawner.position.x - halfSize,
+                    minY,
+                    spawner.position.z - halfSize
+                ),
+                new THREE.Vector3(
+                    spawner.position.x + halfSize,
+                    maxY,
+                    spawner.position.z + halfSize
+                )
+            );
+            const helper = new THREE.Box3Helper(bounds.clone(), purple);
+            helper.name = `spawner-bounds-${spawner.id}`;
+            helper.renderOrder = 1000;
+            helper.material.depthTest = false;
+            helper.material.depthWrite = false;
+            helper.userData = {
+                type: 'enemySpawnerDebugBounds',
+                spawnerId: spawner.id
+            };
+
+            // El WaveEvent usa la misma caja para mantener la referencia
+            // espacial del área que se está mostrando.
+            spawner.boundingBox = bounds;
+            spawner.debugBounds = bounds;
+
+            this.scene.add(helper);
+            this.spawnerHelpers.set(spawner, helper);
+        });
+    }
+
+    setVentilationOpen(open = true) {
+        this.ventilationOpen = Boolean(open);
+
+        this.ventilationGateColliders.forEach((collider, grate) => {
+            const cover = grate.userData?.ventilationCover;
+            if (cover) {
+                cover.rotation.x = this.ventilationOpen ? -1.2 : 0;
+            }
+
+            if (this.ventilationOpen) {
+                const colliderIndex = this.walls.indexOf(collider);
+                if (colliderIndex !== -1) this.walls.splice(colliderIndex, 1);
+                if (collider.parent) collider.parent.remove(collider);
+
+                const helper = this.collisionHelpers.get(collider);
+                if (helper) {
+                    this.scene.remove(helper);
+                    this.collisionHelpers.delete(collider);
+                }
+            } else {
+                if (!collider.parent) this.scene.add(collider);
+                if (!this.walls.includes(collider)) this.walls.push(collider);
+            }
+
+            grate.userData.ventilationOpen = this.ventilationOpen;
+            collider.userData.isOpen = this.ventilationOpen;
+        });
+
+        // Las entradas que no son compuertas del patio conservan su estado
+        // decorativo, pero comparten la señal para cualquier interacción futura.
+        this.scene.traverse(object => {
+            if (object.userData?.propType === 'vent-grate') {
+                object.userData.ventilationOpen = this.ventilationOpen;
+            }
+        });
+
+        return this.ventilationOpen;
+    }
+
+    isVentilationOpen() {
+        return this.ventilationOpen;
+    }
+
     setCollisionDebugVisible(visible) {
         const shouldShow = Boolean(visible);
         CONFIG.DEBUG_SHOW_HITBOXES = shouldShow;
@@ -1127,6 +1452,11 @@ export class World {
             for (const model of modelsData) {
                 const { type = "obj", path, position, rotation = 0, scale = 1, texture, width = 10, height = 10 } = model;
                 const hasCollision = model.collision !== false;
+                const modelIdentity = [model.id, path, texture]
+                    .filter(value => typeof value === 'string')
+                    .join(' ')
+                    .toLowerCase();
+                const isTreeModel = /(?:^|[\s_\/.\-])(?:tree\d*|arbol\d*)(?:$|[\s_\/.\-])/.test(modelIdentity);
 
                 if (type === "hormiguero_set") {
                     this.createHormigueroSet(model);
@@ -1145,6 +1475,26 @@ export class World {
 
                 if (type === "fountain" || type === "fuente") {
                     this.createFountainProp(model);
+                    continue;
+                }
+
+                if (type === "vent_duct" || type === "conducto") {
+                    this.createVentDuctProp(model);
+                    continue;
+                }
+
+                if (type === "vent_grate" || type === "reja") {
+                    this.createVentGrateProp(model);
+                    continue;
+                }
+
+                if (type === "crate" || type === "caja") {
+                    this.createCrateProp(model);
+                    continue;
+                }
+
+                if (type === "hormiguero_prop" || type === "map2_prop") {
+                    this.createHormigueroProp(model);
                     continue;
                 }
 
@@ -1185,15 +1535,15 @@ export class World {
 
                         const colliderWidth = Math.max(
                             0.5,
-                            Number(model.collisionWidth) || size.x
+                            Number(model.collisionWidth) || (isTreeModel ? 1 : size.x)
                         );
                         const colliderHeight = Math.max(
                             0.5,
-                            Number(model.collisionHeight) || size.y
+                            Number(model.collisionHeight) || (isTreeModel ? 3 : size.y)
                         );
                         const colliderDepth = Math.max(
                             0.5,
-                            Number(model.collisionDepth) || size.z
+                            Number(model.collisionDepth) || (isTreeModel ? 1 : size.z)
                         );
 
                         const collisionBox = new THREE.Box3(
@@ -1283,8 +1633,11 @@ export class World {
                             polygonOffsetUnits: isGroundPlane ? -4 : 0
                         });
                     } else {
+                        // Sin textura se usa un color plano (útil para guías
+                        // de suelo como las flechas de los conductos).
+                        const flatColor = model.color !== undefined ? Number(model.color) : 0xffffff;
                         material = new THREE.MeshBasicMaterial({
-                            color: 0xffffff,
+                            color: flatColor,
                             side: THREE.DoubleSide,
                             transparent: !isGroundPlane,
                             alphaTest: 0.02,
@@ -1348,15 +1701,18 @@ export class World {
                         };
                         const colliderWidth = Math.max(
                             0.5,
-                            numericValue(model.collisionWidth, width)
+                            numericValue(model.collisionWidth, isTreeModel ? 1 : width)
                         );
                         const colliderHeight = Math.max(
                             1,
-                            numericValue(model.collisionHeight, height)
+                            numericValue(model.collisionHeight, isTreeModel ? 3 : height)
                         );
                         const colliderDepth = Math.max(
                             0.5,
-                            numericValue(model.collisionDepth, Math.min(width, height) * 0.25)
+                            numericValue(
+                                model.collisionDepth,
+                                isTreeModel ? 1 : Math.min(width, height) * 0.25
+                            )
                         );
                         const center = squareMesh.position;
                         const collisionBottom = numericValue(
@@ -1483,15 +1839,15 @@ export class World {
 
                     const colliderHeight = Math.max(
                         0.5,
-                        Number(model.collisionHeight) || size.y
+                        Number(model.collisionHeight) || (isTreeModel ? 3 : size.y)
                     );
                     const colliderWidth = Math.max(
                         0.5,
-                        Number(model.collisionWidth) || size.x
+                        Number(model.collisionWidth) || (isTreeModel ? 1 : size.x)
                     );
                     const colliderDepth = Math.max(
                         0.5,
-                        Number(model.collisionDepth) || size.z
+                        Number(model.collisionDepth) || (isTreeModel ? 1 : size.z)
                     );
 
                     const collisionBox = new THREE.Box3(
@@ -1731,6 +2087,882 @@ export class World {
         }
 
         console.log(`Fuente 3D low poly cargada en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
+    }
+    // #endregion
+
+    // #region Creación de Conducto de Ventilación World
+    // Descripción: Tramo de conducto metálico para infiltraciones (suelo técnico,
+    // techo bajo con colisión, tuberías laterales y luces). El techo queda por
+    // encima de la caja de colisión del jugador de pie, así se camina libremente
+    // pero no se puede saltar dentro; los enemigos altos no caben por él.
+    createVentDuctProp(model) {
+        const group = new THREE.Group();
+        const length = Math.max(10, Number(model.length) || 30);
+        const width = Math.max(4, Number(model.width) || 10);
+        const ceilingY = Number(model.ceilingY) || 3.2;
+        const propScale = Number(model.scale) || 1;
+
+        const floorMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            Math.max(1, length / 14),
+            Math.max(1, width / 5),
+            {
+                roughness: 0.5,
+                metalness: 0.6,
+                flatShading: true
+            }
+        );
+        const ceilingMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            Math.max(1, length / 18),
+            Math.max(1, width / 6),
+            {
+                roughness: 0.55,
+                metalness: 0.55,
+                flatShading: true
+            }
+        );
+        const stripeMaterial = new THREE.MeshStandardMaterial({
+            color: 0xd7a021,
+            emissive: 0x4d3405,
+            emissiveIntensity: 0.5,
+            roughness: 0.6,
+            metalness: 0.2,
+            flatShading: true
+        });
+        const pipeMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            1,
+            1,
+            {
+                roughness: 0.35,
+                metalness: 0.7,
+                flatShading: true
+            }
+        );
+        const lightMaterial = new THREE.MeshStandardMaterial({
+            color: 0x444444,
+            emissive: 0xfff2cc,
+            emissiveIntensity: 1.2,
+            roughness: 0.4,
+            metalness: 0.1
+        });
+
+        const addBox = (name, w, h, d, x, y, z, material) => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        // El suelo técnico queda separado del plano base. La pequeña
+        // elevación también evita que los tramos de conducto parpadeen al
+        // coincidir con el suelo general del patio.
+        const floorY = 0.08;
+        addBox('vent-floor', length, 0.12, width, 0, floorY, 0, floorMaterial);
+        addBox('vent-stripe-left', length, 0.14, 0.6, 0, floorY + 0.1, -(width / 2 - 0.8), stripeMaterial);
+        addBox('vent-stripe-right', length, 0.14, 0.6, 0, floorY + 0.1, (width / 2 - 0.8), stripeMaterial);
+
+        // Tuberías laterales a lo largo del conducto.
+        [-1, 1].forEach(side => {
+            const pipe = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.28, 0.28, length, 8),
+                pipeMaterial
+            );
+            pipe.name = `vent-pipe-${side < 0 ? 'left' : 'right'}`;
+            pipe.rotation.z = Math.PI / 2;
+            pipe.position.set(0, 2.3, side * (width / 2 - 0.7));
+            pipe.castShadow = false;
+            pipe.receiveShadow = false;
+            group.add(pipe);
+        });
+
+        // Techo bajo (con colisión) y luces interiores.
+        const ceiling = addBox('vent-ceiling', length, 0.5, width, 0, ceilingY + 0.25, 0, ceilingMaterial);
+        const lightCount = Math.max(1, Math.floor(length / 20));
+        for (let i = 0; i < lightCount; i++) {
+            const lx = lightCount === 1 ? 0 : -length / 2 + 10 + (i * (length - 20)) / (lightCount - 1);
+            addBox(`vent-light-${i}`, 2.2, 0.12, 1.0, lx, ceilingY - 0.06, 0, lightMaterial);
+        }
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        group.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? model.rotationY : (model.rotation || 0)
+        );
+        group.scale.setScalar(propScale);
+        group.userData = {
+            id: model.id || 'vent-duct',
+            type: 'staticModel',
+            propType: 'vent-duct',
+            bulletImpact: model.bulletImpact !== false,
+            bulletImpactFallback: true,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+
+        // Solo el techo colisiona: el jugador pasa por debajo sin rozarlo.
+        ceiling.updateMatrixWorld(true);
+        const ceilingBox = new THREE.Box3().setFromObject(ceiling);
+        group.userData.simpleBoxCollider = true;
+        group.userData.boundingBox = ceilingBox;
+        this.walls.push(group);
+        this.staticModels.push(group);
+
+        console.log(`Conducto de ventilación cargado en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
+    }
+    // #endregion
+
+    // #region Creación de Reja de Ventilación World
+    // Descripción: Boca de conducto con postes, dintel, tapa de reja abierta hacia
+    // el techo y ventilador lateral. Puramente decorativa (sin colisión) para que
+    // el jugador pueda colarse a través de ella.
+    createVentGrateProp(model) {
+        const group = new THREE.Group();
+        group.name = model.id || 'vent-grate';
+        const propScale = Number(model.scale) || 1;
+        const isVentilationGate = this.currentMapName === 'mapa2' &&
+            model.ventilationGate === true;
+
+        const steelDark = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            1,
+            1,
+            {
+                roughness: 0.5,
+                metalness: 0.65,
+                flatShading: true
+            }
+        );
+        const steelLight = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            1,
+            1,
+            {
+                roughness: 0.35,
+                metalness: 0.75,
+                flatShading: true
+            }
+        );
+        const bladeMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            1,
+            1,
+            {
+                roughness: 0.45,
+                metalness: 0.6,
+                flatShading: true,
+                side: THREE.DoubleSide
+            }
+        );
+
+        const addBox = (name, w, h, d, x, y, z, material, parent = group) => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            parent.add(mesh);
+            return mesh;
+        };
+
+        // Marco: postes, dintel y umbral.
+        addBox('grate-post-left', 0.5, 3.6, 0.5, -4.75, 1.8, 0, steelDark);
+        addBox('grate-post-right', 0.5, 3.6, 0.5, 4.75, 1.8, 0, steelDark);
+        addBox('grate-lintel', 10, 0.5, 0.6, 0, 3.45, 0, steelDark);
+        addBox('grate-sill', 10, 0.25, 0.8, 0, 0.12, 0, steelDark);
+
+        // Tapa de reja abierta hacia el techo (no bloquea el paso).
+        const hinge = new THREE.Group();
+        hinge.name = 'grate-cover-hinge';
+        hinge.position.set(0, 3.1, 0);
+        hinge.rotation.x = isVentilationGate && !this.ventilationOpen ? 0 : -1.2;
+        group.add(hinge);
+        for (let i = 0; i < 6; i++) {
+            const bx = -3.75 + i * 1.5;
+            addBox(`grate-bar-${i}`, 0.18, 2.9, 0.12, bx, -1.45, 0, steelLight, hinge);
+        }
+        addBox('grate-rail-top', 9, 0.18, 0.12, 0, -0.2, 0, steelLight, hinge);
+        addBox('grate-rail-bottom', 9, 0.18, 0.12, 0, -2.7, 0, steelLight, hinge);
+
+        // Ventilador en la cara exterior del poste derecho.
+        const fan = new THREE.Group();
+        fan.name = 'grate-fan';
+        fan.position.set(5.15, 1.9, 0);
+        fan.rotation.y = Math.PI / 2;
+        group.add(fan);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.15, 6, 12), steelDark);
+        ring.name = 'grate-fan-ring';
+        fan.add(ring);
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.3, 8), steelLight);
+        hub.name = 'grate-fan-hub';
+        hub.rotation.x = Math.PI / 2;
+        fan.add(hub);
+        for (let i = 0; i < 3; i++) {
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.7, 0.08), bladeMaterial);
+            blade.name = `grate-fan-blade-${i}`;
+            blade.position.y = 0.55;
+            const holder = new THREE.Group();
+            holder.rotation.z = (i * Math.PI * 2) / 3;
+            holder.add(blade);
+            fan.add(holder);
+        }
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        group.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? model.rotationY : (model.rotation || 0)
+        );
+        group.scale.setScalar(propScale);
+        group.userData = {
+            id: model.id || 'vent-grate',
+            type: 'staticModel',
+            propType: 'vent-grate',
+            ventilationGate: isVentilationGate,
+            ventilationOpen: isVentilationGate ? this.ventilationOpen : true,
+            ventilationCover: hinge,
+            bulletImpact: model.bulletImpact !== false,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+        this.decorativeMeshes.push(group);
+
+        if (isVentilationGate && !this.ventilationOpen) {
+            const collider = new THREE.Object3D();
+            collider.name = `${group.name}-closed-collider`;
+            collider.userData = {
+                type: 'ventilationGate',
+                isStatic: true,
+                isOpen: false,
+                bulletImpact: false,
+                bulletImpactFallback: false,
+                simpleBoxCollider: true,
+                // Caja local del hueco de la reja; el giro del modelo se
+                // aplica para que ambas entradas queden bloqueadas según su
+                // orientación real.
+                boundingBox: new THREE.Box3(
+                    new THREE.Vector3(-5, 0, -0.35),
+                    new THREE.Vector3(5, 3.6, 0.35)
+                ).applyMatrix4(group.matrixWorld)
+            };
+
+            this.scene.add(collider);
+            this.walls.push(collider);
+            this.ventilationGateColliders.set(group, collider);
+        }
+
+        console.log(`Reja de ventilación cargada en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
+    }
+    // #endregion
+
+    // #region Creación de Caja de Almacén World
+    // Descripción: Caja de madera/militar con tapa y refuerzos para vestir el
+    // almacén y el patio exterior. Colisiona como un bloque sólido.
+    createCrateProp(model) {
+        const group = new THREE.Group();
+        const width = Math.max(1, Number(model.width) || 4);
+        const height = Math.max(1, Number(model.height) || 3);
+        const depth = Math.max(1, Number(model.depth) || 4);
+        const propScale = Number(model.scale) || 1;
+        const color = model.color !== undefined ? Number(model.color) : 0x8a5a2b;
+        // Las molduras cubren las esquinas del cuerpo. Si su cara exterior
+        // queda exactamente en x/z = ±ancho/2, comparte profundidad con la
+        // cara del cuerpo y aparece z-fighting. Se sacan unas centésimas para
+        // que la moldura sea inequívocamente la superficie visible.
+        const edgeSize = 0.3;
+        const edgeSurfaceOffset = 0.02;
+
+        const woodMaterial = this.createTexturedStandardMaterial(
+            model.color !== undefined ? color : 0xffffff,
+            HORMIGUERO_TEXTURES.wood,
+            1,
+            1,
+            {
+                roughness: 0.85,
+                metalness: 0.05,
+                flatShading: true
+            }
+        );
+        const trimMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            1,
+            1,
+            {
+                roughness: 0.9,
+                metalness: 0.45,
+                flatShading: true
+            }
+        );
+
+        const addBox = (name, w, h, d, x, y, z, material) => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        addBox('crate-body', width, height, depth, 0, height / 2, 0, woodMaterial);
+        addBox('crate-lid', width + 0.3, 0.25, depth + 0.3, 0, height + 0.12, 0, trimMaterial);
+        [-1, 1].forEach(sx => {
+            [-1, 1].forEach(sz => {
+                addBox(
+                    `crate-edge-${sx < 0 ? 'l' : 'r'}-${sz < 0 ? 'b' : 'f'}`,
+                    edgeSize, height, edgeSize,
+                    sx * (width / 2 - edgeSize / 2 + edgeSurfaceOffset),
+                    height / 2,
+                    sz * (depth / 2 - edgeSize / 2 + edgeSurfaceOffset),
+                    trimMaterial
+                );
+            });
+        });
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        group.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? model.rotationY : (model.rotation || 0)
+        );
+        group.scale.setScalar(propScale);
+        group.userData = {
+            id: model.id || 'crate',
+            type: 'staticModel',
+            propType: 'crate',
+            bulletImpact: model.bulletImpact !== false,
+            bulletImpactFallback: true,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+
+        const colliderHeight = height + 0.25;
+        group.userData.simpleBoxCollider = true;
+        group.userData.collisionBoxSize = { width, height: colliderHeight, depth };
+        group.userData.boundingBox = new THREE.Box3(
+            new THREE.Vector3(-width / 2, 0, -depth / 2),
+            new THREE.Vector3(width / 2, colliderHeight, depth / 2)
+        ).applyMatrix4(group.matrixWorld);
+        this.walls.push(group);
+        this.staticModels.push(group);
+
+        console.log(`Caja de almacén cargada en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
+    }
+    // #endregion
+
+    // #region Creación de Kit de Props de El Hormiguero World
+    // Descripción: Colección de props procedurales ligeros para vestir el
+    // exterior, el almacén, la red de ventilación y el plató. Se mantienen en
+    // un único tipo de modelo para que el JSON del mapa pueda funcionar como
+    // catálogo de variantes sin añadir dependencias externas.
+    createHormigueroProp(model = {}) {
+        const group = new THREE.Group();
+        const variant = String(model.variant || model.prop || '').toLowerCase();
+
+        const makeMaterial = (color, options = {}) => {
+            const {
+                texturePath,
+                textureRepeatX = 1,
+                textureRepeatY = 1,
+                ...materialOptions
+            } = options;
+
+            return this.createTexturedStandardMaterial(
+                color,
+                texturePath,
+                textureRepeatX,
+                textureRepeatY,
+                {
+                    roughness: 0.82,
+                    metalness: 0.08,
+                    flatShading: true,
+                    ...materialOptions
+                }
+            );
+        };
+
+        const concrete = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.concrete,
+            textureRepeatX: 3,
+            textureRepeatY: 2,
+            roughness: 0.96,
+            metalness: 0.02
+        });
+        const concreteDark = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.floor,
+            textureRepeatX: 2,
+            textureRepeatY: 2,
+            roughness: 1,
+            metalness: 0
+        });
+        const steel = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.metal,
+            textureRepeatX: 2,
+            textureRepeatY: 2,
+            roughness: 0.48,
+            metalness: 0.72
+        });
+        const steelLight = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.metal,
+            textureRepeatX: 1,
+            textureRepeatY: 1,
+            roughness: 0.34,
+            metalness: 0.82
+        });
+        const steelDark = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.metal,
+            textureRepeatX: 1,
+            textureRepeatY: 1,
+            roughness: 0.56,
+            metalness: 0.68
+        });
+        const honey = makeMaterial(0xd78320, {
+            emissive: 0x4d1f05,
+            emissiveIntensity: 0.68,
+            roughness: 0.7
+        });
+        const honeyLight = makeMaterial(0xffbd45, {
+            emissive: 0x7a2e05,
+            emissiveIntensity: 0.9,
+            roughness: 0.58
+        });
+        const wood = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.wood,
+            textureRepeatX: 1,
+            textureRepeatY: 1,
+            roughness: 0.94,
+            metalness: 0.02
+        });
+        const woodDark = makeMaterial(0xffffff, {
+            texturePath: HORMIGUERO_TEXTURES.wood,
+            textureRepeatX: 1,
+            textureRepeatY: 1,
+            roughness: 0.98,
+            metalness: 0.01
+        });
+        const red = makeMaterial(0xb63b32, {
+            emissive: 0x260302,
+            emissiveIntensity: 0.35,
+            roughness: 0.72
+        });
+        const screen = makeMaterial(0x071d3c, {
+            emissive: 0x0b4f85,
+            emissiveIntensity: 1.25,
+            roughness: 0.38,
+            metalness: 0.18
+        });
+        const cable = makeMaterial(0x101116, { roughness: 0.9, metalness: 0.02 });
+
+        const addBox = (name, width, height, depth, x, y, z, material, parent = group) => {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(width, height, depth),
+                material
+            );
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            parent.add(mesh);
+            return mesh;
+        };
+
+        const addCylinder = (
+            name,
+            radiusTop,
+            radiusBottom,
+            height,
+            segments,
+            x,
+            y,
+            z,
+            material,
+            parent = group
+        ) => {
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(radiusTop, radiusBottom, height, segments),
+                material
+            );
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            parent.add(mesh);
+            return mesh;
+        };
+
+        const addSphere = (name, radius, x, y, z, material, parent = group) => {
+            const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(radius, 8, 5),
+                material
+            );
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            parent.add(mesh);
+            return mesh;
+        };
+
+        const addCylinderBetween = (name, start, end, radius, material, segments = 8) => {
+            const direction = end.clone().sub(start);
+            const length = direction.length();
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(radius, radius, length, segments),
+                material
+            );
+            mesh.name = name;
+            mesh.position.copy(start).add(end).multiplyScalar(0.5);
+            mesh.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.normalize()
+            );
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            group.add(mesh);
+            return mesh;
+        };
+
+        const addHex = (name, radius, x, y, z, material, parent = group) => {
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(radius, radius, 0.22, 6),
+                material
+            );
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.rotation.x = Math.PI / 2;
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            parent.add(mesh);
+            return mesh;
+        };
+
+        const colliderBoxes = [];
+        const addColliderBox = (width, height, depth, x = 0, y = height / 2, z = 0) => {
+            colliderBoxes.push(new THREE.Box3(
+                new THREE.Vector3(x - width / 2, y - height / 2, z - depth / 2),
+                new THREE.Vector3(x + width / 2, y + height / 2, z + depth / 2)
+            ));
+        };
+
+        if (variant === 'facade_sign' || variant === 'facade' || variant === 'exterior_sign') {
+            const width = Math.max(24, Number(model.width) || 92);
+            const height = Math.max(7, Number(model.height) || 11);
+            const depth = Math.max(0.3, Number(model.depth) || 0.55);
+
+            addBox('hormiguero-facade-panel', width, height, depth, 0, height / 2, 0, concrete);
+            addBox('hormiguero-facade-frame-top', width + 1.2, 0.42, depth + 0.16, 0, height + 0.16, 0, steelDark);
+            addBox('hormiguero-facade-frame-bottom', width + 1.2, 0.42, depth + 0.16, 0, 0.16, 0, steelDark);
+
+            [-1, 1].forEach(side => {
+                addBox(
+                    `hormiguero-facade-pillar-${side < 0 ? 'left' : 'right'}`,
+                    0.7,
+                    height + 1.3,
+                    depth + 0.22,
+                    side * (width / 2 - 1.2),
+                    (height + 1.3) / 2,
+                    0,
+                    steelDark
+                );
+            });
+
+            // Placa central y hexágonos que funcionan como una rotulación
+            // reconocible incluso a distancia, sin depender de una fuente 3D.
+            addBox('hormiguero-facade-sign-plate', width * 0.62, height * 0.34, 0.18, 0, height * 0.64, -depth / 2 - 0.11, concreteDark);
+            const logoX = [-0.18, -0.06, 0.06, 0.18];
+            logoX.forEach((factor, index) => {
+                addHex(
+                    `hormiguero-facade-logo-${index}`,
+                    Math.max(0.8, height * 0.13),
+                    factor * width,
+                    height * 0.64,
+                    -depth / 2 - 0.23,
+                    index % 2 === 0 ? honeyLight : honey
+                );
+            });
+
+            [-1, 1].forEach(side => {
+                addBox('hormiguero-facade-light-arm', 0.18, 1.6, 0.18, side * width * 0.31, height * 0.9, -depth / 2 - 0.2, steelLight);
+                addBox('hormiguero-facade-light', 1.4, 0.18, 0.5, side * width * 0.31, height * 0.78, -depth / 2 - 0.38, honeyLight);
+            });
+
+            // Ventanas oscuras para romper el volumen y dar escala de edificio.
+            [-0.39, -0.3, 0.3, 0.39].forEach((factor, index) => {
+                addBox(`hormiguero-facade-window-${index}`, width * 0.055, height * 0.28, 0.08, factor * width, height * 0.34, -depth / 2 - 0.08, screen);
+            });
+        } else if (variant === 'warehouse_rack' || variant === 'rack' || variant === 'shelf') {
+            const width = Math.max(4, Number(model.width) || 7);
+            const height = Math.max(4, Number(model.height) || 8);
+            const depth = Math.max(1.4, Number(model.depth) || 2.5);
+            const shelfLevels = Math.max(2, Math.min(4, Number(model.shelfLevels) || 3));
+
+            [-1, 1].forEach(sx => {
+                [-1, 1].forEach(sz => {
+                    addCylinder(
+                        `warehouse-rack-post-${sx}-${sz}`,
+                        0.16,
+                        0.2,
+                        height,
+                        6,
+                        sx * (width / 2 - 0.18),
+                        height / 2,
+                        sz * (depth / 2 - 0.18),
+                        steelDark
+                    );
+                });
+            });
+
+            for (let level = 0; level <= shelfLevels; level++) {
+                const y = 0.45 + (level * (height - 0.8)) / shelfLevels;
+                addBox(`warehouse-rack-shelf-${level}`, width, 0.22, depth, 0, y, 0, steel);
+                addBox(`warehouse-rack-front-${level}`, width, 0.16, 0.16, 0, y + 0.16, -depth / 2 + 0.04, steelLight);
+            }
+
+            const boxColors = [wood, red, concrete, honey];
+            for (let level = 0; level < shelfLevels; level++) {
+                const y = 1.05 + (level * (height - 1.8)) / shelfLevels;
+                const boxWidth = width * (level % 2 === 0 ? 0.26 : 0.2);
+                const boxHeight = Math.min(1.05, (height - 1) / (shelfLevels + 0.7));
+                [-0.31, 0.02, 0.3].forEach((factor, index) => {
+                    if ((level + index) % 4 === 3) return;
+                    addBox(
+                        `warehouse-rack-box-${level}-${index}`,
+                        boxWidth,
+                        boxHeight,
+                        depth * 0.62,
+                        factor * width,
+                        y,
+                        0,
+                        boxColors[(level + index) % boxColors.length]
+                    );
+                });
+            }
+
+            addBox('warehouse-rack-label', width * 0.55, 0.62, 0.12, 0, height - 0.55, -depth / 2 - 0.07, honey);
+            addBox('warehouse-rack-label-stripe', width * 0.42, 0.08, 0.04, 0, height - 0.55, -depth / 2 - 0.15, honeyLight);
+            addColliderBox(width + 0.45, height, depth + 0.35);
+        } else if (variant === 'warehouse_pallet' || variant === 'pallet') {
+            const width = Math.max(3, Number(model.width) || 6);
+            const depth = Math.max(2.5, Number(model.depth) || 4);
+            const palletHeight = 0.42;
+
+            addBox('warehouse-pallet-base', width, 0.24, depth, 0, 0.12, 0, woodDark);
+            for (let i = 0; i < 5; i++) {
+                const x = -width / 2 + 0.35 + (i * (width - 0.7)) / 4;
+                addBox(`warehouse-pallet-slat-${i}`, 0.45, 0.17, depth + 0.12, x, 0.34, 0, wood);
+            }
+            [-1, 0, 1].forEach((x, index) => {
+                addBox(`warehouse-pallet-runner-${index}`, 0.34, 0.25, depth * 0.86, x * width * 0.31, 0.14, 0, woodDark);
+            });
+
+            const crateWidth = width * 0.43;
+            const crateDepth = depth * 0.42;
+            addBox('warehouse-pallet-crate-left', crateWidth, 1.8, crateDepth, -width * 0.22, palletHeight + 0.9, -depth * 0.17, wood);
+            addBox('warehouse-pallet-crate-right', crateWidth, 1.55, crateDepth, width * 0.22, palletHeight + 0.775, depth * 0.17, red);
+            addBox('warehouse-pallet-crate-top', crateWidth * 0.8, 1.1, crateDepth * 0.9, 0, palletHeight + 2.22, 0, honey);
+            addBox('warehouse-pallet-tape-left', 0.12, 1.82, crateDepth + 0.04, -width * 0.22, palletHeight + 0.91, -depth * 0.17, honeyLight);
+            addBox('warehouse-pallet-tape-right', 0.12, 1.57, crateDepth + 0.04, width * 0.22, palletHeight + 0.785, depth * 0.17, honeyLight);
+            addColliderBox(width + 0.2, 3.65, depth + 0.2, 0, 1.8, 0);
+        } else if (variant === 'vent_corner' || variant === 'duct_corner' || variant === 'elbow') {
+            const width = Math.max(4, Number(model.width) || 10);
+            const ceilingY = Math.max(2.6, Number(model.ceilingY) || 3.2);
+            const wallThickness = Math.max(0.35, Number(model.wallThickness) || 0.5);
+            const openEnd = String(model.openEnd || '').toLowerCase();
+            const opensNegativeZ = openEnd === 'negative-z';
+
+            // Cada módulo tiene una cota de suelo distinta para que sus
+            // caras superiores no queden coplanares en las uniones.
+            addBox('vent-corner-floor', width, 0.12, width, 0, 0.12, 0, steelDark);
+            addBox('vent-corner-ceiling', width, 0.5, width, 0, ceilingY + 0.25, 0, steel);
+
+            // Dos paneles forman la esquina exterior y dejan libre el giro en
+            // el cuadrante opuesto a la unión de los dos tramos.
+            // La unión de almacenamiento termina el tramo sur del conducto.
+            // Su cara norte debe quedar abierta para que el jugador pueda
+            // salir hacia el área del plató; el resto de esquinas conserva sus
+            // dos paneles y su giro original.
+            if (!opensNegativeZ) {
+                addBox('vent-corner-wall-x', width, ceilingY, wallThickness, 0, ceilingY / 2, -(width / 2 - wallThickness / 2), steel);
+                addBox('vent-corner-seam-x', width - 0.4, 0.15, 0.18, 0, ceilingY - 0.38, -(width / 2 - 0.32), steelLight);
+            }
+            addBox('vent-corner-wall-z', wallThickness, ceilingY, width, -(width / 2 - wallThickness / 2), ceilingY / 2, 0, steel);
+            addBox('vent-corner-seam-z', 0.18, 0.15, width - 0.4, -(width / 2 - 0.32), ceilingY - 0.38, 0, steelLight);
+            addBox('vent-corner-light', 1.7, 0.12, 1.15, width * 0.18, ceilingY - 0.06, width * 0.18, honeyLight);
+            addCylinder('vent-corner-joint', 0.42, 0.42, 0.65, 8, 0, ceilingY - 0.34, 0, steelLight);
+
+            // La caja de colisión cubre solo el techo; las dos paredes tienen
+            // colliders independientes para conservar el pasillo transitable.
+            addColliderBox(width, 0.5, width, 0, ceilingY + 0.25, 0);
+            if (!opensNegativeZ) {
+                addColliderBox(width, ceilingY, wallThickness, 0, ceilingY / 2, -(width / 2 - wallThickness / 2));
+            }
+            addColliderBox(wallThickness, ceilingY, width, -(width / 2 - wallThickness / 2), ceilingY / 2, 0);
+        } else if (variant === 'vent_ladder' || variant === 'ladder') {
+            const width = Math.max(2, Number(model.width) || 3.4);
+            const height = Math.max(3.5, Number(model.height) || 7.2);
+            const depth = Math.max(0.3, Number(model.depth) || 0.5);
+
+            [-1, 1].forEach(side => {
+                addCylinderBetween(
+                    `vent-ladder-rail-${side < 0 ? 'left' : 'right'}`,
+                    new THREE.Vector3(side * (width / 2 - 0.22), 0.25, 0),
+                    new THREE.Vector3(side * (width / 2 - 0.22), height, 0),
+                    0.13,
+                    steelLight,
+                    7
+                );
+            });
+            const rungCount = Math.max(4, Math.floor(height / 0.72));
+            for (let i = 0; i < rungCount; i++) {
+                const y = 0.55 + (i * (height - 0.9)) / (rungCount - 1);
+                addBox(`vent-ladder-rung-${i}`, width - 0.28, 0.14, depth, 0, y, 0, steelDark);
+            }
+            addBox('vent-ladder-top-hook-left', 0.18, 0.7, 0.7, -width * 0.33, height + 0.24, 0, steelLight);
+            addBox('vent-ladder-top-hook-right', 0.18, 0.7, 0.7, width * 0.33, height + 0.24, 0, steelLight);
+        } else if (variant === 'studio_camera' || variant === 'camera') {
+            const width = Math.max(2.4, Number(model.width) || 3.4);
+            const height = Math.max(3.5, Number(model.height) || 5.4);
+            const depth = Math.max(1.8, Number(model.depth) || 2.5);
+            const bodyY = Math.min(height - 1.2, 3.75);
+
+            addBox('studio-camera-body', width, 1.7, depth, 0, bodyY, 0, steelDark);
+            addBox('studio-camera-top', width * 0.74, 0.28, depth * 0.72, 0, bodyY + 0.98, 0, steel);
+            addCylinder('studio-camera-lens', 0.62, 0.7, 1.08, 8, 0, bodyY, -depth / 2 - 0.48, screen, group);
+            addCylinder('studio-camera-lens-ring', 0.82, 0.82, 0.16, 8, 0, bodyY, -depth / 2 - 0.06, honey, group);
+            addBox('studio-camera-viewfinder', 0.5, 0.55, 0.72, -width * 0.22, bodyY + 1.17, 0, steelLight);
+            addCylinder('studio-camera-pan-head', 0.34, 0.34, 0.35, 8, 0, bodyY - 1.02, 0, steel);
+            addCylinderBetween('studio-camera-tripod-center', new THREE.Vector3(0, bodyY - 1.15, 0), new THREE.Vector3(0, 1.1, 0), 0.16, steelLight, 7);
+            [-1, 1].forEach(side => {
+                addCylinderBetween(
+                    `studio-camera-tripod-leg-${side < 0 ? 'left' : 'right'}`,
+                    new THREE.Vector3(0, bodyY - 1.1, 0),
+                    new THREE.Vector3(side * width * 0.52, 0.18, depth * 0.42),
+                    0.12,
+                    steel,
+                    7
+                );
+            });
+            addBox('studio-camera-rec-light', 0.3, 0.22, 0.12, width * 0.27, bodyY + 0.25, -depth / 2 - 0.08, red);
+            addCylinderBetween('studio-camera-cable', new THREE.Vector3(width * 0.35, bodyY - 0.55, depth * 0.4), new THREE.Vector3(width * 0.55, 0.16, depth * 0.5), 0.045, cable, 6);
+            addColliderBox(width + 0.5, height, depth + 0.5, 0, height / 2, 0);
+        } else if (variant === 'studio_softbox' || variant === 'softbox' || variant === 'light') {
+            const width = Math.max(1.8, Number(model.width) || 3.1);
+            const height = Math.max(4, Number(model.height) || 7.6);
+            const depth = Math.max(0.8, Number(model.depth) || 1.5);
+
+            addCylinderBetween(
+                'studio-softbox-stand',
+                new THREE.Vector3(0, 0.18, 0),
+                new THREE.Vector3(0, height - 1.45, 0),
+                0.1,
+                steelLight,
+                7
+            );
+            [-1, 1].forEach(side => {
+                addCylinderBetween(
+                    `studio-softbox-foot-${side < 0 ? 'left' : 'right'}`,
+                    new THREE.Vector3(0, 0.2, 0),
+                    new THREE.Vector3(side * 0.75, 0.12, side * 0.34),
+                    0.08,
+                    steel,
+                    7
+                );
+            });
+            addCylinder('studio-softbox-yoke', 0.18, 0.18, 0.8, 8, 0, height - 1.15, 0, steel);
+            addBox('studio-softbox-housing', width, 1.5, depth, 0, height - 0.62, 0, steelDark);
+            addBox('studio-softbox-lens', width * 0.76, 1.05, 0.12, 0, height - 0.62, -depth / 2 - 0.08, honeyLight);
+            addBox('studio-softbox-grip', 0.18, 0.9, 0.18, width * 0.58, height - 0.62, 0, steelLight);
+        } else if (variant === 'studio_monitor' || variant === 'monitor') {
+            const width = Math.max(2.4, Number(model.width) || 3.6);
+            const height = Math.max(2, Number(model.height) || 3.3);
+            const depth = Math.max(0.35, Number(model.depth) || 0.55);
+            const screenHeight = height * 0.68;
+
+            addBox('studio-monitor-body', width, screenHeight, depth, 0, height * 0.66, 0, steelDark);
+            addBox('studio-monitor-screen', width * 0.82, screenHeight * 0.72, 0.08, 0, height * 0.66, -depth / 2 - 0.06, screen);
+            addBox('studio-monitor-screen-bar', width * 0.42, 0.08, 0.05, 0, height * 0.43, -depth / 2 - 0.12, honey);
+            addCylinder('studio-monitor-neck', 0.16, 0.22, height * 0.34, 8, 0, height * 0.18, 0, steel);
+            addBox('studio-monitor-foot', width * 0.64, 0.16, depth * 1.7, 0, 0.08, 0, steelDark);
+            addBox('studio-monitor-led', 0.16, 0.16, 0.05, width * 0.36, height * 0.43, -depth / 2 - 0.13, red);
+            addColliderBox(width + 0.25, height, depth + 0.35, 0, height / 2, 0);
+        } else {
+            console.warn(`Variante de prop de El Hormiguero no reconocida: ${variant || '(vacía)'}`);
+            return null;
+        }
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        const propScale = Number(model.scale) || 1;
+        group.name = model.id || `hormiguero-prop-${variant}`;
+        group.position.set(
+            Number(position.x) || 0,
+            Number(position.y) || 0,
+            Number(position.z) || 0
+        );
+        group.rotation.order = model.rotationOrder || 'XYZ';
+        group.rotation.x = THREE.MathUtils.degToRad(Number(model.rotationX) || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? Number(model.rotationY) : Number(model.rotation) || 0
+        );
+        group.rotation.z = THREE.MathUtils.degToRad(Number(model.rotationZ) || 0);
+        group.scale.setScalar(propScale);
+        group.userData = {
+            id: model.id || `hormiguero-prop-${variant}`,
+            type: 'staticModel',
+            propType: `hormiguero-${variant}`,
+            bulletImpact: model.bulletImpact !== false,
+            bulletImpactFallback: model.collision !== false,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+
+        const hasCollision = model.collision !== false && colliderBoxes.length > 0;
+        if (hasCollision) {
+            colliderBoxes.forEach((localBox, index) => {
+                const collider = new THREE.Object3D();
+                collider.name = `${group.name || variant}-collider-${index}`;
+                collider.userData = {
+                    type: 'staticCollider',
+                    isStatic: true,
+                    bulletImpact: model.bulletImpact !== false,
+                    bulletImpactFallback: true,
+                    simpleBoxCollider: true,
+                    boundingBox: localBox.clone().applyMatrix4(group.matrixWorld)
+                };
+                group.add(collider);
+                this.walls.push(collider);
+            });
+        }
+
+        if (!hasCollision || model.decorative === true) {
+            group.userData.isDecorative = true;
+            this.decorativeMeshes.push(group);
+        }
+        // Todos los grupos se registran para que los materiales y geometrías
+        // se liberen al recargar el mapa, incluso los props no colisionables.
+        this.staticModels.push(group);
+
+        console.log(`Prop de El Hormiguero cargado: ${variant} (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
         return group;
     }
     // #endregion
@@ -2371,11 +3603,32 @@ export class World {
 
     // #region Limpieza de Recursos World
     // Descripción: Libera la memoria de geometrías, materiales y elimina objetos de la escena al destruir el mundo o recargar el mapa.
-    dispose() {
+    dispose({ preserveObjects = [] } = {}) {
+        const preservedSceneChildren = new Set([
+            ...this.preexistingSceneChildren,
+            ...preserveObjects
+        ]);
+
         if (this.exitPortal) {
             this.exitPortal.dispose();
             this.exitPortal = null;
         }
+
+        this.environmentLights.forEach(light => {
+            this.scene.remove(light);
+            light.dispose?.();
+        });
+        this.environmentLights = [];
+
+        if (this.scene.background === this.backgroundTexture) {
+            this.scene.background = null;
+        }
+        if (this.scene.environment === this.backgroundTexture) {
+            this.scene.environment = null;
+        }
+        this.backgroundTexture?.dispose?.();
+        this.backgroundTexture = null;
+        this.scene.fog = null;
 
         Object.values(this.sharedGeometries).forEach(geo => geo.dispose());
         Object.values(this.sharedMaterials).forEach(mat => mat.dispose());
@@ -2406,7 +3659,10 @@ export class World {
                 this.parkGroundTerrain.geometry.dispose();
             }
             if (this.parkGroundTerrain.material) {
-                if (this.parkGroundTerrain.material.map) {
+                if (
+                    this.parkGroundTerrain.material.map &&
+                    !this.surfaceTextures.has(this.parkGroundTerrain.material.map)
+                ) {
                     this.parkGroundTerrain.material.map.dispose();
                 }
                 this.parkGroundTerrain.material.dispose();
@@ -2415,8 +3671,15 @@ export class World {
             this.floorGroup = null;
         }
 
+        this.surfaceTextures.forEach(texture => texture.dispose());
+        this.surfaceTextures.clear();
+
         this.collisionHelpers.forEach(helper => this.scene.remove(helper));
         this.collisionHelpers.clear();
+        this.spawnerHelpers.forEach(helper => this.scene.remove(helper));
+        this.spawnerHelpers.clear();
+        this.ventilationGateColliders.forEach(collider => this.scene.remove(collider));
+        this.ventilationGateColliders.clear();
 
         this.walls = [];
         this.doorMeshes = [];
@@ -2434,6 +3697,28 @@ export class World {
             if (weaponMesh.material) weaponMesh.material.dispose();
         });
         this.weaponMeshes = [];
+
+        // Retirar cualquier objeto que el mundo haya añadido directamente y
+        // que no estuviera en una colección específica. La cámara se conserva
+        // mediante preserveObjects desde Game para reutilizarla en el destino.
+        this.scene.children.slice().forEach(child => {
+            if (!preservedSceneChildren.has(child)) {
+                this.scene.remove(child);
+            }
+        });
+
+        this.decorativeMeshes = [];
+        this.billboardMeshes = [];
+        this.genericSpawners = [];
+        this.enemySpawns = [];
+        this.ammoSpawners = [];
+        this.foodSpawners = [];
+        this.mapData = null;
+        this.mapLoader = null;
+        this.exitPortalSpawn = null;
+        this.currentMapName = null;
+        this.sharedGeometries = {};
+        this.sharedMaterials = {};
     }
     // #endregion
 }

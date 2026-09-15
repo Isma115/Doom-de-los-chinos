@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor 3D de Mapas — Doom3D</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header id="editor-header">
+    <div class="header-left">
+      <a href="http://127.0.0.1:5173/index.html" id="back-link" class="back-link" title="Abrir el juego">◀ Juego</a>
+      <div>
+        <h1>🗺️ Editor 3D de Mapas</h1>
+        <span class="app-subtitle">Doom3D · escenario editable en tiempo real</span>
+      </div>
+      <span class="mode-badge">ELECTRON</span>
+    </div>
+
+    <div class="header-center">
+      <label>Nombre:
+        <input type="text" id="map-name" value="mi_mapa" maxlength="32" spellcheck="false">
+      </label>
+      <label>W:
+        <input type="number" id="map-width" value="12" min="5" max="100">
+      </label>
+      <label>H:
+        <input type="number" id="map-height" value="10" min="5" max="100">
+      </label>
+      <button id="btn-resize" title="Redimensionar manteniendo lo existente">Redimensionar</button>
+      <label class="zoom-label">Zoom:
+        <input type="range" id="zoom" min="20" max="100" value="58">
+      </label>
+    </div>
+
+    <div class="header-right">
+      <span id="save-status" aria-live="polite"></span>
+    </div>
+  </header>
+
+  <div id="toolbar">
+    <div class="toolbar-group">
+      <button id="btn-new" title="Mapa nuevo vacío">📄 Nuevo</button>
+      <button id="btn-load-json" title="Cargar fichero .json del editor">📂 Cargar JSON</button>
+      <button id="btn-save-json" class="primary" title="Guardar como .json">💾 Guardar JSON</button>
+      <button id="btn-import-txt" title="Cargar mapa clásico .txt">📥 Importar TXT</button>
+      <button id="btn-export-txt" title="Exportar a .txt compatible con el juego">📤 Exportar TXT</button>
+    </div>
+
+    <div class="toolbar-group">
+      <select id="game-map-select" title="Mapas incluidos en el juego">
+        <option value="default">default</option>
+        <option value="mapa1">mapa1</option>
+        <option value="mapa2" selected>mapa2</option>
+        <option value="pruebas_alien">pruebas_alien</option>
+      </select>
+      <button id="btn-load-game-map" title="Cargar un mapa del juego en el editor">Cargar del juego</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button id="btn-undo" title="Deshacer (Ctrl+Z)">↶</button>
+      <button id="btn-redo" title="Rehacer (Ctrl+Y)">↷</button>
+      <button id="btn-borders" title="Rodear el mapa con muros #">🧱 Bordes</button>
+      <button id="btn-clear" class="danger" title="Vaciar a suelo">🧹 Limpiar</button>
+      <button id="btn-play" class="play" title="Probar el mapa en el juego">▶ Probar en juego</button>
+    </div>
+
+    <div class="toolbar-group camera-tools" aria-label="Modo de cámara">
+      <button id="mode-edit" class="camera-mode active" title="Editar celdas con clic y arrastre">🖌️ Editar 3D</button>
+      <button id="mode-orbit" class="camera-mode" title="Orbitar, desplazar y acercar la cámara">🖐️ Navegar 3D</button>
+      <button id="btn-reset-camera" title="Restablecer la vista del mapa">⌂ Vista inicial</button>
+    </div>
+
+    <div class="toolbar-group game-url-group">
+      <label class="game-url-label" title="URL del juego (donde se probará el mapa)">Juego:
+        <input type="text" id="game-url" size="28" spellcheck="false">
+      </label>
+    </div>
+    <input type="file" id="file-input" accept=".json,.txt" hidden>
+  </div>
+
+  <main id="editor-main">
+    <aside id="palette-panel">
+      <h2>Bloques y entidades</h2>
+      <input type="search" id="palette-search" placeholder="Buscar bloque..." aria-label="Buscar bloque">
+      <div id="palette"></div>
+
+      <div class="brush-box">
+        <h3>Brocha</h3>
+        <div id="brush-preview">#</div>
+        <label>Rotación (°):
+          <input type="number" id="brush-rotation" value="0" min="0" max="359" step="1">
+        </label>
+        <label title="Solo enemigos 1-7 y A">Max spawns:
+          <input type="number" id="brush-max" value="5" min="1" max="99">
+        </label>
+        <label title="Solo enemigos 1-7 y A (ms)">Spawn rate (ms):
+          <input type="number" id="brush-rate" value="5000" min="100" step="100">
+        </label>
+        <label title="Para bloque S genérico">ID spawner (S):
+          <input type="text" id="brush-spawner-id" value="1" maxlength="8">
+        </label>
+        <div class="tool-row">
+          <button id="tool-paint" class="tool active" title="Pintar con la brocha">🖌️ Pintar</button>
+          <button id="tool-pick" class="tool" title="Pipeta: copiar celda a la brocha">💉 Pipeta</button>
+        </div>
+        <p class="hint">Modo editar: clic izquierdo pinta · clic derecho borra · arrastra para pintar.</p>
+        <p class="hint">Modo navegar: arrastra para orbitar · rueda para zoom · botón central para desplazar.</p>
+      </div>
+    </aside>
+
+    <section id="viewport-panel">
+      <div id="viewport-header">
+        <span id="viewport-meta">—</span>
+        <span id="viewport-mode">EDITAR CELDAS</span>
+      </div>
+      <div id="viewport-wrap">
+        <canvas id="viewport" tabindex="0" aria-label="Vista 3D editable del mapa"></canvas>
+        <div id="viewport-hint">Cargando escena 3D…</div>
+        <div id="viewport-coordinates">X: — · Z: —</div>
+      </div>
+      <div id="validation" aria-live="polite"></div>
+    </section>
+
+    <aside id="inspector-panel">
+      <h2>Celda seleccionada</h2>
+      <div id="cell-info">Haz clic en una celda de la escena para inspeccionarla.</div>
+      <label>Código:
+        <input type="text" id="cell-code" maxlength="24">
+      </label>
+      <label>Rotación:
+        <input type="number" id="cell-rotation" min="0" max="359">
+      </label>
+      <label>Max spawns:
+        <input type="number" id="cell-max" min="1" max="99">
+      </label>
+      <label>Spawn rate:
+        <input type="number" id="cell-rate" min="100" step="100">
+      </label>
+      <div class="tool-row">
+        <button id="btn-apply-cell">Aplicar a celda</button>
+        <button id="btn-cell-to-brush" title="Usar esta celda como brocha">→ Brocha</button>
+      </div>
+
+      <h2>Estadísticas</h2>
+      <div id="stats"></div>
+
+      <h2>Ayuda de edición</h2>
+      <details open>
+        <summary>Ver códigos</summary>
+        <ul class="help-list">
+          <li><b>#</b> muro · <b>B</b> arbusto · <b>L</b> ladrillo · <b>D</b> puerta</li>
+          <li><b>P[grados]</b> jugador (ej: P[180])</li>
+          <li><b>1-7, A</b> enemigos (ej: 1{5}&lt;5000&gt;)</li>
+          <li><b>S1, S2…</b> spawners · <b>SMuni</b> munición · <b>SComida</b> comida</li>
+          <li><b>MP</b> pistola · <b>MA</b> ametralladora · <b>+</b> comida</li>
+          <li><b>T</b> árbol · <b>IMG</b> decoración · <b>PORTAL</b> salida</li>
+          <li><b>.</b> suelo · <b>(vacío)</b> hueco</li>
+        </ul>
+      </details>
+    </aside>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -53,6 +53,9 @@ class Game {
         this.lastCleanupTime = 0;
         this.isPaused = false;
         this.isGameOver = false;
+        this.animationStarted = false;
+        this.mapTransitioning = false;
+        this.playerControlsCleanup = null;
 
         window.addEventListener('resize', () => this.onWindowResize());
 
@@ -66,24 +69,77 @@ class Game {
     // #region Gestión de Estado Game
     // Descripción: Controla el reinicio del juego, limpieza de la escena y observadores de eventos globales para el control de flujo (como reiniciar al morir).
     restartGame() {
-        // Limpiar escena
-        while (this.scene.children.length > 0) {
-            this.scene.remove(this.scene.children[0]);
-        }
+        const currentMap = this.world?.currentMapName || 'default';
 
-        // Resetear estados
+        // Resetear estados y liberar por completo la partida anterior antes
+        // de volver a construir el mismo mapa.
         this.isGameOver = false;
-        this.isPaused = false;
+        this.isPaused = true;
 
         // Detener música y sonidos
         this.audioManager.stopAll();
+
+        this.disposeCurrentMap();
 
         // Reiniciar UI
         document.getElementById('start-screen').style.display = 'none';
 
         // Reinicializar todo (mismo mapa que estaba jugando)
-        const currentMap = this.world?.currentMapName || 'default';
         this.initGame(currentMap);
+    }
+
+    async loadMap(mapName) {
+        if (!mapName || this.mapTransitioning) return false;
+
+        const currentMap = this.world?.currentMapName;
+        if (currentMap === mapName) return false;
+
+        this.mapTransitioning = true;
+        this.isPaused = true;
+        this.isGameOver = false;
+        this.player?.onMouseUp?.();
+        this.player?.controls?.unlock?.();
+        UIManager.showLoadingScreen(mapName);
+
+        // El portal se usa como cambio de escena: no se conserva ninguna
+        // referencia al mundo, enemigos ni temporizadores de Parque.
+        this.disposeCurrentMap();
+
+        try {
+            await this.initGame(mapName);
+            return true;
+        } catch (error) {
+            console.error(`No se pudo cargar el mapa ${mapName}:`, error);
+            this.disposeCurrentMap();
+            UIManager.showEventMessage('NO SE PUDO CARGAR EL SIGUIENTE MAPA', 4000);
+            return false;
+        } finally {
+            this.mapTransitioning = false;
+        }
+    }
+
+    disposeCurrentMap() {
+        this.eventManager?.dispose?.();
+        this.debugPanel?.setPlayer?.(null, null);
+        this.playerControlsCleanup?.();
+        this.playerControlsCleanup = null;
+        this.player?.dispose?.();
+        this.enemyManager?.dispose?.();
+        this.world?.dispose?.({ preserveObjects: [this.camera] });
+        Door.clearAll();
+
+        // World dispone los objetos registrados. Este último filtro retira
+        // luces o auxiliares que pudieran haber quedado sin registrar, pero
+        // conserva la cámara compartida entre mapas.
+        this.scene.children.slice().forEach(child => {
+            if (child !== this.camera) this.scene.remove(child);
+        });
+        this.renderer.renderLists?.dispose?.();
+
+        this.eventManager = null;
+        this.player = null;
+        this.enemyManager = null;
+        this.world = null;
     }
     setupGlobalRestartListener() {
         const handleRestart = (e) => {
@@ -110,6 +166,8 @@ class Game {
     // #region Inicialización Game
     // Descripción: Configura el mundo, carga el mapa, e instancia las entidades principales como el jugador, enemigos, puertas y paneles de interfaz.
     async initGame(mapName) {
+        UIManager.showLoadingScreen(mapName);
+        try {
         await this.audioManager.init();
         this.world = new World(this.scene);
         await this.world.init(mapName);
@@ -149,16 +207,22 @@ class Game {
 
         UIManager.updateHealth(this.player.health);
 
-        this.player.controls.addEventListener('lock', () => {
+        const onPlayerLock = () => {
             this.isPaused = false;
             this.prevTime = performance.now();
-        });
+        };
 
-        this.player.controls.addEventListener('unlock', () => {
+        const onPlayerUnlock = () => {
             // La muerte libera el pointer lock, pero la escena debe seguir
             // actualizándose para reproducir la animación de caída.
             this.isPaused = !this.player?.isDead;
-        });
+        };
+        this.player.controls.addEventListener('lock', onPlayerLock);
+        this.player.controls.addEventListener('unlock', onPlayerUnlock);
+        this.playerControlsCleanup = () => {
+            this.player?.controls?.removeEventListener('lock', onPlayerLock);
+            this.player?.controls?.removeEventListener('unlock', onPlayerUnlock);
+        };
 
         //  Configuración de Eventos y UI
         this.eventManager = new EventManager(
@@ -170,11 +234,17 @@ class Game {
         );
         await this.eventManager.loadEventsForMap(mapName);
 
-        this.settingsManager = new SettingsManager(
-            this.audioManager,
-            (resolutionId) => this.setResolution(resolutionId)
-        );
-        this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
+        if (!this.settingsManager) {
+            this.settingsManager = new SettingsManager(
+                this.audioManager,
+                (resolutionId) => this.setResolution(resolutionId)
+            );
+        }
+        if (!this.debugPanel) {
+            this.debugPanel = new DebugPanel(this.player, this.player.weaponSystem);
+        } else {
+            this.debugPanel.setPlayer(this.player, this.player.weaponSystem);
+        }
 
         // NUEVA ESTRUCTURA: Sincronizar el estado de bulletLog del debug panel con el weapon system y player
         this.player.weaponSystem.debugState.bulletLog = this.debugPanel.debugState.bulletLog;
@@ -201,7 +271,13 @@ class Game {
         this.prevTime = performance.now();
         this.fpsFrameCount = 0;
         this.fpsSampleStart = this.prevTime;
-        this.animate();
+        if (!this.animationStarted) {
+            this.animationStarted = true;
+            this.animate();
+        }
+        } finally {
+            UIManager.hideLoadingScreen();
+        }
     }
     // #endregion
 
@@ -356,6 +432,10 @@ class Game {
     }
 
     getSavedResolution() {
+        // El APK y el modo móvil deben mantenerse siempre en 720p aunque
+        // exista una preferencia de escritorio guardada en localStorage.
+        if (this.isMobile) return MOBILE_DEFAULT_RESOLUTION;
+
         try {
             const savedSettings = JSON.parse(localStorage.getItem('gameAudioSettings') || '{}');
             if (Object.prototype.hasOwnProperty.call(DISPLAY_RESOLUTIONS, savedSettings.resolution)) {
@@ -368,8 +448,11 @@ class Game {
     }
 
     setResolution(resolutionId = DEFAULT_RESOLUTION) {
-        const selectedResolution = Object.prototype.hasOwnProperty.call(DISPLAY_RESOLUTIONS, resolutionId)
-            ? resolutionId
+        const requestedResolution = this.isMobile
+            ? MOBILE_DEFAULT_RESOLUTION
+            : resolutionId;
+        const selectedResolution = Object.prototype.hasOwnProperty.call(DISPLAY_RESOLUTIONS, requestedResolution)
+            ? requestedResolution
             : DEFAULT_RESOLUTION;
         const resolution = DISPLAY_RESOLUTIONS[selectedResolution];
         const viewportWidth = Math.max(1, window.innerWidth || resolution.width);
@@ -430,10 +513,12 @@ function createMapSelector() {
 
 const queryParams = new URLSearchParams(window.location.search);
 const requestedMapId = queryParams.get('map');
-const requestedMap = AVAILABLE_MAPS.find(map => map.id === requestedMapId);
 
-if (requestedMap && queryParams.get('autostart') === '1') {
-    new Game(requestedMap.id);
+if (requestedMapId && queryParams.get('autostart') === '1') {
+    // Vale cualquier id de mapas/ (no solo AVAILABLE_MAPS): así los mapas
+    // creados con el editor se juegan con ?map=<nombre>&autostart=1.
+    // Si el fichero no existe, el MapLoader usa el mapa por defecto.
+    new Game(requestedMapId);
 } else {
     createMapSelector();
 }

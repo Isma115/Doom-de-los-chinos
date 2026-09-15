@@ -9,8 +9,35 @@ export class MapLoader {
     }
 
     //#region Carga de Mapa
+    // Soporta 3 orígenes, en este orden:
+    // 1) `__custom`: mapa creado en el editor web y guardado en
+    //    sessionStorage/localStorage (botón "Probar en juego").
+    // 2) `mapas/<nombre>.json`: formato nativo del editor web.
+    // 3) `mapas/<nombre>.txt`: formato clásico (P[rot], S1, SMuni...).
     async loadMapFile(mapName = 'default') {
         try {
+            if (mapName === '__custom') {
+                const customJson = this.loadCustomMapFromStorage();
+                if (customJson) {
+                    console.log('Cargando mapa personalizado del editor (storage)');
+                    return this.parseMapJson(customJson, '__custom');
+                }
+                throw new Error('No hay mapa personalizado en storage');
+            }
+
+            // 1) Intentar JSON del editor
+            try {
+                console.log(`Intentando cargar: mapas/${mapName}.json`);
+                const jsonResponse = await fetch(`mapas/${mapName}.json`);
+                if (jsonResponse.ok) {
+                    const jsonData = await jsonResponse.json();
+                    return this.parseMapJson(jsonData, mapName);
+                }
+            } catch (jsonError) {
+                console.warn(`No se pudo cargar mapas/${mapName}.json, probando .txt:`, jsonError);
+            }
+
+            // 2) Fallback al .txt clásico
             console.log(`Intentando cargar: mapas/${mapName}.txt`);
             const response = await fetch(`mapas/${mapName}.txt`);
 
@@ -24,6 +51,65 @@ export class MapLoader {
             console.error('Error loading map:', error);
             return this.getDefaultMap();
         }
+    }
+
+    loadCustomMapFromStorage() {
+        const keys = ['doom3d_custom_map', 'doom3d_custom_map_session'];
+        for (const key of keys) {
+            try {
+                const raw = sessionStorage.getItem(key) || localStorage.getItem(key);
+                if (raw) return JSON.parse(raw);
+            } catch (e) {
+                console.warn(`No se pudo leer ${key}:`, e);
+            }
+        }
+        return null;
+    }
+
+    // Convierte el JSON del editor a texto clásico y reutiliza parseMap,
+    // así el juego y el editor comparten exactamente la misma semántica.
+    // Formato JSON v1:
+    // { "name": "mi_mapa", "width": 12, "height": 10,
+    //   "grid": [[{code, rotation?, maxSpawns?, spawnRate?}, ...], ...] }
+    // También acepta celdas como string ("P[180]", "S1", "#", ...).
+    parseMapJson(jsonData, mapName = 'default') {
+        if (!jsonData || !Array.isArray(jsonData.grid)) {
+            throw new Error('JSON de mapa inválido: falta "grid"');
+        }
+        const lines = jsonData.grid.map(row => {
+            if (!Array.isArray(row)) return '';
+            return row.map(cell => {
+                let code = '.';
+                let rotation = 0;
+                let maxSpawns = null;
+                let spawnRate = null;
+                if (typeof cell === 'string') {
+                    // Aceptar "P[180]", "(P[180])" o "P" directamente.
+                    const clean = cell.trim().replace(/^\((.*)\)$/, '$1');
+                    const m = clean.match(/^(.+?)(?:\[(\d+)\])?(?:\{(\d+)\})?(?:<(\d+)>)?$/);
+                    if (m) {
+                        code = m[1] || '.';
+                        if (m[2]) rotation = parseInt(m[2], 10) || 0;
+                        if (m[3]) maxSpawns = parseInt(m[3], 10);
+                        if (m[4]) spawnRate = parseInt(m[4], 10);
+                    } else {
+                        code = clean || '.';
+                    }
+                } else if (cell && typeof cell === 'object') {
+                    code = cell.code ?? '.';
+                    rotation = Number(cell.rotation) || 0;
+                    if (cell.maxSpawns != null) maxSpawns = Number(cell.maxSpawns);
+                    if (cell.spawnRate != null) spawnRate = Number(cell.spawnRate);
+                }
+                if (code === '') code = '.';
+                let token = code;
+                if (rotation) token += `[${rotation}]`;
+                if (maxSpawns != null && !Number.isNaN(maxSpawns)) token += `{${maxSpawns}}`;
+                if (spawnRate != null && !Number.isNaN(spawnRate)) token += `<${spawnRate}>`;
+                return `(${token})`;
+            }).join('');
+        }).join('\n');
+        return this.parseMap(lines, jsonData.name || mapName);
     }
     //#endregion
 
@@ -223,6 +309,7 @@ export class MapLoader {
                     case "3":
                     case "4":
                     case "5":
+                    case "6":
                     case "7": {
                         const mapTypes = {
                             "1": "pablo",

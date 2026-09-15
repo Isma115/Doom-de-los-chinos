@@ -2,8 +2,25 @@ import * as THREE from '../../node_modules/three/build/three.module.js';
 import { ENEMY_TYPES } from '../Constants.js';
 import { UIManager } from '../UI.js';
 
+const HUMAN_NPC_TYPE_IDS = [
+    'street_npc',
+    'street_npc_female',
+    'street_npc_phone',
+    'old_man',
+    'black_hat_man',
+    'young_man',
+    'middle_aged_man',
+    'black_dress_woman',
+    'blonde_black_dress_woman',
+    'floral_dress_woman',
+    'old_woman',
+    'old_woman_flag'
+];
+const HUMAN_NPC_TYPE_SET = new Set(HUMAN_NPC_TYPE_IDS);
+
 export class WaveEvent {
     constructor(enemyManager, world, audioManager = null, player = null) {
+        this.disposed = false;
         this.enemyManager = enemyManager;
         this.world = world;
         this.audioManager = audioManager;
@@ -11,6 +28,15 @@ export class WaveEvent {
         this.genericSpawners = world.getGenericSpawners();
         this.ammoSpawners = world.getAmmoSpawners();
         this.foodSpawners = world.getFoodSpawners();
+        this.isHormigueroPatio = world.currentMapName === 'mapa2';
+        this.hormigueroDefeated = 0;
+        this.hormigueroTarget = 30;
+        this.hormigueroSpawnTarget = 50;
+        this.ventilationOpen = false;
+
+        this.enemyManager.setEnemyDefeatedCallback?.(enemy => {
+            this.handleEnemyDefeated(enemy);
+        });
 
         this.lastAmmoSpawnTime = 0;
         // Estos contadores avanzan en segundos (delta), no en milisegundos.
@@ -25,7 +51,7 @@ export class WaveEvent {
         this.waveActive = false;
         this.enemiesSpawned = 0;
         this.enemySpawnQueue = [];
-        this.enemySpawnInterval = 1000;
+        this.enemySpawnInterval = this.isHormigueroPatio ? 200 : 1000;
         this.maxActiveEnemies = 10;
         this.timeSinceLastEnemySpawn = 0;
         this.waveConfig = this.configureWaveData();
@@ -51,21 +77,24 @@ export class WaveEvent {
      * Configure wave data: which spawners to use and which enemies to spawn
      */
     configureWaveData() {
+        if (this.isHormigueroPatio) {
+            return [
+                {
+                    spawners: ['S1', 'S2', 'S3'],
+                    enemies: [
+                        { type: 'street_npc', count: 13 },
+                        { type: 'street_npc_female', count: 13 },
+                        { type: 'street_npc_phone', count: 12 },
+                        { type: 'old_man', count: 12 }
+                    ]
+                }
+            ];
+        }
+
         // Roster humano reutilizable: ocupa la mayoría de los huecos que
         // antes correspondían a las peras en las rondas avanzadas.
-        const humanNpcTypes = [
-            'street_npc',
-            'street_npc_female',
-            'street_npc_phone',
-            'old_man',
-            'young_man',
-            'middle_aged_man',
-            'black_dress_woman',
-            'blonde_black_dress_woman',
-            'floral_dress_woman',
-            'old_woman'
-        ];
-        const humanNpcWave = (count = 2) => humanNpcTypes.map(type => ({ type, count }));
+        const humanNpcWave = (count = 2) =>
+            HUMAN_NPC_TYPE_IDS.map(type => ({ type, count }));
 
         return [
             // Ronda 1: Los NPCs humanos predominan y la pera queda residual.
@@ -76,12 +105,14 @@ export class WaveEvent {
                     { type: 'street_npc_female', count: 4 },
                     { type: 'street_npc_phone', count: 4 },
                     { type: 'old_man', count: 4 },
+                    { type: 'black_hat_man', count: 3 },
                     { type: 'young_man', count: 4 },
                     { type: 'middle_aged_man', count: 4 },
                     { type: 'black_dress_woman', count: 3 },
                     { type: 'blonde_black_dress_woman', count: 3 },
                     { type: 'floral_dress_woman', count: 3 },
                     { type: 'old_woman', count: 3 },
+                    { type: 'old_woman_flag', count: 3 },
                     { type: 'pera', count: 1 }
                 ]
             },
@@ -93,12 +124,14 @@ export class WaveEvent {
                     { type: 'street_npc_female', count: 5 },
                     { type: 'street_npc_phone', count: 5 },
                     { type: 'old_man', count: 4 },
+                    { type: 'black_hat_man', count: 4 },
                     { type: 'young_man', count: 4 },
                     { type: 'middle_aged_man', count: 4 },
                     { type: 'black_dress_woman', count: 4 },
                     { type: 'blonde_black_dress_woman', count: 4 },
                     { type: 'floral_dress_woman', count: 4 },
                     { type: 'old_woman', count: 4 },
+                    { type: 'old_woman_flag', count: 4 },
                     { type: 'pera', count: 1 },
                     { type: 'trancas_barrancas', count: 4 },
                     { type: 'charo', count: 3 },
@@ -113,12 +146,14 @@ export class WaveEvent {
                     { type: 'street_npc_female', count: 6 },
                     { type: 'street_npc_phone', count: 6 },
                     { type: 'old_man', count: 6 },
+                    { type: 'black_hat_man', count: 5 },
                     { type: 'young_man', count: 6 },
                     { type: 'middle_aged_man', count: 5 },
                     { type: 'black_dress_woman', count: 5 },
                     { type: 'blonde_black_dress_woman', count: 5 },
                     { type: 'floral_dress_woman', count: 5 },
                     { type: 'old_woman', count: 5 },
+                    { type: 'old_woman_flag', count: 5 },
                     { type: 'pera', count: 1 },
                     { type: 'trancas_barrancas', count: 6 },
                     { type: 'amego', count: 4 },
@@ -222,6 +257,20 @@ export class WaveEvent {
         this.timeSinceLastEnemySpawn = 0;
 
         const waveNumber = this.currentWave + 1;
+
+        if (this.isHormigueroPatio) {
+            UIManager.showEventMessage('ENEMIGOS EN EL PATIO - ¡PREPÁRATE!', 3000);
+
+            const waveIndex = this.currentWave;
+            this.spawnWaveTimeout = setTimeout(() => {
+                this.spawnWaveTimeout = null;
+                if (this.waveActive && this.currentWave === waveIndex) {
+                    this.spawnEnemiesForWave();
+                }
+            }, 1000);
+            return;
+        }
+
         UIManager.showEventMessage(`RONDA ${waveNumber} - ¡PREPÁRATE!`, 3000);
 
         if (waveNumber === 4) {
@@ -307,8 +356,9 @@ export class WaveEvent {
             return;
         }
 
-        // Queue each enemy type. The queue keeps the previous order of the
-        // wave, but only one entry is consumed every enemySpawnInterval ms.
+        // Queue each enemy type. Only one entry is consumed every
+        // enemySpawnInterval ms; human entries are shuffled below without
+        // changing the order of the other enemy types.
         config.enemies.forEach(enemyConfig => {
             const enemyType = ENEMY_TYPES.find(t => t.id === enemyConfig.type);
 
@@ -354,8 +404,37 @@ export class WaveEvent {
             }
         });
 
-        // The first enemy can appear as soon as the wave's one-second
-        // preparation delay ends. Subsequent enemies respect the one-second gap.
+        // Randomize only the human NPCs. This keeps every non-human enemy in
+        // the configured order while preventing blocks such as all
+        // street_npc followed by all street_npc_female from appearing in a
+        // predictable sequence.
+        const humanQueueEntries = this.enemySpawnQueue.filter(({ enemyType }) =>
+            HUMAN_NPC_TYPE_SET.has(enemyType.id)
+        );
+
+        for (let i = humanQueueEntries.length - 1; i > 0; i--) {
+            const randomIndex = Math.floor(Math.random() * (i + 1));
+            [humanQueueEntries[i], humanQueueEntries[randomIndex]] = [
+                humanQueueEntries[randomIndex],
+                humanQueueEntries[i]
+            ];
+        }
+
+        let humanQueueIndex = 0;
+        this.enemySpawnQueue = this.enemySpawnQueue.map(queueEntry => {
+            if (!HUMAN_NPC_TYPE_SET.has(queueEntry.enemyType.id)) {
+                return queueEntry;
+            }
+
+            return humanQueueEntries[humanQueueIndex++];
+        });
+
+        if (this.isHormigueroPatio) {
+            this.enemySpawnQueue = this.enemySpawnQueue.slice(0, this.hormigueroSpawnTarget);
+        }
+
+        // El primer enemigo aparece al terminar el segundo de preparación;
+        // los siguientes respetan el intervalo configurado para el mapa.
         this.timeSinceLastEnemySpawn = this.enemySpawnInterval;
 
         console.log(`Preparados ${this.enemySpawnQueue.length} enemigos para la ronda ${this.currentWave + 1}`);
@@ -391,7 +470,40 @@ export class WaveEvent {
 
         this.enemySpawnQueue.shift();
         this.enemiesSpawned++;
+        spawnedEnemy.userData.isHormigueroPatioEnemy = this.isHormigueroPatio;
         this.timeSinceLastEnemySpawn = 0;
+    }
+
+    handleEnemyDefeated(enemy) {
+        if (
+            !this.isHormigueroPatio ||
+            this.ventilationOpen ||
+            !enemy?.userData?.isHormigueroPatioEnemy
+        ) {
+            return;
+        }
+
+        this.hormigueroDefeated++;
+        if (this.hormigueroDefeated >= this.hormigueroTarget) {
+            this.openVentilation();
+        }
+    }
+
+    openVentilation() {
+        if (this.ventilationOpen) return;
+
+        this.ventilationOpen = true;
+        this.waveActive = false;
+        this.enemySpawnQueue = [];
+        this.cancelPendingWaveTransitions();
+        this.world?.setVentilationOpen?.(true);
+        UIManager.showEventMessage('Ventilación abierta', 6000);
+
+        if (this.audioManager) {
+            this.audioManager.stopMusic();
+        }
+
+        console.log(`Ventilación abierta tras derrotar ${this.hormigueroDefeated} enemigos`);
     }
 
     /**
@@ -399,6 +511,10 @@ export class WaveEvent {
      */
     checkWaveCompletion(playerPosition = null) {
         if (!this.waveActive) return;
+
+        // El patio no usa rondas encadenadas: el acceso se desbloquea al
+        // contabilizar 30 bajas, aunque la cola de apariciones ya esté vacía.
+        if (this.isHormigueroPatio) return;
 
         // Check if all enemies are dead
         const aliveEnemies = this.enemyManager.enemies.length;
@@ -539,6 +655,7 @@ export class WaveEvent {
      * Update method called from EventManager
      */
     update(delta, playerPosition = null) {
+        if (this.disposed) return;
         this.updateEnemySpawning(delta);
         this.checkWaveCompletion(playerPosition);
 
@@ -554,6 +671,18 @@ export class WaveEvent {
             this.spawnFoodAtSpawners();
             this.timeSinceLastFoodSpawn = 0;
         }
+    }
+
+    dispose() {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.cancelPendingWaveTransitions();
+        this.enemyManager?.setEnemyDefeatedCallback?.(null);
+        this.enemySpawnQueue = [];
+        this.world = null;
+        this.enemyManager = null;
+        this.audioManager = null;
+        this.player = null;
     }
 
     spawnAmmoAtSpawners() {

@@ -65,6 +65,10 @@ export class Player {
         this.lastRayHit = null;
         this.impactEffect = null;
         this.impactTimeout = null;
+        this.highlightEffects = new Set();
+        this.eventCleanup = [];
+        this.touchControlsCleanup = null;
+        this.disposed = false;
 
         camera.position.set(0, CONFIG.PLAYER_HEIGHT, 0);
 
@@ -106,46 +110,109 @@ export class Player {
     // #region Inicialización de Eventos Player
     // Descripción: Configura los listeners del DOM para teclado, ratón y elementos de la interfaz (como la pantalla de inicio).
     initEvents(domElement) {
+        const listen = (target, type, handler, options) => {
+            if (!target) return;
+            target.addEventListener(type, handler, options);
+            this.eventCleanup.push(() => target.removeEventListener(type, handler, options));
+        };
+
         const startScreen = document.getElementById('start-screen');
-        startScreen.addEventListener('click', () => {
+        const onStartScreenClick = () => {
             // Reanudamos el audio tras el clic del usuario (User Gesture)
             if (this.audioManager) {
                 this.audioManager.resume();
             }
 
             if (!this.isGameOver) this.controls.lock();
-        });
-        this.controls.addEventListener('lock', () => UIManager.togglePauseScreen(true, this.isGameOver));
-        this.controls.addEventListener('unlock', () => {
+        };
+        listen(startScreen, 'click', onStartScreenClick);
+
+        const onControlsLock = () => UIManager.togglePauseScreen(true, this.isGameOver);
+        const onControlsUnlock = () => {
             if (!this.isDead) {
                 UIManager.togglePauseScreen(false, this.isGameOver);
             }
             this.resetMovementState();
-        });
+        };
+        listen(this.controls, 'lock', onControlsLock);
+        listen(this.controls, 'unlock', onControlsUnlock);
 
-        document.addEventListener('keydown', (e) => this.onKey(e, true));
-        document.addEventListener('keyup', (e) => this.onKey(e, false));
+        listen(document, 'keydown', (e) => this.onKey(e, true));
+        listen(document, 'keyup', (e) => this.onKey(e, false));
         // En macOS, Fn/Globe puede cambiar el foco o impedir que llegue el
         // keyup de la tecla de movimiento que se estaba manteniendo pulsada.
         // Limpiar el estado al perder el foco evita que el jugador se quede
         // caminando lateralmente de forma indefinida.
-        window.addEventListener('blur', () => this.resetMovementState());
-        document.addEventListener('visibilitychange', () => {
+        listen(window, 'blur', () => this.resetMovementState());
+        listen(document, 'visibilitychange', () => {
             if (document.hidden) this.resetMovementState();
         });
-        document.addEventListener('mousedown', (event) => this.onMouseDown(event));
-        document.addEventListener('mouseup', () => this.onMouseUp());
+        listen(document, 'mousedown', (event) => this.onMouseDown(event));
+        listen(document, 'mouseup', () => this.onMouseUp());
 
-        document.addEventListener('wheel', (e) => this.weaponSystem.switchWeapon(e.deltaY));
+        listen(document, 'wheel', (e) => this.weaponSystem.switchWeapon(e.deltaY));
 
         const screamButton = document.getElementById('scream-button');
         if (screamButton) {
-            screamButton.addEventListener('click', () => this.scream());
+            listen(screamButton, 'click', () => this.scream());
         }
 
         if (this.isMobile) {
-            attachTouchControls(this);
+            this.touchControlsCleanup = attachTouchControls(this) || null;
         }
+    }
+    // #endregion
+
+    // #region Limpieza Player
+    // Descripción: Retira listeners y recursos del jugador antes de cambiar de
+    // mapa para que la escena anterior pueda ser recolectada por el navegador.
+    dispose() {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.onMouseUp();
+        this.resetMovementState();
+
+        if (this.controls?.isLocked) {
+            this.controls.unlock();
+        }
+
+        this.touchControlsCleanup?.();
+        this.touchControlsCleanup = null;
+        this.eventCleanup.forEach(cleanup => cleanup());
+        this.eventCleanup = [];
+        this.controls?.dispose?.();
+
+        if (this.impactTimeout !== null) {
+            clearTimeout(this.impactTimeout);
+            this.impactTimeout = null;
+        }
+        if (this.impactEffect) {
+            this.impactEffect.parent?.remove(this.impactEffect);
+            this.impactEffect.geometry?.dispose?.();
+            this.impactEffect.material?.dispose?.();
+            this.impactEffect = null;
+        }
+
+        if (this.rayLine) {
+            this.camera.remove(this.rayLine);
+            this.rayLine.geometry?.dispose?.();
+            this.rayLine.material?.dispose?.();
+            this.rayLine = null;
+        }
+
+        this.highlightEffects.forEach(effect => {
+            effect.mesh.parent?.remove(effect.mesh);
+            effect.mesh.geometry?.dispose?.();
+            effect.material?.dispose?.();
+        });
+        this.highlightEffects.clear();
+
+        this.weaponSystem?.dispose?.();
+        this.aimAssist = null;
+        this.gameInstance = null;
+        this.world = null;
+        this.enemyManager = null;
+        this.audioManager = null;
     }
     // #endregion
 
@@ -504,12 +571,15 @@ export class Player {
 
         const highlightSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
         highlightSphere.position.copy(position);
+        const effect = { mesh: highlightSphere, material: sphereMaterial };
+        this.highlightEffects.add(effect);
 
         this.world.scene.add(highlightSphere);
 
         // Animación de pulsación
         let scale = 1.0;
         const animate = () => {
+            if (this.disposed) return;
             scale += 0.1;
             highlightSphere.scale.set(scale, scale, scale);
             sphereMaterial.opacity -= 0.05;
@@ -518,6 +588,9 @@ export class Player {
                 requestAnimationFrame(animate);
             } else {
                 this.world.scene.remove(highlightSphere);
+                sphereGeometry.dispose();
+                sphereMaterial.dispose();
+                this.highlightEffects.delete(effect);
             }
         };
 
@@ -732,7 +805,13 @@ export class Player {
 
                 // Check if ammo is full
                 const weapon = WEAPONS_DATA[weaponIndex];
-                if (weapon && weapon.ammo >= weapon.maxAmmo) {
+                const currentAmmo = weapon
+                    ? (this.weaponSystem.getAmmoAmount?.(weapon) ?? weapon.ammo)
+                    : 0;
+                const maxAmmo = weapon
+                    ? (this.weaponSystem.getAmmoCapacity?.(weapon) ?? weapon.maxAmmo)
+                    : 0;
+                if (weapon && currentAmmo >= maxAmmo) {
                     return; // Don't collect if full
                 }
 
@@ -804,6 +883,96 @@ export class Player {
         // moveForward(-velocity.z) se encarga automáticamente de aplicar
         // el retroceso en la dirección correcta según el ángulo actual
         this.velocity.z += strength;
+    }
+
+    /**
+     * Impulsa al jugador alejándolo del punto de explosión del RPG.
+     * La fuerza cae con la distancia y el vector horizontal se convierte a
+     * los ejes locales que usa PointerLockControls para que el empuje respete
+     * la orientación actual de la cámara.
+     *
+     * El RPG no llama a takeDamage: esta función solo modifica la velocidad,
+     * permitiendo usar el impacto contra el suelo, paredes o enemigos para
+     * desplazarse de forma distinta.
+     *
+     * @param {THREE.Vector3} explosionPosition - Centro de la explosión.
+     * @param {number} strength - Impulso máximo a distancia cero.
+     * @param {number} radius - Distancia máxima a la que afecta el impulso.
+     */
+    applyRocketJumpImpulse(explosionPosition, strength = 24, radius = 17) {
+        if (
+            this.isGameOver
+            || this.isDead
+            || this.disposed
+            || !explosionPosition?.isVector3
+        ) {
+            return;
+        }
+
+        const safeStrength = Number(strength);
+        const safeRadius = Number(radius);
+        if (
+            !Number.isFinite(safeStrength)
+            || safeStrength <= 0
+            || !Number.isFinite(safeRadius)
+            || safeRadius <= 0
+        ) {
+            return;
+        }
+
+        const away = this.camera.position.clone().sub(explosionPosition);
+        const distance = away.length();
+        if (!Number.isFinite(distance) || distance > safeRadius) return;
+
+        if (distance <= 0.0001) {
+            away.set(0, 1, 0);
+        } else {
+            away.multiplyScalar(1 / distance);
+        }
+
+        // Un impacto contra el suelo ya genera una componente vertical
+        // natural. Este mínimo también permite saltar al rozar una pared o
+        // cuando el cohete explota casi a la misma altura que el jugador.
+        away.y = Math.max(away.y, 0.35);
+        away.normalize();
+
+        const distanceRatio = THREE.MathUtils.clamp(
+            distance / safeRadius,
+            0,
+            1
+        );
+        const falloff = 1 - distanceRatio;
+        const impulse = safeStrength * (0.2 + 0.8 * falloff);
+
+        // velocity.x/z están expresadas en los ejes de movimiento locales:
+        // moveRight(-x) y moveForward(-z). Convertir el vector mundial evita
+        // que el impulso cambie de sentido al girar la cámara.
+        const right = new THREE.Vector3(1, 0, 0)
+            .applyQuaternion(this.camera.quaternion);
+        right.y = 0;
+        if (right.lengthSq() <= 0.0001) {
+            right.set(1, 0, 0);
+        } else {
+            right.normalize();
+        }
+        const forward = new THREE.Vector3(0, 1, 0)
+            .cross(right)
+            .normalize();
+
+        const rightComponent = away.x * right.x + away.z * right.z;
+        const forwardComponent = away.x * forward.x + away.z * forward.z;
+        this.velocity.x -= rightComponent * impulse;
+        this.velocity.z -= forwardComponent * impulse;
+
+        // No se puede aterrizar durante el impulso. Si el jugador ya estaba
+        // cayendo, la explosión debe vencer esa caída para que el salto sea
+        // consistente; el límite evita acumular velocidad infinita.
+        const verticalImpulse = Math.max(0.1, away.y) * impulse;
+        this.velocity.y = Math.min(
+            50,
+            Math.max(verticalImpulse, this.velocity.y + verticalImpulse)
+        );
+        this.canJump = false;
     }
     // #endregion
 

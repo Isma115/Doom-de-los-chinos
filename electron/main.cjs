@@ -1,12 +1,15 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, screen } = require('electron');
 const { spawn } = require('node:child_process');
+const { readFile, writeFile } = require('node:fs/promises');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 
 const rootDir = path.join(__dirname, '..');
-const devUrl = 'http://127.0.0.1:5173/';
-let viteProcess = null;
+const isEditorMode = process.argv.includes('--editor') || process.env.DOOM3D_EDITOR === '1';
+const gameDevUrl = 'http://127.0.0.1:5173/';
+const editorDevUrl = 'http://127.0.0.1:5174/';
+const viteProcesses = new Map();
 
 function clampPercentage(value) {
     if (value === null || value === undefined || value === '') {
@@ -63,6 +66,85 @@ function getSystemMetrics() {
 
 ipcMain.handle('system-metrics:get', () => getSystemMetrics());
 
+function safeMapId(value) {
+    const id = String(value || '').trim();
+    return /^[a-zA-Z0-9_-]+$/.test(id) ? id : null;
+}
+
+function bundledMapRoots() {
+    const roots = [path.join(rootDir, 'mapas')];
+    if (app.isPackaged) {
+        roots.unshift(
+            path.join(rootDir, 'dist-editor', 'mapas'),
+            path.join(process.resourcesPath, 'dist-editor', 'mapas')
+        );
+    }
+    return [...new Set(roots)];
+}
+
+ipcMain.handle('editor:read-bundled-map', async (_event, mapId) => {
+    const safeId = safeMapId(mapId);
+    if (!safeId) return { content: null };
+
+    for (const mapsRoot of bundledMapRoots()) {
+        for (const extension of ['.json', '.txt']) {
+            const filePath = path.join(mapsRoot, `${safeId}${extension}`);
+            try {
+                const content = await readFile(filePath, 'utf8');
+                return { content, extension, filePath };
+            } catch (error) {
+                if (error.code !== 'ENOENT') console.warn(`No se pudo leer ${filePath}:`, error.message);
+            }
+        }
+    }
+
+    return { content: null };
+});
+
+ipcMain.handle('editor:open-map', async (_event, mode = 'json') => {
+    const wantsTxt = mode === 'txt';
+    const result = await dialog.showOpenDialog({
+        title: wantsTxt ? 'Importar mapa TXT' : 'Cargar mapa JSON',
+        properties: ['openFile'],
+        filters: wantsTxt
+            ? [{ name: 'Mapas TXT', extensions: ['txt'] }, { name: 'Todos los mapas', extensions: ['json', 'txt'] }]
+            : [{ name: 'Mapas JSON', extensions: ['json'] }, { name: 'Todos los mapas', extensions: ['json', 'txt'] }],
+    });
+
+    if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    const filePath = result.filePaths[0];
+    return {
+        canceled: false,
+        content: await readFile(filePath, 'utf8'),
+        filePath,
+    };
+});
+
+ipcMain.handle('editor:save-map', async (_event, payload = {}) => {
+    const extension = payload.extension === 'txt' || payload.filename?.toLowerCase?.().endsWith('.txt')
+        ? 'txt'
+        : 'json';
+    const rawFilename = path.basename(String(payload.filename || `mi_mapa.${extension}`));
+    const sanitizedFilename = rawFilename
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+        .replace(/\.{2,}/g, '.') || `mi_mapa.${extension}`;
+    const filename = sanitizedFilename.toLowerCase().endsWith(`.${extension}`)
+        ? sanitizedFilename
+        : `${sanitizedFilename}.${extension}`;
+    const content = typeof payload.content === 'string' ? payload.content : '';
+    const result = await dialog.showSaveDialog({
+        title: extension === 'txt' ? 'Exportar mapa TXT' : 'Guardar mapa JSON',
+        defaultPath: path.join(rootDir, 'mapas', filename),
+        filters: extension === 'txt'
+            ? [{ name: 'Mapa TXT', extensions: ['txt'] }]
+            : [{ name: 'Mapa JSON', extensions: ['json'] }],
+    });
+
+    if (result.canceled || !result.filePath) return { canceled: true };
+    await writeFile(result.filePath, content, 'utf8');
+    return { canceled: false, filePath: result.filePath };
+});
+
 function waitForServer(url, timeoutMs = 15000) {
     const startedAt = Date.now();
 
@@ -87,16 +169,20 @@ function waitForServer(url, timeoutMs = 15000) {
     });
 }
 
-function startVite() {
-    if (viteProcess && !viteProcess.killed) {
+function startVite(kind) {
+    const config = kind === 'editor'
+        ? { script: 'editor:web', port: 5174 }
+        : { script: 'dev', port: 5173 };
+    const existingProcess = viteProcesses.get(kind);
+    if (existingProcess && !existingProcess.killed) {
         return;
     }
 
     const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-    viteProcess = spawn(
+    const viteProcess = spawn(
         npmCommand,
-        ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173', '--strictPort'],
+        ['run', config.script, '--', '--host', '127.0.0.1', '--port', String(config.port), '--strictPort'],
         {
             cwd: rootDir,
             stdio: 'inherit',
@@ -106,9 +192,10 @@ function startVite() {
             }
         }
     );
+    viteProcesses.set(kind, viteProcess);
 
     viteProcess.on('exit', () => {
-        viteProcess = null;
+        if (viteProcesses.get(kind) === viteProcess) viteProcesses.delete(kind);
     });
 }
 
@@ -121,11 +208,12 @@ async function createWindow() {
         y,
         width,
         height,
-        minWidth: Math.min(960, width),
-        minHeight: Math.min(600, height),
+        minWidth: Math.min(isEditorMode ? 1100 : 960, width),
+        minHeight: Math.min(isEditorMode ? 700 : 600, height),
         fullscreen: false,
         kiosk: false,
         resizable: true,
+        title: isEditorMode ? 'Editor 3D de Mapas — Doom3D' : 'Doom3D',
         backgroundColor: '#07070d',
         autoHideMenuBar: true,
         webPreferences: {
@@ -135,14 +223,25 @@ async function createWindow() {
         }
     });
 
+    win.webContents.setWindowOpenHandler(({ url }) => {
+        const isLocalUrl = [gameDevUrl, editorDevUrl].some(baseUrl => url.startsWith(baseUrl))
+            || url.startsWith('file://');
+        return { action: isLocalUrl ? 'allow' : 'deny' };
+    });
+
     if (app.isPackaged) {
-        await win.loadFile(path.join(rootDir, 'dist', 'index.html'));
+        const entry = isEditorMode
+            ? path.join(rootDir, 'dist-editor', 'index.html')
+            : path.join(rootDir, 'dist', 'index.html');
+        await win.loadFile(entry);
         return;
     }
 
-    startVite();
-    await waitForServer(devUrl);
-    await win.loadURL(devUrl);
+    const targetUrl = isEditorMode ? editorDevUrl : gameDevUrl;
+    startVite(isEditorMode ? 'editor' : 'game');
+    if (isEditorMode) startVite('game');
+    await waitForServer(targetUrl);
+    await win.loadURL(targetUrl);
 }
 
 app.whenReady().then(() => {
@@ -165,8 +264,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-    if (viteProcess) {
-        viteProcess.kill();
-        viteProcess = null;
-    }
+    viteProcesses.forEach(process => process.kill());
+    viteProcesses.clear();
 });

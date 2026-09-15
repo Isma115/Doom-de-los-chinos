@@ -2,6 +2,7 @@
 import * as THREE from '../node_modules/three/build/three.module.js';
 import { CONFIG, WEAPONS_DATA } from './Constants.js';
 import { getAimAssistStrength, setAimAssistStrength } from './core/AimAssist.js';
+import { isMobileMode } from './mobile/isMobile.js';
 // #endregion
 
 // #region Clase UIManager
@@ -190,6 +191,33 @@ export class UIManager {
             }, 300);
         }
     }
+
+    static showLoadingScreen(mapName = 'default') {
+        const screen = document.getElementById('loading-screen');
+        if (!screen) return;
+
+        const mapLabels = {
+            mapa1: 'PARQUE',
+            mapa2: 'EL HORMIGUERO',
+            pruebas_alien: 'PRUEBAS: ESQUELETO MINIGUN'
+        };
+        const label = mapLabels[mapName] || String(mapName || 'MAPA').toUpperCase();
+        const mapNameElement = document.getElementById('loading-map-name');
+        if (mapNameElement) mapNameElement.textContent = label;
+
+        screen.classList.add('visible');
+        screen.setAttribute('aria-busy', 'true');
+        screen.setAttribute('aria-hidden', 'false');
+    }
+
+    static hideLoadingScreen() {
+        const screen = document.getElementById('loading-screen');
+        if (!screen) return;
+
+        screen.classList.remove('visible');
+        screen.setAttribute('aria-busy', 'false');
+        screen.setAttribute('aria-hidden', 'true');
+    }
     // #endregion
 
     // #region Pantallas de Estado UIManager
@@ -220,7 +248,11 @@ export class UIManager {
         } else {
             screen.style.display = 'flex';
             if (!isGameOver) {
-                if (pauseSubtitle) pauseSubtitle.innerText = "Pausa - Click para continuar";
+                if (pauseSubtitle) {
+                    pauseSubtitle.innerText = isMobileMode()
+                        ? "Pausa - Toca para continuar"
+                        : "Pausa - Click para continuar";
+                }
                 if (pauseButtons) pauseButtons.classList.add('visible');
 
                 if (debugBtn) debugBtn.style.display = 'block';
@@ -275,18 +307,28 @@ export class SettingsManager {
     // #region Persistencia SettingsManager
     loadSettings() {
         const savedSettings = localStorage.getItem('gameAudioSettings');
+        const mobile = isMobileMode();
         if (savedSettings) {
             try {
                 const settings = JSON.parse(savedSettings);
                 this.musicSlider.value = settings.musicVolume ?? 30;
                 this.sfxSlider.value = settings.sfxVolume ?? 50;
 
-                if (this.resolutionSelect && (settings.resolution === '1080p' || settings.resolution === '720p')) {
-                    this.resolutionSelect.value = settings.resolution;
+                if (this.resolutionSelect) {
+                    this.resolutionSelect.value = mobile
+                        ? '720p'
+                        : ((settings.resolution === '1080p' || settings.resolution === '720p')
+                            ? settings.resolution
+                            : '1080p');
                 }
             } catch (error) {
                 console.warn('No se pudieron cargar los ajustes guardados:', error);
             }
+        }
+
+        if (this.resolutionSelect && mobile) {
+            this.resolutionSelect.value = '720p';
+            this.resolutionSelect.disabled = true;
         }
 
         this.updateMusicVolume();
@@ -299,7 +341,7 @@ export class SettingsManager {
         const settings = {
             musicVolume: parseInt(this.musicSlider.value),
             sfxVolume: parseInt(this.sfxSlider.value),
-            resolution: this.resolutionSelect?.value ?? '1080p'
+            resolution: isMobileMode() ? '720p' : (this.resolutionSelect?.value ?? '1080p')
         };
         localStorage.setItem('gameAudioSettings', JSON.stringify(settings));
     }
@@ -492,6 +534,26 @@ export class DebugPanel {
         this.startPerformanceUpdate();
     }
     // #endregion
+
+    setPlayer(player, weaponSystem = player?.weaponSystem) {
+        this.player = player;
+        this.weaponSystem = weaponSystem;
+
+        if (this.weaponSystem?.debugState) {
+            this.weaponSystem.debugState.fireRateMultiplier = this.debugState.fireRateMultiplier;
+            this.weaponSystem.debugState.infiniteAmmo = this.debugState.infiniteAmmo;
+            this.weaponSystem.debugState.bulletLog = this.debugState.bulletLog;
+        }
+        if (this.player?.debugState) {
+            this.player.debugState.godMode = this.debugState.godMode;
+            this.player.debugState.infiniteAmmo = this.debugState.infiniteAmmo;
+            this.player.debugState.flyMode = this.debugState.flyMode;
+            this.player.debugState.noClip = this.debugState.noClip;
+            this.player.debugState.speedMultiplier = this.debugState.speedMultiplier;
+            this.player.debugState.bulletLog = this.debugState.bulletLog;
+        }
+        this.applyHitboxVisibility(this.debugState.hitboxes);
+    }
 
     // #region Creación de Interfaz DebugPanel
     createDebugPanel() {
@@ -869,6 +931,7 @@ export class DebugPanel {
     }
 
     updateDebugInfo() {
+        if (!this.player) return;
         const pos = this.player.getPosition();
         document.getElementById('debug-pos-info').textContent =
             `X: ${pos.x.toFixed(1)}, Y: ${pos.y.toFixed(1)}, Z: ${pos.z.toFixed(1)}`;

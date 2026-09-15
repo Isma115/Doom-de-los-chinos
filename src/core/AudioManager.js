@@ -84,7 +84,8 @@ export class AudioManager {
             lpdpm: 'assets/sound/music/LPDPM.mp3',
             lpdmc: 'assets/sound/music/LPDMC.mp3',
             cocayCocaina: 'assets/sound/music/CocayCocaina.mp3',
-            conejitoCocainomano: 'assets/sound/music/ConejitoCocainomano.mp3'
+            conejitoCocainomano: 'assets/sound/music/ConejitoCocainomano.mp3',
+            rutinaFina: 'assets/sound/music/rutina_fina.mp3'
         };
         const loadPromises = Object.entries(soundFiles).map(async ([key, path]) => {
             try {
@@ -95,6 +96,7 @@ export class AudioManager {
                     || key === 'lpdmc'
                     || key === 'cocayCocaina'
                     || key === 'conejitoCocainomano'
+                    || key === 'rutinaFina'
                 ) {
                     this.music[key] = buffer;
                 } else {

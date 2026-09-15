@@ -19,6 +19,7 @@ export class EnemyManager {
         this.world = world;
         this.audioManager = audioManager;
         this.enemies = [];
+        this.enemyDefeatedCallback = null;
         this.lastSpawnTime = 0;
 
         this.sharedGeometry = new THREE.PlaneGeometry(2, 2);
@@ -165,6 +166,10 @@ export class EnemyManager {
                 'assets/textures/blood_droplets.png',
                 'assets/textures/blood_streak.png'
             ];
+    }
+
+    setEnemyDefeatedCallback(callback) {
+        this.enemyDefeatedCallback = typeof callback === 'function' ? callback : null;
     }
 
     getHitBloodSpritePaths(bloodType = 'red') {
@@ -2140,6 +2145,8 @@ export class EnemyManager {
             enemy.userData.isShooting = false;
             enemy.userData.isDying = false;
             enemy.userData.isCorpse = false;
+            enemy.userData.isHormigueroPatioEnemy = false;
+            enemy.userData.defeatReported = false;
             enemy.userData.usingGenericDeathAnimation = false;
             enemy.userData.genericDeathFrame = 0;
             enemy.userData.genericDeathTimer = 0;
@@ -2219,6 +2226,8 @@ export class EnemyManager {
         enemy.userData.isShooting = false;
         enemy.userData.isDying = false;
         enemy.userData.isCorpse = false;
+        enemy.userData.isHormigueroPatioEnemy = false;
+        enemy.userData.defeatReported = false;
         enemy.userData.usingGenericDeathAnimation = false;
         enemy.userData.genericDeathFrame = 0;
         enemy.userData.genericDeathTimer = 0;
@@ -2251,6 +2260,8 @@ export class EnemyManager {
         enemy.userData.isShooting = false;
         enemy.userData.isDying = false;
         enemy.userData.isCorpse = false;
+        enemy.userData.isHormigueroPatioEnemy = false;
+        enemy.userData.defeatReported = false;
         enemy.userData.usingGenericDeathAnimation = false;
         enemy.userData.genericDeathFrame = 0;
         enemy.userData.genericDeathTimer = 0;
@@ -2840,6 +2851,11 @@ export class EnemyManager {
     removeEnemy(enemy) {
         if (!enemy || enemy.userData.isDying || enemy.userData.isCorpse) return;
 
+        if (enemy.userData.hp <= 0 && !enemy.userData.defeatReported) {
+            enemy.userData.defeatReported = true;
+            this.enemyDefeatedCallback?.(enemy);
+        }
+
         this.stopSpawnHologram(enemy);
         const bloodType = enemy.userData.bloodType || 'red';
         const typeInfo = ENEMY_TYPES.find(type => type.id === enemy.userData.enemyType);
@@ -2993,6 +3009,7 @@ export class EnemyManager {
 
         this.bloodSpriteTextureCache?.forEach(texture => texture.dispose());
         this.bloodSpriteTextureCache?.clear();
+        this.enemyDefeatedCallback = null;
     }
     // #endregion
 }

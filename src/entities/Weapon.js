@@ -21,6 +21,7 @@ export class WeaponSystem {
         this.lastReloadTime = 0;
         this.reloadDuration = 700;
         this.weaponMesh = null;
+        this.weaponFlashTimeout = null;
 
         this.raycaster = new THREE.Raycaster();
         this.rayOrigin = new THREE.Vector2(0, 0);
@@ -37,6 +38,16 @@ export class WeaponSystem {
                 .filter(weapon => !weapon.requiresPickup)
                 .map(weapon => this.getWeaponKey(weapon))
         );
+
+        // Normalizar los miembros de cada grupo para que la ametralladora y
+        // la minigun comiencen con un único contador de munición compartido.
+        const syncedAmmoGroups = new Set();
+        WEAPONS_DATA.forEach(weapon => {
+            const ammoGroup = this.getAmmoGroupKey(weapon);
+            if (syncedAmmoGroups.has(ammoGroup)) return;
+            syncedAmmoGroups.add(ammoGroup);
+            this.setAmmoAmount(weapon, this.getAmmoAmount(weapon));
+        });
 
         // Geometría compartida para los cohetes; así disparar varias veces no
         // crea una geometría nueva por proyectil.
@@ -82,6 +93,27 @@ export class WeaponSystem {
         // en la selección aleatoria de decals.
         this.bulletHoleTextures = [];
         const textureLoader = new THREE.TextureLoader();
+        this.rocketExplosionTexture = textureLoader.load(
+            'assets/textures/rocket_explosion_pixel.png',
+            (texture) => {
+                texture.needsUpdate = true;
+            },
+            undefined,
+            (err) => {
+                this.rocketExplosionTexture = null;
+                console.error('No se pudo cargar el sprite de explosión del RPG', err);
+            }
+        );
+        this.rocketExplosionTexture.colorSpace = THREE.SRGBColorSpace;
+        // El asset está diseñado con píxeles grandes: no suavizarlo conserva
+        // la silueta legible cuando el billboard se ve a poca escala.
+        this.rocketExplosionTexture.magFilter = THREE.NearestFilter;
+        this.rocketExplosionTexture.minFilter = THREE.NearestFilter;
+        this.rocketExplosionTexture.generateMipmaps = false;
+        this.rocketExplosionTexture.needsUpdate = true;
+        // Halo suave independiente del sprite pixelado: añade difusión sin
+        // cambiar el filtrado Nearest del PNG central.
+        this.rocketExplosionBlurTexture = this.createRocketExplosionBlurTexture();
         const bulletHolePaths = [
             'assets/textures/bullet_hole_generated.png'
         ];
@@ -102,6 +134,41 @@ export class WeaponSystem {
     }
     // #endregion
 
+    createRocketExplosionBlurTexture() {
+        if (typeof document === 'undefined') return null;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const context = canvas.getContext('2d');
+        if (!context) return null;
+
+        const center = 64;
+        const gradient = context.createRadialGradient(
+            center,
+            center,
+            2,
+            center,
+            center,
+            64
+        );
+        gradient.addColorStop(0, 'rgba(255, 245, 180, 0.95)');
+        gradient.addColorStop(0.18, 'rgba(255, 170, 48, 0.72)');
+        gradient.addColorStop(0.45, 'rgba(255, 82, 12, 0.34)');
+        gradient.addColorStop(0.75, 'rgba(255, 42, 0, 0.10)');
+        gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+        texture.needsUpdate = true;
+        return texture;
+    }
+
     // #region Helpers WeaponSystem
     // Descripción: Métodos de utilidad para obtener el arma actual y los objetos sólidos del entorno.
     getCurrentWeapon() {
@@ -110,6 +177,50 @@ export class WeaponSystem {
 
     getWeaponKey(weapon) {
         return weapon?.id || weapon?.name || null;
+    }
+
+    getAmmoGroupKey(weapon) {
+        return weapon?.ammoGroup || this.getWeaponKey(weapon);
+    }
+
+    getAmmoGroupWeapons(weapon) {
+        const ammoGroup = this.getAmmoGroupKey(weapon);
+        return WEAPONS_DATA.filter(candidate =>
+            this.getAmmoGroupKey(candidate) === ammoGroup
+        );
+    }
+
+    getAmmoAmount(weapon) {
+        const groupWeapon = this.getAmmoGroupWeapons(weapon)[0];
+        return groupWeapon?.ammo ?? 0;
+    }
+
+    getAmmoCapacity(weapon) {
+        return this.getAmmoGroupWeapons(weapon).reduce(
+            (capacity, groupWeapon) => {
+                const maxAmmo = Number(groupWeapon.maxAmmo);
+                return Number.isFinite(maxAmmo)
+                    ? Math.min(capacity, maxAmmo)
+                    : capacity;
+            },
+            Infinity
+        );
+    }
+
+    setAmmoAmount(weapon, amount) {
+        const capacity = this.getAmmoCapacity(weapon);
+        const numericAmount = Number(amount);
+        const safeAmount = capacity === Infinity
+            ? numericAmount
+            : Math.min(
+                capacity,
+                Math.max(0, Number.isFinite(numericAmount) ? numericAmount : 0)
+            );
+
+        this.getAmmoGroupWeapons(weapon).forEach(groupWeapon => {
+            groupWeapon.ammo = safeAmount;
+        });
+        return safeAmount;
     }
 
     isWeaponUnlocked(weapon) {
@@ -140,7 +251,10 @@ export class WeaponSystem {
 
         const amount = Number(ammoAmount);
         if (Number.isFinite(amount) && amount > 0 && Number.isFinite(weapon.maxAmmo)) {
-            weapon.ammo = Math.min(weapon.maxAmmo, weapon.ammo + amount);
+            this.setAmmoAmount(
+                weapon,
+                this.getAmmoAmount(weapon) + amount
+            );
         }
 
         if (equip) {
@@ -582,18 +696,24 @@ export class WeaponSystem {
     // #region Gestión de Munición WeaponSystem
     // Descripción: Lógica para añadir munición y cambiar entre las armas disponibles.
     addAmmo(amount, weaponIndex = null) {
-        if (weaponIndex !== null) {
-            const weapon = WEAPONS_DATA[weaponIndex];
-            if (!weapon || !this.isWeaponUnlocked(weapon)) return false;
-            weapon.ammo = Math.min(weapon.maxAmmo, weapon.ammo + amount);
-            if (weaponIndex === this.currentIndex) {
-                UIManager.updateAmmo(weapon.ammo);
-            }
-        } else {
-            const weapon = this.getCurrentWeapon();
-            if (!weapon || !this.isWeaponUnlocked(weapon)) return false;
-            weapon.ammo = Math.min(weapon.maxAmmo, weapon.ammo + amount);
-            UIManager.updateAmmo(weapon.ammo);
+        const weapon = weaponIndex !== null
+            ? WEAPONS_DATA[weaponIndex]
+            : this.getCurrentWeapon();
+        if (!weapon || !this.isWeaponUnlocked(weapon)) return false;
+
+        const numericAmount = Number(amount);
+        if (!Number.isFinite(numericAmount) || numericAmount <= 0) return false;
+
+        this.setAmmoAmount(
+            weapon,
+            this.getAmmoAmount(weapon) + numericAmount
+        );
+        const currentWeapon = this.getCurrentWeapon();
+        if (
+            weaponIndex === null
+            || this.getAmmoGroupKey(currentWeapon) === this.getAmmoGroupKey(weapon)
+        ) {
+            UIManager.updateAmmo(this.getAmmoAmount(currentWeapon));
         }
         return true;
     }
@@ -641,6 +761,11 @@ export class WeaponSystem {
     // #region Visuales Arma WeaponSystem
     // Descripción: Actualiza el sprite del arma visible en pantalla según el arma seleccionada.
     updateVisuals() {
+        if (this.weaponFlashTimeout !== null) {
+            clearTimeout(this.weaponFlashTimeout);
+            this.weaponFlashTimeout = null;
+        }
+
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
             if (this.weaponMesh.material.map) this.weaponMesh.material.map.dispose();
@@ -708,6 +833,10 @@ export class WeaponSystem {
             scale = 0.82;
             posY = -0.48;
             posX = 0.36;
+        } else if (weapon.id === 'minigun') {
+            scale = 0.9;
+            posY = -0.42;
+            posX = 0.72;
         }
 
         this.weaponMesh.scale.set(scale, scale, 1);
@@ -717,7 +846,10 @@ export class WeaponSystem {
 
         this.camera.add(this.weaponMesh);
 
-        UIManager.updateWeapon(weapon.name, weapon.isMelee ? "∞" : weapon.ammo);
+        UIManager.updateWeapon(
+            weapon.name,
+            weapon.isMelee ? "∞" : this.getAmmoAmount(weapon)
+        );
     }
     // #endregion
 
@@ -736,7 +868,11 @@ export class WeaponSystem {
         if (now - this.lastShotTime < adjustedDelay) return;
 
         // Sin munición (excepto melee o infinite ammo)
-        if (!weapon.isMelee && !this.debugState.infiniteAmmo && weapon.ammo <= 0) {
+        if (
+            !weapon.isMelee
+            && !this.debugState.infiniteAmmo
+            && this.getAmmoAmount(weapon) <= 0
+        ) {
             // Cooldown separado para el sonido de "sin munición" (no depende de fireRateMultiplier)
             const outOfAmmoDelay = 1000; // 1 segundo de cooldown para el sonido "sin munición"
 
@@ -762,11 +898,14 @@ export class WeaponSystem {
         }
 
         if (!this.debugState.infiniteAmmo) {
-            if (weapon.ammo <= 0) return;
+            if (!weapon.isMelee && this.getAmmoAmount(weapon) <= 0) return;
 
             if (!weapon.isMelee) {
-                weapon.ammo--;
-                UIManager.updateAmmo(weapon.ammo);
+                this.setAmmoAmount(
+                    weapon,
+                    this.getAmmoAmount(weapon) - 1
+                );
+                UIManager.updateAmmo(this.getAmmoAmount(weapon));
             } else {
                 UIManager.updateAmmo("∞");
             }
@@ -782,6 +921,8 @@ export class WeaponSystem {
 
         if (weapon.name === "AMETRALLADORA") {
             this.player.applyRecoil(7);
+        } else if (weapon.id === 'minigun') {
+            this.player.applyRecoil(weapon.recoil || 14);
         } else if (weapon.name === "ESCOPETA") {
             this.player.applyRecoil(12);
         } else if (weapon.id === 'rpg') {
@@ -792,12 +933,16 @@ export class WeaponSystem {
             this.weaponMesh.material.map = this.weaponFlashTexture;
             this.weaponMesh.material.needsUpdate = true;
 
-            setTimeout(() => {
+            if (this.weaponFlashTimeout !== null) {
+                clearTimeout(this.weaponFlashTimeout);
+            }
+            this.weaponFlashTimeout = setTimeout(() => {
+                this.weaponFlashTimeout = null;
                 if (this.weaponMesh && this.weaponTexture) {
                     this.weaponMesh.material.map = this.weaponTexture;
                     this.weaponMesh.material.needsUpdate = true;
                 }
-            }, 80);
+            }, Math.max(20, Number(weapon.flashDuration) || 80));
         }
 
         if (weapon.projectileType === 'rocket') {
@@ -1019,7 +1164,45 @@ export class WeaponSystem {
         );
         const hit = fallbackHit || visualHit;
 
-        return hit?.point ? hit.point.clone() : null;
+        if (!hit?.point) return null;
+
+        return {
+            point: hit.point.clone(),
+            normal: this.getImpactNormal(hit, previousPosition, direction),
+            distance: Number.isFinite(hit.distance)
+                ? hit.distance
+                : previousPosition.distanceTo(hit.point)
+        };
+    }
+
+    getRocketGroundImpact(previousPosition, currentPosition, groundY = 0.02) {
+        // El cohete puede saltarse un plano muy fino si cruza el suelo entre
+        // dos frames. Detectar ese cruce evita que la explosión nazca bajo el
+        // terreno cuando el raycast de la malla no llega a registrar la cara.
+        if (
+            previousPosition.y <= groundY ||
+            currentPosition.y > groundY ||
+            currentPosition.y >= previousPosition.y
+        ) {
+            return null;
+        }
+
+        const verticalDistance = previousPosition.y - currentPosition.y;
+        if (verticalDistance <= 0.0001) return null;
+
+        const progress = THREE.MathUtils.clamp(
+            (previousPosition.y - groundY) / verticalDistance,
+            0,
+            1
+        );
+        const point = previousPosition.clone().lerp(currentPosition, progress);
+        point.y = groundY;
+
+        return {
+            point,
+            normal: new THREE.Vector3(0, 1, 0),
+            distance: previousPosition.distanceTo(point)
+        };
     }
 
     removeRocket(rocket) {
@@ -1083,35 +1266,51 @@ export class WeaponSystem {
         });
     }
 
-    createRocketExplosionEffect(position, weapon) {
+    createRocketExplosionEffect(position, weapon, impactNormal = null) {
         const group = new THREE.Group();
         // `position` ya está expresada en coordenadas del mundo por el
-        // raycast del cohete: todos los elementos nacen exactamente ahí.
+        // raycast del cohete. Separar el efecto de la superficie evita que el
+        // muro o el suelo lo oculten por completo por el depth test.
         group.position.copy(position);
-        group.renderOrder = 5;
+        if (impactNormal?.isVector3 && impactNormal.lengthSq() > 0.0001) {
+            const normal = impactNormal.clone().normalize();
+            // En un impacto contra el suelo el centro no puede quedarse en
+            // Y=0: la mitad inferior de la esfera y del sprite acabaría bajo
+            // el plano. Levantarlo más aquí hace visible todo el fogonazo.
+            const surfaceOffset = normal.y > 0.45 ? 0.42 : 0.18;
+            group.position.addScaledVector(
+                normal,
+                surfaceOffset
+            );
+        }
+        group.renderOrder = 100;
+        group.frustumCulled = false;
 
         const coreMaterial = new THREE.MeshBasicMaterial({
             color: 0xffe08a,
             transparent: true,
             opacity: 0.95,
-            depthTest: true,
+            depthTest: false,
             depthWrite: false,
+            fog: false,
             blending: THREE.AdditiveBlending
         });
         const shellMaterial = new THREE.MeshBasicMaterial({
             color: 0xff4a12,
             transparent: true,
             opacity: 0.75,
-            depthTest: true,
+            depthTest: false,
             depthWrite: false,
+            fog: false,
             blending: THREE.AdditiveBlending
         });
         const ringMaterial = new THREE.MeshBasicMaterial({
             color: 0xff8b1a,
             transparent: true,
             opacity: 0.8,
-            depthTest: true,
+            depthTest: false,
             depthWrite: false,
+            fog: false,
             side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending
         });
@@ -1119,13 +1318,47 @@ export class WeaponSystem {
             color: 0xffb52e,
             transparent: true,
             opacity: 0.9,
-            depthTest: true,
+            depthTest: false,
             depthWrite: false,
+            fog: false,
             blending: THREE.AdditiveBlending
         });
+        const explosionSpriteMaterial = this.rocketExplosionTexture
+            ? new THREE.SpriteMaterial({
+                map: this.rocketExplosionTexture,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.92,
+                depthTest: false,
+                depthWrite: false,
+                fog: false,
+                alphaTest: 0.035,
+                blending: THREE.NormalBlending,
+                toneMapped: false
+            })
+            : null;
+        const explosionBlurMaterial = this.rocketExplosionBlurTexture
+            ? new THREE.SpriteMaterial({
+                map: this.rocketExplosionBlurTexture,
+                color: 0xff7a20,
+                transparent: true,
+                opacity: 0.44,
+                depthTest: false,
+                depthWrite: false,
+                fog: false,
+                blending: THREE.AdditiveBlending,
+                toneMapped: false
+            })
+            : null;
 
         const core = new THREE.Mesh(this.rocketExplosionGeometry, coreMaterial);
         const shell = new THREE.Mesh(this.rocketExplosionGeometry, shellMaterial);
+        const explosionSprite = explosionSpriteMaterial
+            ? new THREE.Sprite(explosionSpriteMaterial)
+            : null;
+        const explosionBlur = explosionBlurMaterial
+            ? new THREE.Sprite(explosionBlurMaterial)
+            : null;
         const shockwaves = [
             new THREE.Mesh(this.rocketExplosionRingGeometry, ringMaterial),
             new THREE.Mesh(this.rocketExplosionRingGeometry, ringMaterial),
@@ -1161,10 +1394,36 @@ export class WeaponSystem {
             shards.push(shard);
         }
 
-        core.scale.setScalar(0.18);
-        shell.scale.setScalar(0.28);
-        shockwaves.forEach(shockwave => shockwave.scale.setScalar(0.2));
+        core.scale.setScalar(0.32);
+        shell.scale.setScalar(0.48);
+        shockwaves.forEach(shockwave => shockwave.scale.setScalar(0.35));
+        if (explosionSprite) {
+            // El billboard acompaña ahora a la bola 3D con una escala mucho
+            // más legible, conservando el acabado pixelado del asset. Su
+            // tamaño queda deliberadamente por encima de la geometría 3D
+            // para que el fogonazo se lea también a distancia.
+            explosionSprite.position.y = 0.72;
+            explosionSprite.scale.setScalar(2.0);
+            explosionSprite.rotation.z = (Math.random() - 0.5) * 0.28;
+            explosionSprite.renderOrder = 6;
+        }
+        if (explosionBlur) {
+            // El halo ocupa más superficie y se dibuja detrás del fogonazo
+            // pixelado para suavizar sus bordes sin emborronar el centro.
+            explosionBlur.position.y = 0.45;
+            explosionBlur.scale.setScalar(2.2);
+            explosionBlur.renderOrder = 99;
+        }
+        [core, shell, ...shockwaves, ...shards, explosionSprite, explosionBlur]
+            .filter(Boolean)
+            .forEach(object => {
+                object.renderOrder = 100;
+                object.frustumCulled = false;
+            });
+        if (explosionBlur) explosionBlur.renderOrder = 99;
+        if (explosionBlur) group.add(explosionBlur);
         group.add(shell, core, ...shockwaves, ...shards);
+        if (explosionSprite) group.add(explosionSprite);
 
         const light = new THREE.PointLight(0xff7a20, 4.5, 13, 2);
         group.add(light);
@@ -1174,22 +1433,51 @@ export class WeaponSystem {
             group,
             core,
             shell,
+            explosionSprite,
+            explosionBlur,
             shockwaves,
             shards,
             light,
-            materials: [coreMaterial, shellMaterial, ringMaterial, shardMaterial],
+            ringMaterial,
+            shardMaterial,
+            materials: [
+                coreMaterial,
+                shellMaterial,
+                ringMaterial,
+                shardMaterial,
+                explosionSpriteMaterial,
+                explosionBlurMaterial
+            ].filter(Boolean),
             age: 0,
-            duration: 0.42,
+            duration: 0.72,
+            spriteRotationSpeed: (Math.random() - 0.5) * 1.8,
+            spriteStartScale: 2.0,
+            spriteMaxScale: Math.min(
+                10.0,
+                Math.max(5.0, (Number(weapon.explosionRadius) || 8.5) * 0.75)
+            ),
+            blurStartScale: 2.2,
+            blurMaxScale: Math.min(
+                12.0,
+                Math.max(6.0, (Number(weapon.explosionRadius) || 8.5) * 0.85)
+            ),
             maxScale: Math.max(
-                1.2,
-                Math.min(3.4, (Number(weapon.explosionRadius) || 8.5) * 0.4)
+                2.4,
+                Math.min(6.0, (Number(weapon.explosionRadius) || 8.5) * 0.65)
             )
         });
     }
 
-    explodeRocket(position, weapon, scoreCallback) {
+    explodeRocket(position, weapon, scoreCallback, impactNormal = null) {
         this.applyRocketExplosionDamage(position, weapon, scoreCallback);
-        this.createRocketExplosionEffect(position, weapon);
+        // El jugador no recibe daño de su propio RPG, pero sí el impulso
+        // radial necesario para hacer rocket jumps y desplazamientos laterales.
+        this.player?.applyRocketJumpImpulse?.(
+            position,
+            weapon.rocketJumpStrength,
+            weapon.explosionRadius
+        );
+        this.createRocketExplosionEffect(position, weapon, impactNormal);
 
         if (this.audioManager) {
             this.audioManager.playSound(
@@ -1214,11 +1502,24 @@ export class WeaponSystem {
             }
 
             const eased = 1 - Math.pow(1 - progress, 2);
-            const coreScale = 0.18 + eased * effect.maxScale * 0.48;
-            const shellScale = 0.28 + eased * effect.maxScale;
-            const ringScale = 0.2 + eased * effect.maxScale * 1.05;
+            const coreScale = 0.32 + eased * effect.maxScale * 0.62;
+            const shellScale = 0.48 + eased * effect.maxScale;
+            const ringScale = 0.35 + eased * effect.maxScale * 1.12;
+            const spriteScale = effect.spriteStartScale
+                + eased * (effect.spriteMaxScale - effect.spriteStartScale);
+            const blurScale = effect.blurStartScale
+                + eased * (effect.blurMaxScale - effect.blurStartScale);
             effect.core.scale.setScalar(coreScale);
             effect.shell.scale.setScalar(shellScale);
+            if (effect.explosionBlur) {
+                effect.explosionBlur.scale.setScalar(blurScale);
+                effect.explosionBlur.material.opacity = 0.44 * (1 - progress);
+            }
+            if (effect.explosionSprite) {
+                effect.explosionSprite.scale.setScalar(spriteScale);
+                effect.explosionSprite.rotation.z += delta * effect.spriteRotationSpeed;
+                effect.explosionSprite.material.opacity = 0.92 * (1 - progress);
+            }
             effect.shockwaves.forEach((shockwave, index) => {
                 shockwave.scale.setScalar(ringScale * (1 + index * 0.08));
                 shockwave.rotation.z += delta * (index % 2 === 0 ? 2.8 : -2.2);
@@ -1231,8 +1532,8 @@ export class WeaponSystem {
             });
             effect.core.material.opacity = 0.95 * (1 - progress);
             effect.shell.material.opacity = 0.75 * (1 - progress);
-            effect.materials[2].opacity = 0.8 * (1 - progress);
-            effect.materials[3].opacity = 0.9 * (1 - progress);
+            effect.ringMaterial.opacity = 0.8 * (1 - progress);
+            effect.shardMaterial.opacity = 0.9 * (1 - progress);
             effect.light.intensity = 4.5 * (1 - progress);
         }
     }
@@ -1252,22 +1553,29 @@ export class WeaponSystem {
             rocket.position.addScaledVector(data.velocity, Math.max(0, delta));
             data.travelDistance += previousPosition.distanceTo(rocket.position);
 
-            const impactPosition = data.travelDistance >= data.armingDistance
+            const rayImpact = data.travelDistance >= data.armingDistance
                 ? this.getRocketImpact(
                     previousPosition,
                     rocket.position,
                     data.radius
                 )
                 : null;
+            const groundImpact = data.travelDistance >= data.armingDistance
+                ? this.getRocketGroundImpact(previousPosition, rocket.position)
+                : null;
+            const impact = [rayImpact, groundImpact]
+                .filter(Boolean)
+                .sort((first, second) => first.distance - second.distance)[0] || null;
             const expired = now - data.creationTime >= data.maxLifetime;
 
-            if (impactPosition || expired) {
-                const explosionPosition = impactPosition || rocket.position.clone();
+            if (impact || expired) {
+                const explosionPosition = impact?.point || rocket.position.clone();
                 this.removeRocket(rocket);
                 this.explodeRocket(
                     explosionPosition,
                     data.weapon,
-                    data.scoreCallback || scoreCallback
+                    data.scoreCallback || scoreCallback,
+                    impact?.normal || null
                 );
             }
         }
@@ -1309,17 +1617,28 @@ export class WeaponSystem {
                 }
             }, swingDuration + 50);
         } else {
-            // ARMAS A DISTANCIA: Retroceso tradicional REDUCIDO para la ametralladora
-            // Valores originales: z += 0.2, y -= 0.05 → ahora más suave y corto
-            this.weaponMesh.position.z += 0.1;   // Mitad de retroceso hacia atrás
-            this.weaponMesh.position.y -= 0.02; // Mitad de bajada
+            const recoilDistance = Math.max(
+                0,
+                Number(weapon.viewRecoilDistance) || 0.1
+            );
+            const recoilDrop = Math.max(
+                0,
+                Number(weapon.viewRecoilDrop) || 0.02
+            );
+            const recoilDuration = Math.max(
+                20,
+                Number(weapon.viewRecoilDuration) || 80
+            );
+
+            this.weaponMesh.position.z += recoilDistance;
+            this.weaponMesh.position.y -= recoilDrop;
 
             setTimeout(() => {
                 if (this.weaponMesh) {
-                    this.weaponMesh.position.z -= 0.1;
-                    this.weaponMesh.position.y += 0.02;
+                    this.weaponMesh.position.z -= recoilDistance;
+                    this.weaponMesh.position.y += recoilDrop;
                 }
-            }, 80);
+            }, recoilDuration);
         }
     }
 
@@ -1346,6 +1665,11 @@ export class WeaponSystem {
     // #region Limpieza WeaponSystem
     // Descripción: Liberación de recursos y geometrías del sistema de armas.
     dispose() {
+        if (this.weaponFlashTimeout !== null) {
+            clearTimeout(this.weaponFlashTimeout);
+            this.weaponFlashTimeout = null;
+        }
+
         if (this.weaponMesh) {
             this.camera.remove(this.weaponMesh);
             this.weaponMesh.geometry = null; //
@@ -1382,6 +1706,10 @@ export class WeaponSystem {
         this.rocketBodyMaterial?.dispose();
         this.rocketTipMaterial?.dispose();
         this.rocketFlameMaterial?.dispose();
+        this.rocketExplosionTexture?.dispose();
+        this.rocketExplosionTexture = null;
+        this.rocketExplosionBlurTexture?.dispose();
+        this.rocketExplosionBlurTexture = null;
     }
     // #endregion
 }

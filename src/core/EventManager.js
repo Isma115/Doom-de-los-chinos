@@ -17,6 +17,8 @@ export class EventManager {
         this.processedEvents = new Set();
         this.timeElapsed = 0;
         this.waveEvent = null;
+        this.pendingTimeouts = new Set();
+        this.disposed = false;
 
         this.postProcessingEnabled = false;
 
@@ -24,7 +26,7 @@ export class EventManager {
         this.initDefaultEvents();
 
         const genericSpawners = world.getGenericSpawners();
-        if (genericSpawners && genericSpawners.length > 0) {
+        if (world.currentMapName === 'mapa2' || (genericSpawners && genericSpawners.length > 0)) {
             this.waveEvent = new WaveEvent(enemyManager, world, audioManager, player);
 
             console.log('Wave system initialized with', genericSpawners.length, 'generic spawners');
@@ -55,6 +57,7 @@ export class EventManager {
 
     //  Loop Principal EventManager
     update(delta, playerPosition) {
+        if (this.disposed) return;
         this.timeElapsed += delta;
 
         // Update wave event if active
@@ -132,12 +135,33 @@ export class EventManager {
                     const originalFog = this.scene.fog ? this.scene.fog.color.getHex() : 0x000000;
                     if (this.scene.fog) {
                         this.scene.fog.color.setHex(action.color);
-                        setTimeout(() => {
-                            if (this.scene.fog) this.scene.fog.color.setHex(originalFog);
+                        let timeoutId = null;
+                        timeoutId = setTimeout(() => {
+                            this.pendingTimeouts.delete(timeoutId);
+                            if (!this.disposed && this.scene.fog) {
+                                this.scene.fog.color.setHex(originalFog);
+                            }
                         }, action.duration);
+                        this.pendingTimeouts.add(timeoutId);
                     }
                     break;
             }
         });
+    }
+
+    dispose() {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.pendingTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+        this.pendingTimeouts.clear();
+        this.waveEvent?.dispose?.();
+        this.events = [];
+        this.processedEvents.clear();
+        this.waveEvent = null;
+        this.scene = null;
+        this.enemyManager = null;
+        this.audioManager = null;
+        this.world = null;
+        this.player = null;
     }
 }
