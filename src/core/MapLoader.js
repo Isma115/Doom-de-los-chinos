@@ -53,7 +53,7 @@ export class MapLoader {
         const worldLayouts = {
             // Parque usa ahora una rejilla compacta y centrada en el origen.
             mapa1: { width: 12, height: 10, offsetX: 0, offsetY: 0 },
-            mapa2: { width: 36, height: 26, offsetX: 0, offsetY: 3 }
+            mapa2: { width: 24, height: 18, offsetX: 0, offsetY: 0 }
         };
         const worldLayout = worldLayouts[mapName] || {
             width,

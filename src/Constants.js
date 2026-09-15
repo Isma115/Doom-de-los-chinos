@@ -91,7 +91,7 @@ export const FOOD_TYPES = [
 export const AVAILABLE_MAPS = [
     { id: 'default', name: 'Nivel de Entrenamiento' },
     { id: 'mapa1', name: 'Parque' },
-    { id: 'mapa2', name: 'Arena de Sangre' },
+    { id: 'mapa2', name: 'El Hormiguero' },
     // Se conserva el id para no romper enlaces de prueba existentes.
     { id: 'pruebas_alien', name: 'Pruebas: Esqueleto Minigun' }
 ];
@@ -435,7 +435,7 @@ export const ENEMY_TYPES = [
         id: 'street_npc',
         speed: 5.2,
         damage: 3,
-        hp: 90,
+        hp: 45,
         texture: 'assets/npcs/street_npc.png',
         spriteSheet: {
             columns: 4,
@@ -467,7 +467,7 @@ export const ENEMY_TYPES = [
         id: 'street_npc_female',
         speed: 5.2,
         damage: 3,
-        hp: 90,
+        hp: 45,
         texture: 'assets/npcs/street_npc_female.png?v=2',
         spriteSheet: {
             columns: 4,
@@ -496,7 +496,7 @@ export const ENEMY_TYPES = [
         id: 'street_npc_phone',
         speed: 5.2,
         damage: 3,
-        hp: 90,
+        hp: 45,
         // Flujo equivalente a "pera": textura quieta y texturaWalk espejada
         // que se intercambian mientras el NPC avanza.
         texture: 'assets/npcs/street_npc_phone.png',
@@ -514,7 +514,7 @@ export const ENEMY_TYPES = [
         id: 'old_man',
         speed: 4.0,
         damage: 4,
-        hp: 130,
+        hp: 65,
         // Enemigo de un solo sprite: la textura espejada se intercambia
         // durante el movimiento, igual que en el flujo de "pera".
         texture: 'assets/enemies/old_man.png',
@@ -533,7 +533,7 @@ export const ENEMY_TYPES = [
         id: 'young_man',
         speed: 4.0,
         damage: 4,
-        hp: 130,
+        hp: 65,
         // NPC de un solo sprite: alterna con su versión espejada al caminar,
         // igual que "old_man" y "pera".
         texture: 'assets/enemies/young_man.png',
@@ -551,7 +551,7 @@ export const ENEMY_TYPES = [
         id: 'middle_aged_man',
         speed: 4.0,
         damage: 4,
-        hp: 130,
+        hp: 65,
         // NPC de un solo sprite: alterna con su versión espejada al caminar,
         // siguiendo el mismo sistema que "old_man" y "young_man".
         texture: 'assets/enemies/middle_aged_man.png',
@@ -569,7 +569,7 @@ export const ENEMY_TYPES = [
         id: 'black_dress_woman',
         speed: 4.0,
         damage: 4,
-        hp: 130,
+        hp: 65,
         // NPC de un solo sprite: alterna con su versión espejada al caminar,
         // siguiendo el mismo sistema que los demás NPC de calle.
         texture: 'assets/enemies/black_dress_woman.png',
@@ -587,7 +587,7 @@ export const ENEMY_TYPES = [
         id: 'blonde_black_dress_woman',
         speed: 4.0,
         damage: 4,
-        hp: 130,
+        hp: 65,
         // NPC de un solo sprite: alterna con su versión espejada al caminar.
         texture: 'assets/enemies/blonde_black_dress_woman.png',
         textureWalk: 'assets/enemies/blonde_black_dress_woman_walk.png',
@@ -604,7 +604,7 @@ export const ENEMY_TYPES = [
         id: 'floral_dress_woman',
         speed: 4.0,
         damage: 4,
-        hp: 130,
+        hp: 65,
         // NPC de un solo sprite: alterna con su versión espejada al caminar.
         texture: 'assets/enemies/floral_dress_woman.png',
         textureWalk: 'assets/enemies/floral_dress_woman_walk.png',
@@ -621,7 +621,7 @@ export const ENEMY_TYPES = [
         id: 'old_woman',
         speed: 4.0,
         damage: 4,
-        hp: 130,
+        hp: 65,
         // NPC de un solo sprite: alterna con su versión espejada al caminar,
         // igual que "pera" y "old_man".
         texture: 'assets/enemies/old_woman.png',
