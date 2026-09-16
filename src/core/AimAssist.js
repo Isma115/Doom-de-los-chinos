@@ -2,7 +2,7 @@
 // Descripción: Asistencia sutil de apuntado (imán de cruceta) para mando
 // táctil y ratón. Barato por diseño: solo mates vectoriales sobre los
 // enemigos activos, sin raycasts ni reservas de memoria por frame.
-import * as THREE from '../../node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import { AIM_ASSIST } from '../Constants.js';
 // #endregion
 

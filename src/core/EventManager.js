@@ -1,5 +1,5 @@
 //  Importaciones EventManager
-import * as THREE from '../../node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import { UIManager } from '../UI.js';
 import { CONFIG } from '../Constants.js';
 import { WaveEvent } from '../eventos/WaveEvent.js';

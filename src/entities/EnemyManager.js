@@ -1,5 +1,5 @@
 // #region Importaciones EnemyManager
-import * as THREE from '../../node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import {
     CONFIG,
     ENEMY_TYPES,
@@ -8,6 +8,53 @@ import {
     HIT_BLOOD_SPRITE_VARIANTS
 } from '../Constants.js';
 import { BloodDecalManager } from '../core/BloodDecalManager.js';
+import {
+    isSpriteSheetEnemy as isSpriteSheetEnemyFn,
+    createEnemyMaterial as createEnemyMaterialFn,
+    resetSpriteSheetGeometry as resetSpriteSheetGeometryFn,
+    setEnemySpriteOffset as setEnemySpriteOffsetFn,
+    setSpriteSheetGeometryFrame as setSpriteSheetGeometryFrameFn,
+    disposeEnemyMaterial as disposeEnemyMaterialFn,
+    initializeEnemyAnimation as initializeEnemyAnimationFn,
+    setSpriteSheetFrame as setSpriteSheetFrameFn,
+    updateSpriteSheetAnimation as updateSpriteSheetAnimationFn,
+    getSpriteSheetAnimationDuration as getSpriteSheetAnimationDurationFn,
+    updateEnemyVisual as updateEnemyVisualFn
+} from './enemies/SpriteSheet.js';
+import {
+    createSpawnHologram as createSpawnHologramFn,
+    startSpawnHologram as startSpawnHologramFn,
+    updateSpawnHologram as updateSpawnHologramFn,
+    stopSpawnHologram as stopSpawnHologramFn,
+    disposeSpawnHologram as disposeSpawnHologramFn
+} from './enemies/SpawnHologram.js';
+import {
+    setGenericCorpseSprite as setGenericCorpseSpriteFn,
+    selectGenericDeathTexture as selectGenericDeathTextureFn,
+    setGenericDeathSpriteFrame as setGenericDeathSpriteFrameFn,
+    startGenericDeathAnimation as startGenericDeathAnimationFn,
+    updateGenericDeathAnimation as updateGenericDeathAnimationFn
+} from './enemies/GenericDeath.js';
+import {
+    getBloodTexturePaths as getBloodTexturePathsFn,
+    getHitBloodSpritePaths as getHitBloodSpritePathsFn,
+    clampBloodHitPosition as clampBloodHitPositionFn,
+    getBloodColor as getBloodColorFn,
+    createBloodParticleMaterial as createBloodParticleMaterialFn,
+    configureBloodEffects as configureBloodEffectsFn,
+    getCachedBloodSpriteTexture as getCachedBloodSpriteTextureFn,
+    createHitBloodSpriteCloud as createHitBloodSpriteCloudFn,
+    createBloodParticles as createBloodParticlesFn,
+    spawnMassiveBloodSplash as spawnMassiveBloodSplashFn,
+    spawnGoreShockwave as spawnGoreShockwaveFn,
+    spawnBloodProjectiles as spawnBloodProjectilesFn,
+    spawnTrailParticle as spawnTrailParticleFn,
+    updateBloodProjectiles as updateBloodProjectilesFn,
+    updateBloodParticles as updateBloodParticlesFn,
+    updateGoreParticles as updateGoreParticlesFn,
+    updateGoreSprites as updateGoreSpritesFn,
+    clearBloodParticles as clearBloodParticlesFn
+} from './enemies/Blood.js';
 // #endregion
 
 // #region Clase EnemyManager
@@ -156,16 +203,7 @@ export class EnemyManager {
     // #endregion
 
     getBloodTexturePaths(bloodType = 'red') {
-        return bloodType === 'white'
-            ? ['assets/textures/white_blood_splash.png']
-            : [
-                'assets/textures/blood_splash.png',
-                'assets/textures/blood_splash2.png',
-                'assets/textures/blood_splash3.png',
-                'assets/textures/blood_splash4.png',
-                'assets/textures/blood_droplets.png',
-                'assets/textures/blood_streak.png'
-            ];
+        return getBloodTexturePathsFn.call(this, bloodType);
     }
 
     setEnemyDefeatedCallback(callback) {
@@ -205,1418 +243,162 @@ export class EnemyManager {
     }
 
     getHitBloodSpritePaths(bloodType = 'red') {
-        return bloodType === 'white'
-            ? ['assets/textures/white_blood_splash.png']
-            : HIT_BLOOD_SPRITE_VARIANTS;
+        return getHitBloodSpritePathsFn.call(this, bloodType);
     }
 
     clampBloodHitPosition(enemy, hitPosition) {
-        if (!enemy || !hitPosition?.isVector3) {
-            return enemy?.position?.clone() || new THREE.Vector3();
-        }
-
-        // Trabajar en las coordenadas del plano permite limitar X/Y aunque el
-        // enemigo esté girado hacia el jugador. El bounding box ya incluye el
-        // pequeño ajuste vertical propio de cada spritesheet.
-        enemy.updateMatrixWorld(true);
-        if (enemy.geometry?.computeBoundingBox) {
-            enemy.geometry.computeBoundingBox();
-        }
-
-        const localHit = enemy.worldToLocal(hitPosition.clone());
-        const bounds = enemy.geometry?.boundingBox;
-        const minX = bounds?.min.x ?? -1;
-        const maxX = bounds?.max.x ?? 1;
-        const minY = bounds?.min.y ?? -1;
-        const maxY = bounds?.max.y ?? 1;
-        const scaleX = Math.max(Math.abs(enemy.scale.x), 0.001);
-        const scaleY = Math.max(Math.abs(enemy.scale.y), 0.001);
-
-        // Reserva espacio para la mitad de la nube más grande y para el
-        // desplazamiento lateral de cada una de sus tres capas. Así el efecto
-        // conserva la zona aproximada del impacto, pero no puede desbordar el
-        // rectángulo visual del enemigo.
-        const maxCloudHalfWidth = (1.20 * 1.16) / 2;
-        const maxCloudHalfHeight = (1.20 * 1.20) / 2;
-        const layerOffset = 0.13;
-        const marginX = (maxCloudHalfWidth + layerOffset) / scaleX;
-        const marginY = (maxCloudHalfHeight + layerOffset) / scaleY;
-        const safeMinX = minX + marginX;
-        const safeMaxX = maxX - marginX;
-        const safeMinY = minY + marginY;
-        const safeMaxY = maxY - marginY;
-
-        localHit.x = safeMinX <= safeMaxX
-            ? THREE.MathUtils.clamp(localHit.x, safeMinX, safeMaxX)
-            : (minX + maxX) / 2;
-        localHit.y = safeMinY <= safeMaxY
-            ? THREE.MathUtils.clamp(localHit.y, safeMinY, safeMaxY)
-            : (minY + maxY) / 2;
-
-        return enemy.localToWorld(localHit);
+        return clampBloodHitPositionFn.call(this, enemy, hitPosition);
     }
 
     getBloodColor(enemy) {
-        return enemy.userData.bloodColor ?? 0xcc0000;
+        return getBloodColorFn.call(this, enemy);
     }
 
     createBloodParticleMaterial(color) {
-        const material = this.bloodMaterial.clone();
-        material.color.setHex(color);
-        if (material.emissive) {
-            material.emissive.copy(material.color).multiplyScalar(0.12);
-        }
-        return material;
+        return createBloodParticleMaterialFn.call(this, color);
     }
 
     isSpriteSheetEnemy(type) {
-        return Boolean(type?.spriteSheet?.animations);
+        return isSpriteSheetEnemyFn.call(this, type);
     }
 
     createEnemyMaterial(type) {
-        const baseTexture = this.enemyTextures[type.id];
-        const texture = baseTexture;
-
-        if (this.isSpriteSheetEnemy(type)) {
-            // La textura original se comparte entre enemigos; las UV de cada
-            // geometría son las que seleccionan su frame. Así no se pierde la
-            // imagen si el enemigo aparece antes de que termine el preload.
-            texture.minFilter = THREE.NearestFilter;
-            texture.magFilter = THREE.NearestFilter;
-            texture.generateMipmaps = false;
-            texture.wrapS = THREE.ClampToEdgeWrapping;
-            texture.wrapT = THREE.ClampToEdgeWrapping;
-            texture.needsUpdate = true;
-        }
-
-        return new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            depthWrite: false,
-            alphaTest: 0.05,
-            side: THREE.DoubleSide
-        });
+        return createEnemyMaterialFn.call(this, type);
     }
 
     createSpawnHologram(enemy) {
-        const hologramMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                map: { value: enemy.material?.map || null },
-                uTime: { value: 0 },
-                uOpacity: { value: 0 },
-                uProgress: { value: 0 }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-
-                void main() {
-                    vUv = uv;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform sampler2D map;
-                uniform float uTime;
-                uniform float uOpacity;
-                uniform float uProgress;
-                varying vec2 vUv;
-
-                void main() {
-                    vec4 sprite = texture2D(map, vUv);
-                    if (sprite.a < 0.03) discard;
-
-                    float scanLines = 0.5 + 0.5 * sin(vUv.y * 280.0 - uTime * 38.0);
-                    float scanBand = 0.5 + 0.5 * sin(vUv.x * 70.0 + uTime * 16.0);
-                    float sweepPosition = fract(uTime * 2.6);
-                    float sweep = exp(-abs(vUv.y - sweepPosition) * 95.0);
-                    float arrivalFlash = exp(-uProgress * 16.0);
-                    float flicker = 0.82 + 0.18 * sin(uTime * 105.0);
-                    float alpha = sprite.a * uOpacity *
-                        (0.48 + scanLines * 0.52 + scanBand * 0.18 + sweep * 1.65 + arrivalFlash * 1.9) * flicker;
-
-                    vec3 hologramColor = mix(
-                        vec3(0.0, 0.72, 1.0),
-                        vec3(1.0, 1.0, 1.0),
-                        clamp(arrivalFlash * 0.9 + sweep * 0.4, 0.0, 1.0)
-                    );
-
-                    gl_FragColor = vec4(hologramColor, alpha);
-                }
-            `,
-            transparent: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending
-        });
-
-        const hologram = new THREE.Mesh(enemy.geometry, hologramMaterial);
-        hologram.position.z = 0.01;
-        hologram.renderOrder = 1;
-        hologram.visible = false;
-        enemy.add(hologram);
-
-        const spawnLight = new THREE.PointLight(0x72efff, 0, 8, 2);
-        spawnLight.position.set(0, 0.45, 0.35);
-        spawnLight.visible = false;
-        enemy.add(spawnLight);
-
-        enemy.userData.spawnHologram = hologram;
-        enemy.userData.spawnHologramLight = spawnLight;
-
-        return hologram;
+        return createSpawnHologramFn.call(this, enemy);
     }
 
     startSpawnHologram(enemy) {
-        const hologram = enemy.userData.spawnHologram || this.createSpawnHologram(enemy);
-        const material = hologram.material;
-
-        material.uniforms.map.value = enemy.material?.map || null;
-        material.uniforms.uTime.value = 0;
-        material.uniforms.uOpacity.value = 0;
-        material.uniforms.uProgress.value = 0;
-        hologram.visible = true;
-
-        hologram.scale.setScalar(1.18);
-
-        const spawnLight = enemy.userData.spawnHologramLight;
-        if (spawnLight) {
-            spawnLight.intensity = 5.5;
-            spawnLight.visible = true;
-        }
-
-        enemy.userData.spawnHologramStartedAt = performance.now();
-        enemy.userData.spawnHologramUntil =
-            enemy.userData.spawnHologramStartedAt + this.spawnHologramDuration;
+        return startSpawnHologramFn.call(this, enemy);
     }
 
     updateSpawnHologram(enemy, now) {
-        const hologram = enemy.userData.spawnHologram;
-        if (!hologram?.visible) return;
-
-        const elapsed = now - enemy.userData.spawnHologramStartedAt;
-        if (elapsed >= this.spawnHologramDuration) {
-            hologram.visible = false;
-            hologram.material.uniforms.uOpacity.value = 0;
-            hologram.scale.setScalar(1);
-            const spawnLight = enemy.userData.spawnHologramLight;
-            if (spawnLight) {
-                spawnLight.intensity = 0;
-                spawnLight.visible = false;
-            }
-            return;
-        }
-
-        const progress = Math.max(0, elapsed / this.spawnHologramDuration);
-        const fadeIn = Math.min(1, elapsed / 55);
-        const fadeOut = Math.min(1, (1 - progress) / 0.28);
-        const arrivalFlash = Math.exp(-progress * 16);
-        const pulse = 0.9 + 0.1 * Math.sin(elapsed * 0.08);
-
-        hologram.material.uniforms.map.value = enemy.material?.map || null;
-        hologram.material.uniforms.uTime.value = elapsed / 1000;
-        hologram.material.uniforms.uProgress.value = progress;
-        hologram.material.uniforms.uOpacity.value = 1.35 * fadeIn * fadeOut * pulse;
-        hologram.scale.setScalar(1 + 0.18 * (1 - progress) + 0.025 * Math.sin(elapsed * 0.06));
-
-        const spawnLight = enemy.userData.spawnHologramLight;
-        if (spawnLight) {
-            spawnLight.intensity = fadeIn * fadeOut * (0.5 + arrivalFlash * 5.5);
-        }
+        return updateSpawnHologramFn.call(this, enemy, now);
     }
 
     stopSpawnHologram(enemy) {
-        const hologram = enemy?.userData?.spawnHologram;
-        if (!hologram) return;
-
-        hologram.visible = false;
-        hologram.material.uniforms.uOpacity.value = 0;
-        hologram.material.uniforms.uProgress.value = 0;
-        hologram.scale.setScalar(1);
-
-        const spawnLight = enemy.userData.spawnHologramLight;
-        if (spawnLight) {
-            spawnLight.intensity = 0;
-            spawnLight.visible = false;
-        }
+        return stopSpawnHologramFn.call(this, enemy);
     }
 
     disposeSpawnHologram(enemy) {
-        const hologram = enemy?.userData?.spawnHologram;
-        if (!hologram) return;
-
-        if (hologram.parent) hologram.parent.remove(hologram);
-        hologram.material.dispose();
-        delete enemy.userData.spawnHologram;
-
-        const spawnLight = enemy.userData.spawnHologramLight;
-        if (spawnLight?.parent) spawnLight.parent.remove(spawnLight);
-        delete enemy.userData.spawnHologramLight;
+        return disposeSpawnHologramFn.call(this, enemy);
     }
 
     resetSpriteSheetGeometry(geometry) {
-        const uv = geometry?.attributes?.uv;
-        if (!uv) return;
-
-        uv.setXY(0, 0, 1);
-        uv.setXY(1, 1, 1);
-        uv.setXY(2, 0, 0);
-        uv.setXY(3, 1, 0);
-        uv.needsUpdate = true;
+        return resetSpriteSheetGeometryFn.call(this, geometry);
     }
 
     setEnemySpriteOffset(enemy, type) {
-        if (!enemy?.geometry) return;
-
-        const height = type?.height || 2.0;
-        const desiredOffset = Number(type?.spriteOffsetY || 0);
-        const desiredLocalOffset = desiredOffset / (height / 2.0);
-        const currentLocalOffset = Number(enemy.userData.spriteOffsetLocalY || 0);
-        const delta = desiredLocalOffset - currentLocalOffset;
-
-        if (Math.abs(delta) > 0.0001) {
-            enemy.geometry.translate(0, delta, 0);
-        }
-
-        enemy.userData.spriteOffsetLocalY = desiredLocalOffset;
+        return setEnemySpriteOffsetFn.call(this, enemy, type);
     }
 
     setSpriteSheetGeometryFrame(geometry, spriteSheet, animationName, frameIndex) {
-        const animation = spriteSheet?.animations?.[animationName] || spriteSheet?.animations?.idle;
-        const uv = geometry?.attributes?.uv;
-        if (!spriteSheet || !animation || !uv) return;
-
-        const columns = Math.max(1, spriteSheet.columns || 1);
-        const rows = Math.max(1, spriteSheet.rows || 1);
-        const frameWidth = Math.max(1, spriteSheet.frameWidth || 1);
-        const frameHeight = Math.max(1, spriteSheet.frameHeight || 1);
-        const frames = Math.max(1, animation.frames || 1);
-        const frame = Math.max(0, Math.min(frames - 1, frameIndex));
-        const row = Math.max(0, Math.min(rows - 1, animation.row || 0));
-        const column = Math.min(columns - 1, frame);
-        const textureWidth = columns * frameWidth;
-        const textureHeight = rows * frameHeight;
-        const pixelInsetX = 0.5 / textureWidth;
-        // El atlas tiene sprites muy cerca de los límites verticales. Un margen
-        // ligeramente mayor evita que el filtrado muestree la fila contigua.
-        const pixelInsetY = 1.5 / textureHeight;
-
-        // PlaneGeometry tiene las UV ordenadas como: arriba-izquierda,
-        // arriba-derecha, abajo-izquierda, abajo-derecha. Se deja un margen
-        // de seguridad para que nunca entre el frame contiguo del atlas.
-        const u0 = (column * frameWidth) / textureWidth + pixelInsetX;
-        const u1 = ((column + 1) * frameWidth) / textureWidth - pixelInsetX;
-        const v0 = 1 - ((row + 1) * frameHeight) / textureHeight + pixelInsetY;
-        const v1 = 1 - (row * frameHeight) / textureHeight - pixelInsetY;
-
-        uv.setXY(0, u0, v1);
-        uv.setXY(1, u1, v1);
-        uv.setXY(2, u0, v0);
-        uv.setXY(3, u1, v0);
-        uv.needsUpdate = true;
+        return setSpriteSheetGeometryFrameFn.call(this, geometry, spriteSheet, animationName, frameIndex);
     }
 
     disposeEnemyMaterial(enemy) {
-        const material = enemy?.material;
-        if (!material) return;
-
-        if (material.map?.userData?.isEnemySpriteSheetFrame) {
-            material.map.dispose();
-        }
-        material.dispose();
+        return disposeEnemyMaterialFn.call(this, enemy);
     }
 
     initializeEnemyAnimation(enemy, type) {
-        enemy.userData.animationName = null;
-        enemy.userData.animationFrame = 0;
-        enemy.userData.animationTimer = 0;
-        enemy.userData.attackAnimUntil = 0;
-
-        if (this.isSpriteSheetEnemy(type)) {
-            this.updateSpriteSheetAnimation(enemy, type, 'idle', 0);
-        }
+        return initializeEnemyAnimationFn.call(this, enemy, type);
     }
 
     setSpriteSheetFrame(enemy, type, animationName, frameIndex) {
-        const spriteSheet = type.spriteSheet;
-        const animation = spriteSheet?.animations?.[animationName] || spriteSheet?.animations?.idle;
-        if (!spriteSheet || !animation || !enemy.geometry) return;
-
-        this.setSpriteSheetGeometryFrame(
-            enemy.geometry,
-            spriteSheet,
-            animationName,
-            frameIndex
-        );
+        return setSpriteSheetFrameFn.call(this, enemy, type, animationName, frameIndex);
     }
 
     updateSpriteSheetAnimation(enemy, type, animationName, delta) {
-        const spriteSheet = type.spriteSheet;
-        const animation = spriteSheet?.animations?.[animationName] || spriteSheet?.animations?.idle;
-        if (!spriteSheet || !animation || !enemy.material?.map) return;
-
-        const frames = Math.max(1, animation.frames || 1);
-        const fps = Math.max(1, animation.fps || 8);
-        const frameDuration = 1 / fps;
-
-        if (enemy.userData.animationName !== animationName) {
-            enemy.userData.animationName = animationName;
-            enemy.userData.animationFrame = 0;
-            enemy.userData.animationTimer = 0;
-            this.setSpriteSheetFrame(enemy, type, animationName, 0);
-        }
-
-        if (!animation.loop && enemy.userData.animationFrame >= frames - 1) {
-            return;
-        }
-
-        enemy.userData.animationTimer += Math.max(0, delta);
-        let frameChanged = false;
-
-        while (enemy.userData.animationTimer >= frameDuration) {
-            enemy.userData.animationTimer -= frameDuration;
-            let nextFrame = enemy.userData.animationFrame + 1;
-
-            if (nextFrame >= frames) {
-                nextFrame = animation.loop ? 0 : frames - 1;
-            }
-
-            if (nextFrame === enemy.userData.animationFrame) {
-                enemy.userData.animationTimer = 0;
-                break;
-            }
-
-            enemy.userData.animationFrame = nextFrame;
-            frameChanged = true;
-        }
-
-        if (frameChanged) {
-            this.setSpriteSheetFrame(
-                enemy,
-                type,
-                animationName,
-                enemy.userData.animationFrame
-            );
-        }
+        return updateSpriteSheetAnimationFn.call(this, enemy, type, animationName, delta);
     }
 
     setGenericCorpseSprite(enemy) {
-        if (!enemy?.geometry || !enemy.material) return;
-
-        if (enemy.material.map !== this.genericCorpseTexture) {
-            enemy.material.map = this.genericCorpseTexture;
-            enemy.material.needsUpdate = true;
-        }
-
-        // La pila usa su propio atlas cuadrado; no necesita recorte de frames.
-        this.resetSpriteSheetGeometry(enemy.geometry);
+        return setGenericCorpseSpriteFn.call(this, enemy);
     }
 
     selectGenericDeathTexture(enemy) {
-        const textures = this.genericDeathTextures?.length
-            ? this.genericDeathTextures
-            : [this.genericDeathTexture];
-        let variant = Math.floor(Math.random() * textures.length);
-
-        // Evita dos muertes genéricas consecutivas con la misma variante.
-        if (textures.length > 1 && variant === this.lastGenericDeathVariant) {
-            variant = (variant + 1) % textures.length;
-        }
-
-        this.lastGenericDeathVariant = variant;
-        if (enemy?.userData) {
-            enemy.userData.genericDeathVariant = variant;
-        }
-        return textures[variant];
+        return selectGenericDeathTextureFn.call(this, enemy);
     }
 
     setGenericDeathSpriteFrame(enemy, frameIndex) {
-        if (!enemy?.geometry || !enemy.material) return;
-
-        const lastFrame = GENERIC_DEATH_SPRITE_SHEET.animations.death.frames - 1;
-        if (frameIndex >= lastFrame && this.genericCorpseTexture) {
-            this.setGenericCorpseSprite(enemy);
-            return;
-        }
-
-        const genericDeathTexture =
-            enemy.userData.genericDeathTexture || this.genericDeathTexture;
-        if (enemy.material.map !== genericDeathTexture) {
-            enemy.material.map = genericDeathTexture;
-            enemy.material.needsUpdate = true;
-        }
-
-        this.setSpriteSheetGeometryFrame(
-            enemy.geometry,
-            GENERIC_DEATH_SPRITE_SHEET,
-            'death',
-            frameIndex
-        );
+        return setGenericDeathSpriteFrameFn.call(this, enemy, frameIndex);
     }
 
     startGenericDeathAnimation(enemy) {
-        enemy.userData.usingGenericDeathAnimation = true;
-        enemy.userData.genericDeathFrame = 0;
-        enemy.userData.genericDeathTimer = 0;
-        enemy.userData.genericDeathTexture = this.selectGenericDeathTexture(enemy);
-        enemy.position.y += Number(GENERIC_DEATH_SPRITE_SHEET.offsetY) || 0;
-        this.setGenericDeathSpriteFrame(enemy, 0);
+        return startGenericDeathAnimationFn.call(this, enemy);
     }
 
     updateGenericDeathAnimation(enemy, delta) {
-        const animation = GENERIC_DEATH_SPRITE_SHEET.animations.death;
-        const frames = Math.max(1, animation.frames || 1);
-        const fps = Math.max(1, animation.fps || 8);
-        const frameDuration = 1 / fps;
-
-        if (enemy.userData.genericDeathFrame >= frames - 1) return;
-
-        enemy.userData.genericDeathTimer =
-            Number(enemy.userData.genericDeathTimer || 0) + Math.max(0, delta);
-
-        let frameChanged = false;
-        while (enemy.userData.genericDeathTimer >= frameDuration) {
-            enemy.userData.genericDeathTimer -= frameDuration;
-            enemy.userData.genericDeathFrame += 1;
-            frameChanged = true;
-
-            if (enemy.userData.genericDeathFrame >= frames - 1) {
-                enemy.userData.genericDeathFrame = frames - 1;
-                enemy.userData.genericDeathTimer = 0;
-                break;
-            }
-        }
-
-        if (frameChanged) {
-            this.setGenericDeathSpriteFrame(
-                enemy,
-                enemy.userData.genericDeathFrame
-            );
-        }
+        return updateGenericDeathAnimationFn.call(this, enemy, delta);
     }
 
     getSpriteSheetAnimationDuration(animation) {
-        const frames = Math.max(1, animation?.frames || 1);
-        const fps = Math.max(1, animation?.fps || 8);
-        return frames / fps;
+        return getSpriteSheetAnimationDurationFn.call(this, animation);
     }
 
     updateEnemyVisual(enemy, type, isMoving, now, delta) {
-        if (this.isSpriteSheetEnemy(type)) {
-            let animationName = 'idle';
-
-            if (enemy.userData.isDying) {
-                animationName = 'death';
-            } else if (enemy.userData.isShooting || now < enemy.userData.attackAnimUntil) {
-                animationName = 'attack';
-            } else if (
-                enemy.userData.bloodTime > 0 &&
-                now - enemy.userData.bloodTime < this.getSpriteSheetAnimationDuration(
-                    type.spriteSheet.animations.hurt
-                ) * 1000
-            ) {
-                animationName = 'hurt';
-            } else if (isMoving) {
-                animationName = 'walk';
-            }
-
-            this.updateSpriteSheetAnimation(enemy, type, animationName, delta);
-            return;
-        }
-
-        if (!isMoving || enemy.userData.isShooting || !this.enemyWalkTextures[enemy.userData.enemyType]) {
-            return;
-        }
-
-        enemy.userData.walkAnimTimer += delta;
-        if (enemy.userData.walkAnimTimer >= 0.7) {
-            enemy.userData.walkAnimTimer = 0;
-            enemy.userData.walkAnimState = !enemy.userData.walkAnimState;
-
-            const newTexture = enemy.userData.walkAnimState
-                ? this.enemyWalkTextures[enemy.userData.enemyType]
-                : this.enemyTextures[enemy.userData.enemyType];
-
-            if (enemy.material.map !== newTexture) {
-                enemy.material.map = newTexture;
-                enemy.material.needsUpdate = true;
-            }
-        }
+        return updateEnemyVisualFn.call(this, enemy, type, isMoving, now, delta);
     }
 
     configureBloodEffects(enemy) {
-        enemy.userData.drawBlood = (hitPoint = null) => {
-            const forward = new THREE.Vector3(0, 0, 1);
-            forward.applyQuaternion(enemy.quaternion).normalize();
-
-            // El raycast del arma entrega la coordenada mundial exacta sobre
-            // el plano del sprite. La nube usa una versión limitada a un
-            // margen interior, pero las partículas y decals conservan el
-            // punto físico real del impacto.
-            const impactPosition = hitPoint?.isVector3
-                ? hitPoint.clone()
-                : enemy.position.clone();
-            impactPosition.addScaledVector(forward, 0.06);
-            const cloudPosition = this.clampBloodHitPosition(enemy, hitPoint);
-            cloudPosition.addScaledVector(forward, 0.06);
-
-            const particles = this.createBloodParticles(enemy, impactPosition);
-            this.bloodParticles.set(enemy, particles);
-
-            // Mantener las salpicaduras existentes alrededor del enemigo y
-            // añadir una nube grande sobre el punto de impacto ajustado. El
-            // resto de partículas y manchas conserva su comportamiento actual.
-            this.createHitBloodSpriteCloud(
-                enemy,
-                cloudPosition,
-                forward
-            );
-
-            this.bloodDecalManager.spawnBloodSplatter(
-                impactPosition,
-                forward,
-                enemy.userData.bloodType || 'red'
-            );
-        };
-
-        enemy.userData.clearBlood = () => { this.clearBloodParticles(enemy); };
+        return configureBloodEffectsFn.call(this, enemy);
     }
 
     getCachedBloodSpriteTexture(texturePath) {
-        if (!this.bloodSpriteTextureCache.has(texturePath)) {
-            const texture = this.bloodSpriteTextureLoader.load(texturePath);
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.minFilter = THREE.LinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-            texture.generateMipmaps = false;
-            texture.wrapS = THREE.ClampToEdgeWrapping;
-            texture.wrapT = THREE.ClampToEdgeWrapping;
-            texture.needsUpdate = true;
-            this.bloodSpriteTextureCache.set(texturePath, texture);
-        }
-
-        return this.bloodSpriteTextureCache.get(texturePath);
+        return getCachedBloodSpriteTextureFn.call(this, texturePath);
     }
 
     createHitBloodSpriteCloud(enemy, hitPosition, forwardDirection) {
-        if (!enemy || !hitPosition?.isVector3) return;
-
-        const bloodPaths = this.getHitBloodSpritePaths(enemy.userData.bloodType);
-        if (bloodPaths.length === 0) return;
-
-        if (!enemy.userData.bloodSplashes) {
-            enemy.userData.bloodSplashes = [];
-        }
-
-        const availablePaths = [...bloodPaths];
-        const selectedPaths = [];
-        for (let i = 0; i < 3; i++) {
-            if (availablePaths.length > 0) {
-                const pathIndex = Math.floor(Math.random() * availablePaths.length);
-                selectedPaths.push(availablePaths.splice(pathIndex, 1)[0]);
-            } else {
-                // Los enemigos de sangre blanca tienen una sola textura, así
-                // que repetimos el recurso con escala y giro diferentes.
-                selectedPaths.push(bloodPaths[i % bloodPaths.length]);
-            }
-        }
-
-        const forward = (forwardDirection?.isVector3
-            ? forwardDirection.clone()
-            : new THREE.Vector3(0, 0, 1).applyQuaternion(enemy.quaternion)
-        ).normalize();
-        const right = new THREE.Vector3(1, 0, 0)
-            .applyQuaternion(enemy.quaternion)
-            .normalize();
-        const up = new THREE.Vector3(0, 1, 0)
-            .applyQuaternion(enemy.quaternion)
-            .normalize();
-
-        const offsets = [
-            [-0.13, 0.05],
-            [0.12, -0.06],
-            [0.0, 0.13]
-        ];
-
-        selectedPaths.forEach((texturePath, index) => {
-            const texture = this.getCachedBloodSpriteTexture(texturePath);
-            const material = new THREE.SpriteMaterial({
-                map: texture,
-                transparent: true,
-                opacity: 0.92,
-                // La nube debe quedar visible sobre el sprite del objetivo,
-                // pero su vida corta evita que se convierta en una capa fija.
-                depthTest: false,
-                depthWrite: false,
-                alphaTest: 0.03,
-                blending: THREE.NormalBlending
-            });
-            const sprite = new THREE.Sprite(material);
-            const size = 0.92 + Math.random() * 0.28;
-            const widthScale = 0.84 + Math.random() * 0.32;
-            const heightScale = 0.84 + Math.random() * 0.36;
-
-            sprite.position.copy(hitPosition)
-                .addScaledVector(right, offsets[index][0])
-                .addScaledVector(up, offsets[index][1])
-                .addScaledVector(forward, 0.055 + index * 0.006);
-            sprite.scale.set(size * widthScale, size * heightScale, 1);
-            sprite.rotation.z = Math.random() * Math.PI * 2;
-            sprite.renderOrder = 4;
-            sprite.userData.sharedBloodTexture = true;
-            enemy.userData.bloodSplashes.push(sprite);
-            this.scene.add(sprite);
-
-            const startTime = performance.now();
-            const duration = 260 + Math.random() * 80;
-            const initialScale = sprite.scale.clone();
-            const animateCloud = () => {
-                if (!sprite.parent) return;
-
-                const progress = (performance.now() - startTime) / duration;
-                if (progress >= 1) {
-                    this.scene.remove(sprite);
-                    sprite.material.dispose();
-                    const spriteIndex = enemy.userData.bloodSplashes?.indexOf(sprite) ?? -1;
-                    if (spriteIndex !== -1) {
-                        enemy.userData.bloodSplashes.splice(spriteIndex, 1);
-                    }
-                    return;
-                }
-
-                const easedProgress = 1 - Math.pow(1 - progress, 2);
-                const pulse = 0.72 + easedProgress * 0.28;
-                sprite.scale.set(
-                    initialScale.x * pulse,
-                    initialScale.y * pulse,
-                    1
-                );
-                sprite.material.opacity = 0.92 * (1 - progress);
-                requestAnimationFrame(animateCloud);
-            };
-
-            requestAnimationFrame(animateCloud);
-        });
+        return createHitBloodSpriteCloudFn.call(this, enemy, hitPosition, forwardDirection);
     }
 
     // #region Sistema de Partículas EnemyManager
     createBloodParticles(enemy, hitPosition) {
-        const existingParticles = this.bloodParticles.get(enemy);
-        const maxActiveParticles = 12;
-        const particleCount = 4 + Math.floor(Math.random() * 3);
-
-        // Mantener un límite bajo por enemigo para que los impactos rápidos no
-        // acumulen decenas de mallas 3D de sangre.
-        if (existingParticles && existingParticles.length + particleCount > maxActiveParticles) {
-            const particlesToRemove = existingParticles.length + particleCount - maxActiveParticles;
-            for (let i = 0; i < particlesToRemove; i++) {
-                const p = existingParticles.shift();
-                if (p) {
-                    if (p.material) p.material.dispose();
-                    this.scene.remove(p);
-                }
-            }
-        }
-
-        const particles = existingParticles || [];
-
-        const spawnPos = hitPosition ? hitPosition.clone() : enemy.position.clone();
-        if (!hitPosition) {
-            spawnPos.y += 1.0;
-        }
-
-        // Escoger una textura distinta de todo el catálogo en cada impacto.
-        const textureLoader = new THREE.TextureLoader();
-        const splashTextures = this.getBloodTexturePaths(enemy.userData.bloodType);
-        const randomTexturePath = splashTextures[Math.floor(Math.random() * splashTextures.length)];
-        const bloodSplashTexture = textureLoader.load(randomTexturePath);
-        bloodSplashTexture.colorSpace = THREE.SRGBColorSpace;
-
-        const splashMaterial = new THREE.SpriteMaterial({
-            map: bloodSplashTexture,
-            transparent: true,
-            opacity: 1.0, // Más opaco
-            depthTest: false, // Siempre renderizar por encima
-            depthWrite: false,
-            alphaTest: 0.02,
-            blending: THREE.NormalBlending
-        });
-
-        const bloodSplash = new THREE.Sprite(splashMaterial);
-
-        // Posición aleatoria alrededor del punto de impacto
-        const randomOffset = new THREE.Vector3(
-            (Math.random() - 0.5) * 1.5, // Menor desplazamiento
-            (Math.random() - 0.5) * 1.0,
-            (Math.random() - 0.5) * 1.5
-        );
-
-        bloodSplash.position.copy(spawnPos).add(randomOffset);
-
-        // Desplazar hacia adelante para que se vea por delante
-        const forwardDirection = new THREE.Vector3(0, 0, 1);
-        forwardDirection.applyQuaternion(enemy.quaternion);
-        bloodSplash.position.add(forwardDirection.multiplyScalar(0.5)); // 0.5 unidades hacia adelante
-
-        // Tamaño contenido para que el impacto no cubra al enemigo.
-        const scale = 0.75 + Math.random() * 0.55;
-        bloodSplash.scale.set(
-            scale * (0.75 + Math.random() * 0.45),
-            scale * (0.75 + Math.random() * 0.45),
-            scale
-        );
-
-        // Rotación aleatoria
-        bloodSplash.rotation.z = Math.random() * Math.PI * 2;
-
-        // Guardar referencia al splash en el enemigo para limpieza rápida
-        if (!enemy.userData.bloodSplashes) {
-            enemy.userData.bloodSplashes = [];
-        }
-        enemy.userData.bloodSplashes.push(bloodSplash);
-
-        this.scene.add(bloodSplash);
-
-        // Animar desvanecimiento
-        const fadeOut = () => {
-            if (bloodSplash.parent) { // Verificar que aún esté en la escena
-                bloodSplash.material.opacity -= 0.1; // Desvanecimiento más rápido
-                if (bloodSplash.material.opacity <= 0) {
-                    this.scene.remove(bloodSplash);
-                    bloodSplash.material.dispose();
-                    bloodSplashTexture.dispose();
-
-                    const splashIndex = enemy.userData.bloodSplashes?.indexOf(bloodSplash) ?? -1;
-                    if (splashIndex !== -1) {
-                        enemy.userData.bloodSplashes.splice(splashIndex, 1);
-                    }
-                } else {
-                    requestAnimationFrame(fadeOut);
-                }
-            }
-        };
-
-        // Comenzar a desvanecer después de un breve delay
-        setTimeout(fadeOut, 100); // El splash debe resolverse rápidamente
-
-        for (let i = 0; i < particleCount; i++) {
-            const variant = this.bloodParticleVariants[
-                i % this.bloodParticleVariants.length
-            ];
-            const particleMaterial = this.createBloodParticleMaterial(
-                this.getBloodColor(enemy)
-            );
-            const particle = new THREE.Mesh(variant.geometry, particleMaterial);
-            // Las partículas respetan la profundidad para no verse a través de muros
-            particle.material.depthTest = true;
-            particle.material.depthWrite = true;
-            particle.position.copy(spawnPos);
-
-            // Desplazamiento aleatorio más amplio alrededor del sprite
-            particle.position.x += (Math.random() - 0.5) * 1.8;
-            particle.position.y += (Math.random() - 0.5) * 1.5;
-            particle.position.z += (Math.random() - 0.5) * 1.8;
-
-            particle.rotation.x = Math.random() * Math.PI;
-            particle.rotation.y = Math.random() * Math.PI;
-            const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 5.0,
-                (Math.random() * 4.0) + 2.0,
-                (Math.random() - 0.5) * 5.0
-            );
-            particle.userData = {
-                life: 1.0,
-                velocity: velocity,
-                rotationSpeed: {
-                    x: (Math.random() - 0.5) * 10.0,
-                    y: (Math.random() - 0.5) * 10.0
-                },
-                isOnGround: false,
-                variant: variant.id,
-                creationTime: performance.now(),
-            };
-            const scale = 0.35 + Math.random() * 0.55;
-            particle.scale.set(
-                scale * (0.8 + Math.random() * 0.35),
-                scale * (0.8 + Math.random() * 0.45),
-                scale * (0.8 + Math.random() * 0.35)
-            );
-
-            particles.push(particle);
-            this.scene.add(particle);
-        }
-
-        this.bloodParticles.set(enemy, particles);
-        return particles;
+        return createBloodParticlesFn.call(this, enemy, hitPosition);
     }
 
     // #region Sistema de Explosión Masiva EnemyManager
     // Descripción: Genera múltiples sprites de sangre y partículas para una explosión visceral al morir.
     spawnMassiveBloodSplash(enemy) {
-        const explosionCenter = enemy.position.clone();
-        explosionCenter.y += 1.0; // Centro del cuerpo
-
-        // 1. Crear pocos sprites de sangre (4-7), pero mucho más grandes.
-        const spriteCount = 4 + Math.floor(Math.random() * 4);
-
-        // Cargar todas las texturas una sola vez
-        const textureLoader = new THREE.TextureLoader();
-        const splashTextures = this.getBloodTexturePaths(enemy.userData.bloodType)
-            .map(texturePath => textureLoader.load(texturePath));
-        splashTextures.forEach(texture => {
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.needsUpdate = true;
-        });
-
-        for (let i = 0; i < spriteCount; i++) {
-            // Usar una textura inicial aleatoria
-            const initialTexture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
-
-            const splashMaterial = new THREE.SpriteMaterial({
-                map: initialTexture,
-                transparent: true,
-                opacity: 1.0,
-                depthTest: false,
-                depthWrite: false,
-                alphaTest: 0.02,
-                blending: THREE.NormalBlending
-            });
-
-            const bloodSplash = new THREE.Sprite(splashMaterial);
-
-            // Posición aleatoria dispersa alrededor del enemigo
-            const randomOffset = new THREE.Vector3(
-                (Math.random() - 0.5) * 4.0, // Dispersión amplia
-                (Math.random() - 0.5) * 3.0,
-                (Math.random() - 0.5) * 4.0
-            );
-            bloodSplash.position.copy(explosionCenter).add(randomOffset);
-
-            // Tamaño grande y ligeramente deformado para que no parezcan clones.
-            const scale = 1.6 + Math.random() * 1.8;
-            bloodSplash.scale.set(
-                scale * (0.75 + Math.random() * 0.45),
-                scale * (0.75 + Math.random() * 0.45),
-                scale
-            );
-
-            // Rotación aleatoria
-            bloodSplash.rotation.z = Math.random() * Math.PI * 2;
-
-            this.scene.add(bloodSplash);
-
-            // Animación: Intercalar sprites durante 300ms (flicker effect)
-            const startTime = performance.now();
-            const duration = 300; // Resolver el estallido con un ritmo más rápido
-            let lastSwap = 0;
-            const swapInterval = 75; // Cambiar sprite dos veces más rápido
-
-            const animateSplash = () => {
-                const now = performance.now();
-                const elapsed = now - startTime;
-
-                if (elapsed < duration) {
-                    if (bloodSplash.parent) {
-                        // Intercalar texturas periódicamente
-                        if (now - lastSwap > swapInterval) {
-                            const newTexture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
-                            bloodSplash.material.map = newTexture;
-                            // También rotación aleatoria para más caos
-                            bloodSplash.rotation.z = Math.random() * Math.PI * 2;
-                            lastSwap = now;
-                        }
-
-                        requestAnimationFrame(animateSplash);
-                    }
-                } else {
-                    // Fin de la animación: Desaparecer de golpe
-                    if (bloodSplash.parent) {
-                        this.scene.remove(bloodSplash);
-                        bloodSplash.material.dispose();
-                        // No hacemos dispose de las texturas aquí porque se comparten
-                    }
-                }
-            };
-            animateSplash();
-        }
-
-        // 2. Explosión adicional de partículas geométricas
-        const particleCount = 32 + Math.floor(Math.random() * 17);
-        const particles = [];
-
-        for (let i = 0; i < particleCount; i++) {
-            const variant = this.bloodParticleVariants[
-                i % this.bloodParticleVariants.length
-            ];
-            const particleMaterial = this.createBloodParticleMaterial(
-                this.getBloodColor(enemy)
-            );
-            const particle = new THREE.Mesh(variant.geometry, particleMaterial);
-            particle.position.copy(explosionCenter);
-
-            // Velocidad explosiva en todas direcciones
-            const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 18.0,
-                (Math.random() * 14.0) - 3.0,
-                (Math.random() - 0.5) * 18.0
-            );
-
-            particle.userData = {
-                life: 1.0,
-                velocity: velocity,
-                rotationSpeed: { x: Math.random() * 10, y: Math.random() * 10 },
-                isOnGround: false,
-                variant: variant.id,
-                creationTime: performance.now()
-            };
-
-            // Escala no uniforme para resaltar las siluetas de las cuatro
-            // variantes y darles un aspecto más orgánico al girar.
-            const s = 0.65 + Math.random() * 0.75;
-            particle.scale.set(
-                s * (0.75 + Math.random() * 0.45),
-                s * (0.75 + Math.random() * 0.65),
-                s * (0.75 + Math.random() * 0.45)
-            );
-
-            this.scene.add(particle);
-            particles.push(particle);
-        }
-
-        // Estas partículas deben sobrevivir al retorno del enemigo al pool.
-        this.goreParticles.push(...particles);
-        this.spawnGoreShockwave(explosionCenter, enemy.userData.bloodType || 'red');
+        return spawnMassiveBloodSplashFn.call(this, enemy);
     }
 
     spawnGoreShockwave(position, bloodType = 'red') {
-        const textureLoader = new THREE.TextureLoader();
-        const texturePath = bloodType === 'white'
-            ? 'assets/textures/white_blood_splash.png'
-            : 'assets/textures/blood_splash4.png';
-        const texture = textureLoader.load(texturePath);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.needsUpdate = true;
-
-        const material = new THREE.SpriteMaterial({
-            map: texture,
-            transparent: true,
-            opacity: 0.85,
-            depthTest: false,
-            depthWrite: false,
-            alphaTest: 0.02,
-            blending: THREE.NormalBlending
-        });
-        const sprite = new THREE.Sprite(material);
-        sprite.position.copy(position);
-
-        const initialScale = 1.1 + Math.random() * 0.8;
-        sprite.scale.setScalar(initialScale);
-        this.scene.add(sprite);
-        this.goreSprites.push({
-            sprite,
-            texture,
-            creationTime: performance.now(),
-            duration: 350 + Math.random() * 120,
-            initialScale,
-            rotationSpeed: (Math.random() - 0.5) * 4.0
-        });
+        return spawnGoreShockwaveFn.call(this, position, bloodType);
     }
 
     // #region Sistema de Proyectiles Parabólicos de Sangre EnemyManager
     // Descripción: Genera proyectiles de sangre que siguen una trayectoria parabólica y manchan el suelo.
     spawnBloodProjectiles(enemy) {
-        // Obtener altura del enemigo desde su collisionSize o escala
-        const enemyHeight = enemy.userData.collisionSize?.y || (enemy.scale.y * 2) || 2.0;
-
-        // Posición inicial: 0.8m por encima de la altura del enemigo (ajustado)
-        const spawnCenter = enemy.position.clone();
-        spawnCenter.y = enemyHeight + 0.8;
-
-        // Cargar texturas de sangre
-        const textureLoader = new THREE.TextureLoader();
-        const splashTextures = this.getBloodTexturePaths(enemy.userData.bloodType)
-            .map(texturePath => textureLoader.load(texturePath));
-        splashTextures.forEach(texture => {
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.needsUpdate = true;
-        });
-
-        // Generar solo 5-8 proyectiles: cada impacto deja una mancha grande.
-        const projectileCount = 5 + Math.floor(Math.random() * 4);
-
-        // Número de ráfagas (direcciones principales de la explosión)
-        const streakCount = 2 + Math.floor(Math.random() * 2); // 2 a 3 ráfagas
-
-        for (let s = 0; s < streakCount; s++) {
-            // Ángulo base para esta ráfaga
-            const baseAngle = Math.random() * Math.PI * 2;
-            const particlesInStreak = Math.ceil(projectileCount / streakCount);
-
-            for (let p = 0; p < particlesInStreak; p++) {
-                if (this.bloodProjectiles.length >= 260) break; // Límite global de seguridad
-
-                // Usar sprite con textura de sangre aleatoria
-                const texture = splashTextures[Math.floor(Math.random() * splashTextures.length)];
-                const spriteMaterial = new THREE.SpriteMaterial({
-                    map: texture,
-                    transparent: true,
-                    opacity: 0.9,
-                    depthTest: true,
-                    depthWrite: false,
-                    alphaTest: 0.02,
-                    blending: THREE.NormalBlending
-                });
-
-                const projectile = new THREE.Sprite(spriteMaterial);
-
-                // Gotas grandes para acompañar las pocas manchas del suelo.
-                const scale = 0.30 + Math.random() * 0.30;
-                projectile.scale.set(scale, scale, scale);
-
-                projectile.position.copy(spawnCenter);
-                // Pequeña dispersión en el origen
-                projectile.position.x += (Math.random() - 0.5) * 0.4;
-                projectile.position.z += (Math.random() - 0.5) * 0.4;
-
-                projectile.material.rotation = Math.random() * Math.PI * 2;
-
-                // Ángulo con variación alrededor del ángulo base de la ráfaga
-                const angle = baseAngle + (Math.random() - 0.5) * 0.8;
-
-                // Velocidad vertical variada
-                const vy = 3.0 + Math.random() * 5.0;
-
-                // Velocidad horizontal MUY variada para evitar el círculo
-                const horizontalSpeed = 2.0 + Math.random() * 8.0; // 2-10 m/s
-
-                const vx = Math.cos(angle) * horizontalSpeed;
-                const vz = Math.sin(angle) * horizontalSpeed;
-
-                projectile.userData = {
-                    velocity: new THREE.Vector3(vx, vy, vz),
-                    creationTime: performance.now(),
-                    hasLanded: false,
-                    rotationSpeed: (Math.random() - 0.5) * 10,
-                    initialScale: scale,
-                    lastTrailTime: performance.now(),
-                    trailTexture: texture,
-                    bloodType: enemy.userData.bloodType || 'red'
-                };
-
-                this.scene.add(projectile);
-                this.bloodProjectiles.push(projectile);
-            }
-        }
+        return spawnBloodProjectilesFn.call(this, enemy);
     }
 
     // Crear partícula de estela
     spawnTrailParticle(position, texture) {
-        const trailMaterial = new THREE.SpriteMaterial({
-            map: texture,
-            transparent: true,
-            opacity: 0.6,
-            depthTest: true,
-            depthWrite: false,
-            alphaTest: 0.02,
-            blending: THREE.NormalBlending
-        });
-
-        const trail = new THREE.Sprite(trailMaterial);
-        trail.position.copy(position);
-
-        // Estela más pequeña
-        const scale = 0.08 + Math.random() * 0.08;
-        trail.scale.set(scale, scale, scale);
-        trail.material.rotation = Math.random() * Math.PI * 2;
-
-        // Datos para desvanecimiento
-        trail.userData = {
-            creationTime: performance.now(),
-            isTrail: true
-        };
-
-        this.scene.add(trail);
-        this.bloodProjectiles.push(trail);
+        return spawnTrailParticleFn.call(this, position, texture);
     }
 
     updateBloodProjectiles(delta) {
-        const toRemove = [];
-        const now = performance.now();
-
-        for (let i = 0; i < this.bloodProjectiles.length; i++) {
-            const projectile = this.bloodProjectiles[i];
-            if (!projectile || !projectile.userData) {
-                toRemove.push(i);
-                continue;
-            }
-
-            const data = projectile.userData;
-
-            // Si es una partícula de estela, solo desvanecer
-            if (data.isTrail) {
-                const age = now - data.creationTime;
-                const lifeDuration = 400; // 400ms de vida para estela
-
-                if (age > lifeDuration) {
-                    toRemove.push(i);
-                } else {
-                    // Desvanecer gradualmente
-                    projectile.material.opacity = 0.6 * (1 - age / lifeDuration);
-                    // Encoger ligeramente
-                    const shrink = 1 - (age / lifeDuration) * 0.5;
-                    projectile.scale.multiplyScalar(0.98);
-                }
-                continue;
-            }
-
-            // Tiempo máximo de vida: 4 segundos
-            if (now - data.creationTime > 4000) {
-                toRemove.push(i);
-                continue;
-            }
-
-            if (!data.hasLanded) {
-                // Aplicar gravedad
-                data.velocity.y -= CONFIG.GRAVITY * delta;
-
-                // Actualizar posición
-                projectile.position.x += data.velocity.x * delta;
-                projectile.position.y += data.velocity.y * delta;
-                projectile.position.z += data.velocity.z * delta;
-
-                // Crear estela cada 50ms
-                if (now - data.lastTrailTime > 50) {
-                    this.spawnTrailParticle(projectile.position.clone(), data.trailTexture);
-                    data.lastTrailTime = now;
-                }
-
-                // Rotar mientras vuela
-                if (projectile.material && data.rotationSpeed) {
-                    projectile.material.rotation += data.rotationSpeed * delta;
-                }
-
-                // Efecto de estiramiento según velocidad
-                const velocityMag = data.velocity.length();
-                const stretchFactor = 1 + (velocityMag * 0.02);
-                projectile.scale.y = data.initialScale * stretchFactor;
-
-                // Detectar impacto con el suelo
-                if (projectile.position.y <= 0.02) {
-                    projectile.position.y = 0.02;
-                    data.hasLanded = true;
-
-                    // Crear mancha de sangre en el suelo
-                    if (this.bloodDecalManager) {
-                        this.bloodDecalManager.createFloorDecal(
-                            projectile.position,
-                            data.bloodType || 'red'
-                        );
-                    }
-
-                    // Marcar para eliminación inmediata
-                    toRemove.push(i);
-                }
-            }
-        }
-
-        // Eliminar proyectiles terminados (de atrás hacia adelante)
-        for (let i = toRemove.length - 1; i >= 0; i--) {
-            const index = toRemove[i];
-            const projectile = this.bloodProjectiles[index];
-
-            if (projectile) {
-                if (projectile.material) {
-                    // Solo disponer la textura si no es compartida (estela)
-                    if (!projectile.userData.isTrail && projectile.material.map) {
-                        projectile.material.map.dispose();
-                    }
-                    projectile.material.dispose();
-                }
-                this.scene.remove(projectile);
-            }
-
-            this.bloodProjectiles.splice(index, 1);
-        }
+        return updateBloodProjectilesFn.call(this, delta);
     }
     // #endregion
 
     updateBloodParticles(enemy, delta) {
-        const particles = this.bloodParticles.get(enemy);
-        if (!particles || particles.length === 0) {
-            this.bloodParticles.delete(enemy);
-            return;
-        }
-
-        const toRemove = [];
-        const now = performance.now();
-        for (let i = 0; i < particles.length; i++) {
-            const particle = particles[i];
-            if (!particle || !particle.userData) {
-                toRemove.push(i);
-                continue;
-            }
-
-            const data = particle.userData;
-            const age = now - data.creationTime;
-
-            if (age > 2000) {
-                toRemove.push(i);
-                continue;
-            }
-
-            if (!data.isOnGround) {
-                data.velocity.y -= CONFIG.GRAVITY * 2.0 * delta;
-                particle.position.x += data.velocity.x * delta;
-                particle.position.y += data.velocity.y * delta;
-                particle.position.z += data.velocity.z * delta;
-
-                particle.rotation.x += data.rotationSpeed.x * delta;
-                particle.rotation.z += data.rotationSpeed.y * delta;
-
-                if (particle.position.y <= 0.05) {
-                    particle.position.y = 0.05;
-                    data.isOnGround = true;
-                    data.velocity.set(0, 0, 0);
-                }
-            } else {
-                data.life -= delta * 0.8;
-            }
-
-            if (particle.material) {
-                particle.material.opacity = Math.max(0, data.life);
-            }
-
-            if (data.life <= 0) {
-                toRemove.push(i);
-            }
-        }
-
-        for (let i = toRemove.length - 1; i >= 0; i--) {
-            const index = toRemove[i];
-            const particle = particles[index];
-
-            if (particle) {
-                if (particle.material) {
-                    particle.material.dispose();
-                }
-                this.scene.remove(particle);
-            }
-
-            particles.splice(index, 1);
-        }
-
-        if (particles.length === 0) {
-            this.bloodParticles.delete(enemy);
-        }
+        return updateBloodParticlesFn.call(this, enemy, delta);
     }
 
     updateGoreParticles(delta) {
-        const now = performance.now();
-
-        for (let i = this.goreParticles.length - 1; i >= 0; i--) {
-            const particle = this.goreParticles[i];
-            const data = particle?.userData;
-
-            if (!particle || !data || now - data.creationTime > 3500) {
-                if (particle) {
-                    if (particle.material) particle.material.dispose();
-                    this.scene.remove(particle);
-                }
-                this.goreParticles.splice(i, 1);
-                continue;
-            }
-
-            if (!data.isOnGround) {
-                data.velocity.y -= CONFIG.GRAVITY * 2.0 * delta;
-                particle.position.addScaledVector(data.velocity, delta);
-                particle.rotation.x += data.rotationSpeed.x * delta;
-                particle.rotation.z += data.rotationSpeed.y * delta;
-
-                if (particle.position.y <= 0.05) {
-                    particle.position.y = 0.05;
-                    data.isOnGround = true;
-                    data.velocity.set(0, 0, 0);
-                }
-            } else {
-                data.life -= delta * 0.55;
-                particle.rotation.y += data.rotationSpeed.y * delta;
-            }
-
-            if (particle.material) {
-                particle.material.opacity = Math.max(0, data.life);
-            }
-
-            if (data.life <= 0) {
-                if (particle.material) particle.material.dispose();
-                this.scene.remove(particle);
-                this.goreParticles.splice(i, 1);
-            }
-        }
+        return updateGoreParticlesFn.call(this, delta);
     }
 
     updateGoreSprites(delta) {
-        const now = performance.now();
-
-        for (let i = this.goreSprites.length - 1; i >= 0; i--) {
-            const effect = this.goreSprites[i];
-            const sprite = effect?.sprite;
-
-            if (!effect || !sprite || !sprite.parent) {
-                if (sprite?.material) sprite.material.dispose();
-                if (effect?.texture) effect.texture.dispose();
-                this.goreSprites.splice(i, 1);
-                continue;
-            }
-
-            const progress = (now - effect.creationTime) / effect.duration;
-            if (progress >= 1) {
-                this.scene.remove(sprite);
-                sprite.material.dispose();
-                effect.texture.dispose();
-                this.goreSprites.splice(i, 1);
-                continue;
-            }
-
-            const easedProgress = 1 - Math.pow(1 - progress, 2);
-            const scale = effect.initialScale * (1 + easedProgress * 1.2);
-            sprite.scale.setScalar(scale);
-            sprite.rotation.z += effect.rotationSpeed * delta;
-            sprite.material.opacity = 0.85 * (1 - progress);
-        }
+        return updateGoreSpritesFn.call(this, delta);
     }
 
     clearBloodParticles(enemy) {
-        // Limpiar splashes de sangre inmediatamente
-        if (enemy.userData.bloodSplashes && enemy.userData.bloodSplashes.length > 0) {
-            enemy.userData.bloodSplashes.forEach(splash => {
-                if (splash && splash.parent) {
-                    this.scene.remove(splash);
-                    if (
-                        splash.material &&
-                        splash.material.map &&
-                        !splash.userData?.sharedBloodTexture
-                    ) {
-                        splash.material.map.dispose();
-                    }
-                    if (splash.material) {
-                        splash.material.dispose();
-                    }
-                }
-            });
-            enemy.userData.bloodSplashes = [];
-        }
-
-        const particles = this.bloodParticles.get(enemy);
-        if (!particles) return;
-        particles.forEach(particle => {
-            if (particle) {
-                if (particle.material) {
-                    particle.material.dispose();
-                }
-                this.scene.remove(particle);
-            }
-        });
-
-        this.bloodParticles.delete(enemy);
+        return clearBloodParticlesFn.call(this, enemy);
     }
     // #endregion
 

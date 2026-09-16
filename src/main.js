@@ -5,11 +5,13 @@ import { Player } from './entities/Player.js';
 import { EnemyManager } from './entities/EnemyManager.js';
 import { Door } from './entities/Door.js';
 import { UIManager, SettingsManager, DebugPanel } from './UI.js';
-import { ENEMY_TYPES, CONFIG, AVAILABLE_MAPS } from './Constants.js';
-import * as THREE from '../node_modules/three/build/three.module.js';
+import { CONFIG } from './Constants.js';
+import * as THREE from 'three';
 import { AudioManager } from './core/AudioManager.js';
 import { EventManager } from './core/EventManager.js';
 import { isMobileMode } from './mobile/isMobile.js';
+import { GameLoop } from './core/GameLoop.js';
+import { bootFromQuery } from './ui/MapSelector.js';
 // #endregion
 
 // En móvil se marca el body para aplicar la UI compacta (ver touch.css).
@@ -303,121 +305,10 @@ class Game {
     // #region Bucle Principal Game
     // Descripción: Maneja el bucle de renderizado y actualización lógica frame a frame, gestionando el tiempo delta y el estado de pausa.
     animate() {
-        requestAnimationFrame(() => this.animate());
-        this.updateFPSCounter();
-
-        if (this.player?.isDead) {
-            const time = performance.now();
-            const delta = (time - this.prevTime) / 1000;
-
-            this.player.updateDeath(delta);
-            this.prevTime = time;
-            this.renderer.render(this.scene, this.camera);
-            return;
-        }
-
-        //  Lógica de Actualización Main
-        if (this.isPaused) {
-            this.renderer.render(this.scene, this.camera);
-            return;
-        }
-
-        const time = performance.now();
-        const delta = (time - this.prevTime) / 1000;
-
-        //  Actualización de Lógica
-        if (this.player && !this.player.isGameOver) {
-            this.player.update(delta);
-
-            // Los portales de salida se atraviesan al llegar a ellos; no
-            // requieren una interacción adicional del jugador.
-            if (this.tryTransitionThroughExitPortal()) {
-                return;
-            }
-
-            // Actualizar los cohetes después del disparo del jugador para que
-            // puedan avanzar, detectar impactos y aplicar el daño de área.
-            if (this.player.weaponSystem?.update) {
-                this.player.weaponSystem.update(delta, () => {
-                    this.player.score++;
-                    UIManager.updateScore(this.player.score);
-                });
-            }
-
-            if (this.world?.updateBillboards) {
-                this.world.updateBillboards(this.camera);
-            }
-
-            if (this.eventManager) {
-                this.eventManager.update(delta, this.player.getPosition());
-            }
-
-            if (this.world?.updateExitPortal) {
-                this.world.updateExitPortal(delta, this.camera.position);
-            }
-
-            const enemySpawns = this.world.getEnemySpawns();
-            enemySpawns.forEach(spawn => {
-                if (!spawn.isActive) return;
-
-                if (spawn.spawnedCount >= spawn.maxSpawns) {
-                    spawn.isActive = false;
-                    return;
-                }
-
-                const currentSpawnRate = spawn.spawnRate || CONFIG.ENEMY_SPAWN_RATE;
-
-                if (time - spawn.lastSpawnTime > currentSpawnRate) {
-                    spawn.lastSpawnTime = time;
-
-                    const enemyType = ENEMY_TYPES.find(t => t.id === spawn.type);
-
-                    if (enemyType) {
-                        this.enemyManager.spawn(time, enemyType, spawn.position);
-                    } else {
-                        this.enemyManager.spawn(time, null, spawn.position);
-                    }
-
-                    spawn.spawnedCount++;
-
-                    if (spawn.spawnedCount >= spawn.maxSpawns) {
-                        spawn.isActive = false;
-                    }
-                }
-            });
-
-            this.enemyManager.update(
-                delta,
-                this.player.getPosition(),
-                (damage, damageSource) => {
-                    this.player.takeDamage(damage, damageSource);
-                },
-                this.camera
-            );
-            Door.updateAll(delta, this.player.getPosition());
-
-            this.updateFoodItems(delta);
-
-            this.performPeriodicCleanup(time);
-        }
-
-        this.prevTime = time;
-
-        //  Renderizado
-        this.renderer.render(this.scene, this.camera);
-
+        if (!this.gameLoop) this.gameLoop = new GameLoop(this);
+        this.gameLoop.start();
     }
 
-    updateFPSCounter(now = performance.now()) {
-        this.fpsFrameCount++;
-        const elapsed = now - this.fpsSampleStart;
-
-        if (elapsed < 500) return;
-
-        UIManager.updateFPS((this.fpsFrameCount * 1000) / elapsed);
-        this.fpsFrameCount = 0;
-        this.fpsSampleStart = now;
-    }
     // #endregion
 
     // #region Actualización de Entidades Game
@@ -508,43 +399,6 @@ class Game {
     // #endregion
 }
 
-// #region Selector de Mapas UI Game
-// Descripción: Crea e inserta en el DOM la interfaz gráfica para la selección inicial de misiones/mapas.
-function createMapSelector() {
-    const selectorDiv = document.createElement('div');
-    selectorDiv.id = 'map-selector';
-
-    const title = document.createElement('div');
-    title.className = 'map-title';
-    title.innerText = 'SELECCIONAR MISIÓN';
-    selectorDiv.appendChild(title);
-
-    const listDiv = document.createElement('div');
-    listDiv.className = 'map-list';
-
-    AVAILABLE_MAPS.forEach(map => {
-        const btn = document.createElement('button');
-        btn.className = 'map-btn';
-        btn.innerText = map.name;
-        btn.onclick = () => {
-            document.body.removeChild(selectorDiv);
-            new Game(map.id);
-        };
-        listDiv.appendChild(btn);
-    });
-    selectorDiv.appendChild(listDiv);
-    document.body.appendChild(selectorDiv);
-}
-
-const queryParams = new URLSearchParams(window.location.search);
-const requestedMapId = queryParams.get('map');
-
-if (requestedMapId && queryParams.get('autostart') === '1') {
-    // Vale cualquier id de mapas/ (no solo AVAILABLE_MAPS): así los mapas
-    // creados con el editor se juegan con ?map=<nombre>&autostart=1.
-    // Si el fichero no existe, el MapLoader usa el mapa por defecto.
-    new Game(requestedMapId);
-} else {
-    createMapSelector();
-}
-// #endregion
+// Arranque: el selector vive en src/ui/MapSelector.js y recibe el callback
+// de creación para no acoplar la UI con la clase Game.
+bootFromQuery((mapId) => new Game(mapId));

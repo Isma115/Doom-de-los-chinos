@@ -1,8 +1,55 @@
 // #region Importaciones WeaponSystem
 // Descripción: Importaciones de librerías y dependencias necesarias para WeaponSystem.
-import * as THREE from '../../node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import { WEAPONS_DATA, ENEMY_TYPES } from '../Constants.js';
 import { UIManager } from '../UI.js';
+import {
+    getCurrentWeapon as getCurrentWeaponFn,
+    getWeaponKey as getWeaponKeyFn,
+    getAmmoGroupKey as getAmmoGroupKeyFn,
+    getAmmoGroupWeapons as getAmmoGroupWeaponsFn,
+    getAmmoAmount as getAmmoAmountFn,
+    getAmmoCapacity as getAmmoCapacityFn,
+    setAmmoAmount as setAmmoAmountFn,
+    isWeaponUnlocked as isWeaponUnlockedFn,
+    findWeaponIndex as findWeaponIndexFn,
+    unlockWeapon as unlockWeaponFn,
+    unlockAllWeapons as unlockAllWeaponsFn,
+    addAmmo as addAmmoFn,
+    switchWeapon as switchWeaponFn,
+    reloadCurrentWeapon as reloadCurrentWeaponFn
+} from './weapons/Ammo.js';
+import {
+    shouldLeaveBulletHole as shouldLeaveBulletHoleFn,
+    getSolidObjects as getSolidObjectsFn,
+    getEnemyFromHit as getEnemyFromHitFn,
+    getImpactNormal as getImpactNormalFn,
+    isDescendantOf as isDescendantOfFn,
+    getBoxImpactNormal as getBoxImpactNormalFn,
+    getFallbackBoxHit as getFallbackBoxHitFn,
+    getShotDirection as getShotDirectionFn
+} from './weapons/Hitscan.js';
+import {
+    createWallImpactEffect as createWallImpactEffectFn,
+    removeOldestImpactDecal as removeOldestImpactDecalFn
+} from './weapons/ImpactDecals.js';
+import {
+    createBulletSparkEffect as createBulletSparkEffectFn,
+    animateSparkEffect as animateSparkEffectFn,
+    showMuzzleFlash as showMuzzleFlashFn,
+    createRocketExplosionBlurTexture as createRocketExplosionBlurTextureFn
+} from './weapons/WeaponEffects.js';
+import {
+    createRocketMesh as createRocketMeshFn,
+    launchRocket as launchRocketFn,
+    getRocketImpact as getRocketImpactFn,
+    getRocketGroundImpact as getRocketGroundImpactFn,
+    removeRocket as removeRocketFn,
+    applyRocketExplosionDamage as applyRocketExplosionDamageFn,
+    createRocketExplosionEffect as createRocketExplosionEffectFn,
+    explodeRocket as explodeRocketFn,
+    updateRocketEffects as updateRocketEffectsFn
+} from './weapons/Rockets.js';
 // #endregion
 
 // Descripción: Sistema que gestiona las armas del jugador, incluyendo lógica de disparo, munición y efectos visuales.
@@ -178,632 +225,118 @@ export class WeaponSystem {
     // #endregion
 
     createRocketExplosionBlurTexture() {
-        if (typeof document === 'undefined') return null;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 128;
-        const context = canvas.getContext('2d');
-        if (!context) return null;
-
-        const center = 64;
-        const gradient = context.createRadialGradient(
-            center,
-            center,
-            2,
-            center,
-            center,
-            64
-        );
-        gradient.addColorStop(0, 'rgba(255, 245, 180, 0.95)');
-        gradient.addColorStop(0.18, 'rgba(255, 170, 48, 0.72)');
-        gradient.addColorStop(0.45, 'rgba(255, 82, 12, 0.34)');
-        gradient.addColorStop(0.75, 'rgba(255, 42, 0, 0.10)');
-        gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, canvas.width, canvas.height);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.generateMipmaps = false;
-        texture.needsUpdate = true;
-        return texture;
+        return createRocketExplosionBlurTextureFn.call(this);
     }
 
     // #region Helpers WeaponSystem
     // Descripción: Métodos de utilidad para obtener el arma actual y los objetos sólidos del entorno.
     getCurrentWeapon() {
-        return WEAPONS_DATA[this.currentIndex];
+        return getCurrentWeaponFn.call(this);
     }
 
     getWeaponKey(weapon) {
-        return weapon?.id || weapon?.name || null;
+        return getWeaponKeyFn.call(this, weapon);
     }
 
     getAmmoGroupKey(weapon) {
-        return weapon?.ammoGroup || this.getWeaponKey(weapon);
+        return getAmmoGroupKeyFn.call(this, weapon);
     }
 
     getAmmoGroupWeapons(weapon) {
-        const ammoGroup = this.getAmmoGroupKey(weapon);
-        return WEAPONS_DATA.filter(candidate =>
-            this.getAmmoGroupKey(candidate) === ammoGroup
-        );
+        return getAmmoGroupWeaponsFn.call(this, weapon);
     }
 
     getAmmoAmount(weapon) {
-        const groupWeapon = this.getAmmoGroupWeapons(weapon)[0];
-        return groupWeapon?.ammo ?? 0;
+        return getAmmoAmountFn.call(this, weapon);
     }
 
     getAmmoCapacity(weapon) {
-        return this.getAmmoGroupWeapons(weapon).reduce(
-            (capacity, groupWeapon) => {
-                const maxAmmo = Number(groupWeapon.maxAmmo);
-                return Number.isFinite(maxAmmo)
-                    ? Math.min(capacity, maxAmmo)
-                    : capacity;
-            },
-            Infinity
-        );
+        return getAmmoCapacityFn.call(this, weapon);
     }
 
     setAmmoAmount(weapon, amount) {
-        const capacity = this.getAmmoCapacity(weapon);
-        const numericAmount = Number(amount);
-        const safeAmount = capacity === Infinity
-            ? numericAmount
-            : Math.min(
-                capacity,
-                Math.max(0, Number.isFinite(numericAmount) ? numericAmount : 0)
-            );
-
-        this.getAmmoGroupWeapons(weapon).forEach(groupWeapon => {
-            groupWeapon.ammo = safeAmount;
-        });
-        return safeAmount;
+        return setAmmoAmountFn.call(this, weapon, amount);
     }
 
     isWeaponUnlocked(weapon) {
-        const key = typeof weapon === 'string'
-            ? weapon
-            : this.getWeaponKey(weapon);
-        return Boolean(key && this.unlockedWeapons.has(key));
+        return isWeaponUnlockedFn.call(this, weapon);
     }
 
     findWeaponIndex(weaponId) {
-        if (Number.isInteger(weaponId)) {
-            return weaponId >= 0 && weaponId < WEAPONS_DATA.length ? weaponId : -1;
-        }
-
-        return WEAPONS_DATA.findIndex(weapon =>
-            weapon.id === weaponId || weapon.name === weaponId
-        );
+        return findWeaponIndexFn.call(this, weaponId);
     }
 
     unlockWeapon(weaponId, ammoAmount = 0, equip = true) {
-        const weaponIndex = this.findWeaponIndex(weaponId);
-        const weapon = weaponIndex >= 0 ? WEAPONS_DATA[weaponIndex] : null;
-        if (!weapon) return null;
-
-        const weaponKey = this.getWeaponKey(weapon);
-        const newlyUnlocked = !this.unlockedWeapons.has(weaponKey);
-        this.unlockedWeapons.add(weaponKey);
-
-        const amount = Number(ammoAmount);
-        if (Number.isFinite(amount) && amount > 0 && Number.isFinite(weapon.maxAmmo)) {
-            this.setAmmoAmount(
-                weapon,
-                this.getAmmoAmount(weapon) + amount
-            );
-        }
-
-        if (equip) {
-            this.currentIndex = weaponIndex;
-            this.updateVisuals();
-        }
-
-        return { weapon, weaponIndex, newlyUnlocked };
+        return unlockWeaponFn.call(this, weaponId, ammoAmount, equip);
     }
 
     unlockAllWeapons(equipLast = true) {
-        const grantableWeapons = WEAPONS_DATA.filter(weapon => weapon.requiresPickup);
-        const unlockedWeapons = [];
-
-        grantableWeapons.forEach(weapon => {
-            const ammoAmount = Number.isFinite(weapon.maxAmmo)
-                ? weapon.maxAmmo
-                : Number(weapon.pickupAmmo) || 0;
-            const unlocked = this.unlockWeapon(
-                this.getWeaponKey(weapon),
-                ammoAmount,
-                false
-            );
-
-            if (unlocked) unlockedWeapons.push(unlocked);
-        });
-
-        const lastUnlocked = unlockedWeapons[unlockedWeapons.length - 1];
-        if (lastUnlocked && equipLast) {
-            this.currentIndex = lastUnlocked.weaponIndex;
-            this.updateVisuals();
-        }
-
-        return unlockedWeapons;
+        return unlockAllWeaponsFn.call(this, equipLast);
     }
 
     shouldLeaveBulletHole(weapon) {
-        return Boolean(weapon && !weapon.isMelee);
+        return shouldLeaveBulletHoleFn.call(this, weapon);
     }
 
     getSolidObjects() {
-        const solidObjects = new Set();
-        const addObjects = (objects) => {
-            if (!objects) return;
-            const list = Array.isArray(objects) ? objects : [objects];
-            list.forEach(object => {
-                if (object) solidObjects.add(object);
-            });
-        };
-
-        const world = this.player && this.player.world;
-
-        if (!world) {
-            return [];
-        }
-
-        // La API específica reúne muros, modelos, props y suelo. No salir
-        // aquí: los fallbacks permiten compatibilidad con mundos antiguos que
-        // todavía exponen sus objetos mediante getters separados.
-        if (world.getBulletImpactObjects) {
-            addObjects(world.getBulletImpactObjects());
-        }
-
-        if (world.getSolidObjects) {
-            addObjects(world.getSolidObjects());
-        }
-
-        // Obtener muros del mundo
-        if (world.getWalls) {
-            addObjects(world.getWalls());
-        }
-
-        // Obtener modelos estáticos 3D que sean sólidos
-        if (world.getStaticModels) {
-            addObjects(world.getStaticModels());
-        }
-
-        // Obtener objetos decorativos (squares) para efectos de impacto de balas
-        if (world.getDecorativeMeshes) {
-            addObjects(world.getDecorativeMeshes());
-        }
-
-        if (world.getFloorGroup) {
-            addObjects(world.getFloorGroup());
-        }
-
-        if (world.getDoorMeshes) {
-            const doors = world.getDoorMeshes().filter(doorMesh => {
-                const data = doorMesh?.userData || {};
-                return data.isOpen !== true && (
-                    data.targetY === undefined ||
-                    data.closedY === undefined ||
-                    Math.abs(data.targetY - data.closedY) < 0.001
-                );
-            });
-            addObjects(doors);
-        }
-
-        return [...solidObjects];
+        return getSolidObjectsFn.call(this);
     }
 
     getEnemyFromHit(hitObject) {
-        let current = hitObject;
-        const enemies = this.enemyManager?.enemies || [];
-
-        while (current) {
-            if (enemies.includes(current)) return current;
-            current = current.parent;
-        }
-
-        return null;
+        return getEnemyFromHitFn.call(this, hitObject);
     }
 
     getImpactNormal(hit, origin, direction) {
-        const normal = new THREE.Vector3();
-
-        if (hit?.normal) {
-            normal.copy(hit.normal);
-        } else if (hit?.face && hit.object?.matrixWorld) {
-            // face.normal está en espacio local; aplicar la matriz normal
-            // evita normales incorrectas en props rotados o escalados.
-            const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
-            normal.copy(hit.face.normal).applyNormalMatrix(normalMatrix);
-        }
-
-        if (normal.lengthSq() < 0.000001) {
-            normal.copy(direction).negate();
-        }
-
-        normal.normalize();
-
-        // El agujero debe quedar ligeramente hacia el jugador para no
-        // incrustarse en la cara opuesta de un modelo de doble cara.
-        if (normal.dot(direction) > 0) normal.negate();
-
-        return normal;
+        return getImpactNormalFn.call(this, hit, origin, direction);
     }
 
     isDescendantOf(object, ancestor) {
-        let current = object;
-        while (current) {
-            if (current === ancestor) return true;
-            current = current.parent;
-        }
-        return false;
+        return isDescendantOfFn.call(this, object, ancestor);
     }
 
     getBoxImpactNormal(point, box, direction) {
-        const candidates = [
-            { distance: Math.abs(point.x - box.min.x), normal: new THREE.Vector3(-1, 0, 0) },
-            { distance: Math.abs(point.x - box.max.x), normal: new THREE.Vector3(1, 0, 0) },
-            { distance: Math.abs(point.y - box.min.y), normal: new THREE.Vector3(0, -1, 0) },
-            { distance: Math.abs(point.y - box.max.y), normal: new THREE.Vector3(0, 1, 0) },
-            { distance: Math.abs(point.z - box.min.z), normal: new THREE.Vector3(0, 0, -1) },
-            { distance: Math.abs(point.z - box.max.z), normal: new THREE.Vector3(0, 0, 1) }
-        ];
-
-        candidates.sort((a, b) => a.distance - b.distance);
-        const normal = candidates[0].normal;
-        if (normal.dot(direction) > 0) normal.negate();
-        return normal;
+        return getBoxImpactNormalFn.call(this, point, box, direction);
     }
 
     getFallbackBoxHit(origin, direction, solidObjects, visualHit) {
-        const fallbackObjects = this.player?.world?.getBulletImpactFallbackObjects
-            ? this.player.world.getBulletImpactFallbackObjects()
-            : solidObjects.filter(object => object.userData?.bulletImpactFallback && object.userData.boundingBox);
-
-        let closestHit = null;
-
-        fallbackObjects.forEach(object => {
-            const box = object.userData?.boundingBox;
-            if (!box) return;
-
-            // Si ya se ha encontrado una cara real de este mismo prop, esa
-            // intersección es más precisa que su caja envolvente.
-            if (visualHit && this.isDescendantOf(visualHit.object, object)) return;
-
-            const point = new THREE.Vector3();
-            if (!this.raycaster.ray.intersectBox(box, point)) return;
-
-            const distance = origin.distanceTo(point);
-            if (distance > this.raycaster.far) return;
-            if (visualHit && distance >= visualHit.distance - 0.0001) return;
-
-            const candidate = {
-                object,
-                point,
-                distance,
-                normal: this.getBoxImpactNormal(point, box, direction),
-                isBoundingBoxFallback: true
-            };
-
-            if (!closestHit || candidate.distance < closestHit.distance) {
-                closestHit = candidate;
-            }
-        });
-
-        return closestHit;
+        return getFallbackBoxHitFn.call(this, origin, direction, solidObjects, visualHit);
     }
     // #endregion
 
     // #region Efectos Visuales WeaponSystem
     // Descripción: Creación de efectos de impacto en muros y fogonazos de las armas.
     createWallImpactEffect(hitPoint, hitNormal) {
-        // ──────────────────────────────────────────────────────────────
-        // NUEVA ESTRUCTURA: elegir una textura aleatoria del array
-        // ──────────────────────────────────────────────────────────────
-        if (this.bulletHoleTextures.length === 0) {
-            return; // nada que pintar si el agujero aún no ha cargado
-        }
-
-        const texture = this.bulletHoleTextures[
-            Math.floor(Math.random() * this.bulletHoleTextures.length)
-        ];
-        const normal = hitNormal.clone().normalize();
-
-        const geometry = new THREE.PlaneGeometry(1, 1);
-        const material = new THREE.MeshBasicMaterial({
-            map: texture,
-            color: 0xb0aaa0,
-            transparent: true,
-            opacity: 0.78,
-            depthTest: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            alphaTest: 0.02,
-            polygonOffset: true,
-            polygonOffsetFactor: -4,
-            polygonOffsetUnits: -4
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        // Los NPC y enemigos son planos transparentes que no escriben en el
-        // depth buffer. Dibujar el agujero antes que ellos permite que sus
-        // sprites lo oculten cuando se encuentran entre la cámara y la pared.
-        mesh.renderOrder = -10;
-
-        const offset = 0.035;
-        const adjustedPosition = hitPoint.clone();
-        adjustedPosition.add(normal.clone().multiplyScalar(offset));
-        mesh.position.copy(adjustedPosition);
-
-        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-        mesh.rotateZ(Math.random() * Math.PI * 2);
-
-        const baseSize = 0.25;
-        const randomSize = 0.08 + Math.random() * 0.2;
-        const finalSize = baseSize + randomSize;
-        mesh.scale.set(finalSize, finalSize, finalSize);
-
-        this.scene.add(mesh);
-        this.impactDecals.push(mesh);
-
-        while (this.impactDecals.length > this.maxImpactDecals) {
-            this.removeOldestImpactDecal();
-        }
+        return createWallImpactEffectFn.call(this, hitPoint, hitNormal);
     }
 
     removeOldestImpactDecal() {
-        const oldDecal = this.impactDecals.shift();
-        if (!oldDecal) return;
-
-        if (oldDecal.parent) {
-            oldDecal.parent.remove(oldDecal);
-        }
-
-        oldDecal.material.dispose();
-        oldDecal.geometry.dispose();
+        return removeOldestImpactDecalFn.call(this);
     }
 
     createBulletSparkEffect(hitPoint, hitNormal) {
-        const normal = hitNormal.clone().normalize();
-        const origin = hitPoint.clone().add(normal.clone().multiplyScalar(0.08));
-        const sparks = [];
-        const sparkCount = 8 + Math.floor(Math.random() * 7);
-
-        for (let i = 0; i < sparkCount; i++) {
-            const direction = normal.clone()
-                .add(new THREE.Vector3(
-                    (Math.random() - 0.5) * 1.6,
-                    Math.random() * 1.2,
-                    (Math.random() - 0.5) * 1.6
-                ))
-                .normalize();
-
-            const length = 0.25 + Math.random() * 0.55;
-            const geometry = new THREE.BufferGeometry().setFromPoints([
-                origin,
-                origin.clone().add(direction.clone().multiplyScalar(length))
-            ]);
-
-            const material = new THREE.LineBasicMaterial({
-                color: Math.random() > 0.35 ? 0xfff1a6 : 0xff7a18,
-                transparent: true,
-                opacity: 1.0,
-                depthWrite: false
-            });
-
-            const spark = new THREE.Line(geometry, material);
-            spark.userData = {
-                velocity: direction.multiplyScalar(4 + Math.random() * 7),
-                age: 0,
-                lifetime: 0.16 + Math.random() * 0.16
-            };
-
-            this.scene.add(spark);
-            sparks.push(spark);
-        }
-
-        const flashGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-        const flashMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffd46a,
-            transparent: true,
-            opacity: 0.9,
-            depthWrite: false
-        });
-        const flash = new THREE.Mesh(flashGeometry, flashMaterial);
-        flash.position.copy(origin);
-        flash.userData = { age: 0, lifetime: 0.12 };
-        this.scene.add(flash);
-
-        const effect = {
-            sparks,
-            flash,
-            previousTime: performance.now()
-        };
-        this.sparkEffects.push(effect);
-        this.animateSparkEffect(effect);
+        return createBulletSparkEffectFn.call(this, hitPoint, hitNormal);
     }
 
     animateSparkEffect(effect) {
-        const now = performance.now();
-        const delta = Math.min((now - effect.previousTime) / 1000, 0.05);
-        effect.previousTime = now;
-
-        let alive = false;
-
-        effect.sparks.forEach(spark => {
-            if (!spark.parent) return;
-
-            spark.userData.age += delta;
-            const progress = spark.userData.age / spark.userData.lifetime;
-
-            if (progress >= 1) {
-                this.scene.remove(spark);
-                spark.geometry.dispose();
-                spark.material.dispose();
-                return;
-            }
-
-            const positions = spark.geometry.attributes.position;
-            const move = spark.userData.velocity.clone().multiplyScalar(delta);
-
-            for (let i = 0; i < positions.count; i++) {
-                positions.setXYZ(
-                    i,
-                    positions.getX(i) + move.x,
-                    positions.getY(i) + move.y - spark.userData.age * 0.08,
-                    positions.getZ(i) + move.z
-                );
-            }
-
-            positions.needsUpdate = true;
-            spark.material.opacity = 1 - progress;
-            alive = true;
-        });
-
-        if (effect.flash && effect.flash.parent) {
-            effect.flash.userData.age += delta;
-            const flashProgress = effect.flash.userData.age / effect.flash.userData.lifetime;
-
-            if (flashProgress >= 1) {
-                this.scene.remove(effect.flash);
-                effect.flash.geometry.dispose();
-                effect.flash.material.dispose();
-            } else {
-                const scale = 1 + flashProgress * 2.5;
-                effect.flash.scale.set(scale, scale, scale);
-                effect.flash.material.opacity = 0.9 * (1 - flashProgress);
-                alive = true;
-            }
-        }
-
-        if (alive) {
-            requestAnimationFrame(() => this.animateSparkEffect(effect));
-            return;
-        }
-
-        const index = this.sparkEffects.indexOf(effect);
-        if (index !== -1) {
-            this.sparkEffects.splice(index, 1);
-        }
+        return animateSparkEffectFn.call(this, effect);
     }
 
     showMuzzleFlash() {
-        if (!this.weaponFlashTexture) return;
-
-        const weaponView = this.weaponSwayGroup || this.camera;
-
-        if (this.flashMesh) {
-            if (this.flashMesh.parent) {
-                this.flashMesh.parent.remove(this.flashMesh);
-            }
-            this.flashMesh.material.map.dispose();
-            this.flashMesh.material.dispose();
-        }
-
-        const flashMaterial = new THREE.SpriteMaterial({
-            map: this.weaponFlashTexture,
-            transparent: true,
-            depthTest: false,
-            depthWrite: false,
-            opacity: 1.0
-        });
-
-        this.flashMesh = new THREE.Sprite(flashMaterial);
-        this.flashMesh.renderOrder = 999;
-        this.flashMesh.scale.set(1.6, 1.6, 1);
-        this.flashMesh.position.set(0.5, -0.25, -1.1);
-
-        // También evitar frustum culling
-        this.flashMesh.frustumCulled = false;
-
-        weaponView.add(this.flashMesh);
-
-        // Animación de desaparición
-        const fadeOut = () => {
-            if (this.flashMesh && this.flashMesh.material) {
-                this.flashMesh.material.opacity -= 0.08;
-                if (this.flashMesh.material.opacity <= 0) {
-                    if (this.flashMesh.parent) {
-                        this.flashMesh.parent.remove(this.flashMesh);
-                    }
-                    this.flashMesh.material.dispose();
-                    this.flashMesh = null;
-                } else {
-                    requestAnimationFrame(fadeOut);
-                }
-            }
-        };
-        setTimeout(fadeOut, 50);
+        return showMuzzleFlashFn.call(this);
     }
 
     // #region Gestión de Munición WeaponSystem
     // Descripción: Lógica para añadir munición y cambiar entre las armas disponibles.
     addAmmo(amount, weaponIndex = null) {
-        const weapon = weaponIndex !== null
-            ? WEAPONS_DATA[weaponIndex]
-            : this.getCurrentWeapon();
-        if (!weapon || !this.isWeaponUnlocked(weapon)) return false;
-
-        const numericAmount = Number(amount);
-        if (!Number.isFinite(numericAmount) || numericAmount <= 0) return false;
-
-        this.setAmmoAmount(
-            weapon,
-            this.getAmmoAmount(weapon) + numericAmount
-        );
-        const currentWeapon = this.getCurrentWeapon();
-        if (
-            weaponIndex === null
-            || this.getAmmoGroupKey(currentWeapon) === this.getAmmoGroupKey(weapon)
-        ) {
-            UIManager.updateAmmo(this.getAmmoAmount(currentWeapon));
-        }
-        return true;
+        return addAmmoFn.call(this, amount, weaponIndex);
     }
 
     switchWeapon(direction) {
-        const step = direction > 0 ? 1 : -1;
-        for (let attempts = 0; attempts < WEAPONS_DATA.length; attempts++) {
-            const nextIndex = (
-                this.currentIndex + step + WEAPONS_DATA.length
-            ) % WEAPONS_DATA.length;
-
-            this.currentIndex = nextIndex;
-            if (this.isWeaponUnlocked(WEAPONS_DATA[nextIndex])) {
-                this.updateVisuals();
-                return true;
-            }
-        }
-
-        return false;
+        return switchWeaponFn.call(this, direction);
     }
 
     reloadCurrentWeapon() {
-        const weapon = this.getCurrentWeapon();
-        const now = performance.now();
-
-        if (!weapon || weapon.isMelee || weapon.maxAmmo === Infinity) {
-            return false;
-        }
-
-        if (now - this.lastReloadTime < this.reloadDuration) {
-            return false;
-        }
-
-        this.lastReloadTime = now;
-
-        if (this.audioManager) {
-            this.audioManager.playSound('reload', 0.8, false, 0.95 + Math.random() * 0.08);
-        }
-
-        this.animateReload();
-        return true;
+        return reloadCurrentWeaponFn.call(this);
     }
     // #endregion
 
@@ -1034,22 +567,7 @@ export class WeaponSystem {
     }
 
     getShotDirection(spread = 0) {
-        const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-
-        if (spread <= 0) {
-            return direction.normalize();
-        }
-
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
-        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
-        const angle = Math.random() * Math.PI * 2;
-        const radius = Math.sqrt(Math.random()) * spread;
-
-        direction
-            .add(right.multiplyScalar(Math.cos(angle) * radius))
-            .add(up.multiplyScalar(Math.sin(angle) * radius));
-
-        return direction.normalize();
+        return getShotDirectionFn.call(this, spread);
     }
 
     performSingleRaycast(weapon, scoreCallback, direction) {
@@ -1124,469 +642,39 @@ export class WeaponSystem {
     // Descripción: Proyectiles visibles del RPG, colisión continua y daño de
     // área con caída de potencia según la distancia al centro.
     createRocketMesh(direction) {
-        const rocket = new THREE.Group();
-
-        const body = new THREE.Mesh(
-            this.rocketBodyGeometry,
-            this.rocketBodyMaterial
-        );
-        body.position.y = -0.04;
-        rocket.add(body);
-
-        const tip = new THREE.Mesh(
-            this.rocketTipGeometry,
-            this.rocketTipMaterial
-        );
-        tip.position.y = 0.39;
-        rocket.add(tip);
-
-        const flame = new THREE.Mesh(
-            this.rocketFlameGeometry,
-            this.rocketFlameMaterial
-        );
-        flame.position.y = -0.43;
-        flame.rotation.z = Math.PI;
-        rocket.add(flame);
-
-        rocket.quaternion.setFromUnitVectors(
-            new THREE.Vector3(0, 1, 0),
-            direction
-        );
-        rocket.renderOrder = 3;
-        return rocket;
+        return createRocketMeshFn.call(this, direction);
     }
 
     launchRocket(weapon, scoreCallback) {
-        if (!this.camera || !this.scene) return;
-
-        this.camera.updateMatrixWorld(true);
-        const origin = new THREE.Vector3();
-        this.camera.getWorldPosition(origin);
-        const direction = this.getShotDirection(weapon.projectileSpread || 0);
-        const spawnPosition = origin.clone().addScaledVector(direction, 1.0);
-        const rocket = this.createRocketMesh(direction);
-        const now = performance.now();
-
-        rocket.position.copy(spawnPosition);
-        rocket.userData = {
-            velocity: direction.clone().multiplyScalar(
-                Math.max(1, Number(weapon.projectileSpeed) || 34)
-            ),
-            radius: Math.max(0.08, Number(weapon.rocketRadius) || 0.22),
-            weapon,
-            scoreCallback,
-            creationTime: now,
-            maxLifetime: Math.max(500, Number(weapon.projectileLifetime) || 3200),
-            travelDistance: 0,
-            armingDistance: Math.max(0.5, Number(weapon.armingDistance) || 2.0)
-        };
-
-        this.scene.add(rocket);
-        this.rocketProjectiles.push(rocket);
+        return launchRocketFn.call(this, weapon, scoreCallback);
     }
 
     getRocketImpact(previousPosition, currentPosition, radius = 0.2) {
-        const segment = new THREE.Vector3().subVectors(
-            currentPosition,
-            previousPosition
-        );
-        const distance = segment.length();
-        if (distance <= 0.0001) return null;
-
-        const direction = segment.multiplyScalar(1 / distance);
-        this.raycaster.set(previousPosition, direction);
-        this.raycaster.far = distance + radius;
-
-        const enemyMeshes = (this.enemyManager?.enemies || []).filter(enemy =>
-            enemy.visible &&
-            !enemy.userData?.isDying &&
-            !enemy.userData?.isCorpse
-        );
-        const solidObjects = this.getSolidObjects();
-        const allObjects = [...new Set(
-            enemyMeshes.concat(solidObjects).filter(Boolean)
-        )];
-        const visualHit = this.raycaster.intersectObjects(allObjects, true)[0] || null;
-        const fallbackHit = this.getFallbackBoxHit(
-            previousPosition,
-            direction,
-            solidObjects,
-            visualHit
-        );
-        const hit = fallbackHit || visualHit;
-
-        if (!hit?.point) return null;
-
-        return {
-            point: hit.point.clone(),
-            normal: this.getImpactNormal(hit, previousPosition, direction),
-            distance: Number.isFinite(hit.distance)
-                ? hit.distance
-                : previousPosition.distanceTo(hit.point)
-        };
+        return getRocketImpactFn.call(this, previousPosition, currentPosition, radius);
     }
 
     getRocketGroundImpact(previousPosition, currentPosition, groundY = 0.02) {
-        // El cohete puede saltarse un plano muy fino si cruza el suelo entre
-        // dos frames. Detectar ese cruce evita que la explosión nazca bajo el
-        // terreno cuando el raycast de la malla no llega a registrar la cara.
-        if (
-            previousPosition.y <= groundY ||
-            currentPosition.y > groundY ||
-            currentPosition.y >= previousPosition.y
-        ) {
-            return null;
-        }
-
-        const verticalDistance = previousPosition.y - currentPosition.y;
-        if (verticalDistance <= 0.0001) return null;
-
-        const progress = THREE.MathUtils.clamp(
-            (previousPosition.y - groundY) / verticalDistance,
-            0,
-            1
-        );
-        const point = previousPosition.clone().lerp(currentPosition, progress);
-        point.y = groundY;
-
-        return {
-            point,
-            normal: new THREE.Vector3(0, 1, 0),
-            distance: previousPosition.distanceTo(point)
-        };
+        return getRocketGroundImpactFn.call(this, previousPosition, currentPosition, groundY);
     }
 
     removeRocket(rocket) {
-        if (!rocket) return;
-
-        const index = this.rocketProjectiles.indexOf(rocket);
-        if (index !== -1) {
-            this.rocketProjectiles.splice(index, 1);
-        }
-        if (rocket.parent) {
-            rocket.parent.remove(rocket);
-        }
+        return removeRocketFn.call(this, rocket);
     }
 
     applyRocketExplosionDamage(position, weapon, scoreCallback) {
-        const radius = Math.max(1, Number(weapon.explosionRadius) || 8.5);
-        const directRadius = Math.min(2.2, radius * 0.3);
-        const directDamage = Math.max(
-            1,
-            Number(weapon.damage) || 460
-        );
-        const baseDamage = Math.max(
-            1,
-            Number(weapon.explosionDamage) || directDamage
-        );
-        const edgeMultiplier = Math.max(
-            0.05,
-            Math.min(1, Number(weapon.explosionFalloff) || 0.55)
-        );
-
-        const enemies = [...(this.enemyManager?.enemies || [])];
-        enemies.forEach(enemy => {
-            if (
-                !enemy?.visible ||
-                enemy.userData?.isDying ||
-                enemy.userData?.isCorpse ||
-                !Number.isFinite(enemy.userData?.hp)
-            ) {
-                return;
-            }
-
-            const distance = enemy.position.distanceTo(position);
-            if (distance > radius) return;
-
-            const normalizedDistance = Math.min(1, distance / radius);
-            const damageMultiplier = distance <= directRadius
-                ? 1
-                : 1 - normalizedDistance * (1 - edgeMultiplier);
-            const damage = Math.max(1, baseDamage * damageMultiplier);
-            enemy.userData.hp -= damage;
-            enemy.userData.bloodTime = performance.now();
-
-            if (enemy.userData.drawBlood) {
-                enemy.userData.drawBlood(enemy.position.clone());
-            }
-
-            if (enemy.userData.hp <= 0) {
-                this.enemyManager.removeEnemy(enemy);
-                if (scoreCallback) scoreCallback();
-            }
-        });
+        return applyRocketExplosionDamageFn.call(this, position, weapon, scoreCallback);
     }
 
     createRocketExplosionEffect(position, weapon, impactNormal = null) {
-        const group = new THREE.Group();
-        // `position` ya está expresada en coordenadas del mundo por el
-        // raycast del cohete. Separar el efecto de la superficie evita que el
-        // muro o el suelo lo oculten por completo por el depth test.
-        group.position.copy(position);
-        if (impactNormal?.isVector3 && impactNormal.lengthSq() > 0.0001) {
-            const normal = impactNormal.clone().normalize();
-            // En un impacto contra el suelo el centro no puede quedarse en
-            // Y=0: la mitad inferior de la esfera y del sprite acabaría bajo
-            // el plano. Levantarlo más aquí hace visible todo el fogonazo.
-            const surfaceOffset = normal.y > 0.45 ? 0.42 : 0.18;
-            group.position.addScaledVector(
-                normal,
-                surfaceOffset
-            );
-        }
-        group.renderOrder = 100;
-        group.frustumCulled = false;
-
-        const coreMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffe08a,
-            transparent: true,
-            opacity: 0.95,
-            depthTest: false,
-            depthWrite: false,
-            fog: false,
-            blending: THREE.AdditiveBlending
-        });
-        const shellMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff4a12,
-            transparent: true,
-            opacity: 0.75,
-            depthTest: false,
-            depthWrite: false,
-            fog: false,
-            blending: THREE.AdditiveBlending
-        });
-        const ringMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff8b1a,
-            transparent: true,
-            opacity: 0.8,
-            depthTest: false,
-            depthWrite: false,
-            fog: false,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending
-        });
-        const shardMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffb52e,
-            transparent: true,
-            opacity: 0.9,
-            depthTest: false,
-            depthWrite: false,
-            fog: false,
-            blending: THREE.AdditiveBlending
-        });
-        const explosionSpriteMaterial = this.rocketExplosionTexture
-            ? new THREE.SpriteMaterial({
-                map: this.rocketExplosionTexture,
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.92,
-                depthTest: false,
-                depthWrite: false,
-                fog: false,
-                alphaTest: 0.035,
-                blending: THREE.NormalBlending,
-                toneMapped: false
-            })
-            : null;
-        const explosionBlurMaterial = this.rocketExplosionBlurTexture
-            ? new THREE.SpriteMaterial({
-                map: this.rocketExplosionBlurTexture,
-                color: 0xff7a20,
-                transparent: true,
-                opacity: 0.44,
-                depthTest: false,
-                depthWrite: false,
-                fog: false,
-                blending: THREE.AdditiveBlending,
-                toneMapped: false
-            })
-            : null;
-
-        const core = new THREE.Mesh(this.rocketExplosionGeometry, coreMaterial);
-        const shell = new THREE.Mesh(this.rocketExplosionGeometry, shellMaterial);
-        const explosionSprite = explosionSpriteMaterial
-            ? new THREE.Sprite(explosionSpriteMaterial)
-            : null;
-        const explosionBlur = explosionBlurMaterial
-            ? new THREE.Sprite(explosionBlurMaterial)
-            : null;
-        const shockwaves = [
-            new THREE.Mesh(this.rocketExplosionRingGeometry, ringMaterial),
-            new THREE.Mesh(this.rocketExplosionRingGeometry, ringMaterial),
-            new THREE.Mesh(this.rocketExplosionRingGeometry, ringMaterial)
-        ];
-        shockwaves[1].rotation.x = Math.PI / 2;
-        shockwaves[2].rotation.y = Math.PI / 2;
-
-        const shards = [];
-        for (let index = 0; index < 8; index++) {
-            const direction = new THREE.Vector3(
-                Math.random() * 2 - 1,
-                Math.random() * 2 - 1,
-                Math.random() * 2 - 1
-            ).normalize();
-            const shard = new THREE.Mesh(
-                this.rocketExplosionShardGeometry,
-                shardMaterial
-            );
-            shard.position.copy(direction).multiplyScalar(0.3);
-            shard.scale.setScalar(0.65 + Math.random() * 0.65);
-            shard.rotation.set(
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI
-            );
-            shard.userData.velocity = direction.multiplyScalar(2.5 + Math.random() * 4.0);
-            shard.userData.spin = new THREE.Vector3(
-                Math.random() * 5 - 2.5,
-                Math.random() * 5 - 2.5,
-                Math.random() * 5 - 2.5
-            );
-            shards.push(shard);
-        }
-
-        core.scale.setScalar(0.32);
-        shell.scale.setScalar(0.48);
-        shockwaves.forEach(shockwave => shockwave.scale.setScalar(0.35));
-        if (explosionSprite) {
-            // El billboard acompaña ahora a la bola 3D con una escala mucho
-            // más legible, conservando el acabado pixelado del asset. Su
-            // tamaño queda deliberadamente por encima de la geometría 3D
-            // para que el fogonazo se lea también a distancia.
-            explosionSprite.position.y = 0.72;
-            explosionSprite.scale.setScalar(2.0);
-            explosionSprite.rotation.z = (Math.random() - 0.5) * 0.28;
-            explosionSprite.renderOrder = 6;
-        }
-        if (explosionBlur) {
-            // El halo ocupa más superficie y se dibuja detrás del fogonazo
-            // pixelado para suavizar sus bordes sin emborronar el centro.
-            explosionBlur.position.y = 0.45;
-            explosionBlur.scale.setScalar(2.2);
-            explosionBlur.renderOrder = 99;
-        }
-        [core, shell, ...shockwaves, ...shards, explosionSprite, explosionBlur]
-            .filter(Boolean)
-            .forEach(object => {
-                object.renderOrder = 100;
-                object.frustumCulled = false;
-            });
-        if (explosionBlur) explosionBlur.renderOrder = 99;
-        if (explosionBlur) group.add(explosionBlur);
-        group.add(shell, core, ...shockwaves, ...shards);
-        if (explosionSprite) group.add(explosionSprite);
-
-        const light = new THREE.PointLight(0xff7a20, 4.5, 13, 2);
-        group.add(light);
-        this.scene.add(group);
-
-        this.rocketEffects.push({
-            group,
-            core,
-            shell,
-            explosionSprite,
-            explosionBlur,
-            shockwaves,
-            shards,
-            light,
-            ringMaterial,
-            shardMaterial,
-            materials: [
-                coreMaterial,
-                shellMaterial,
-                ringMaterial,
-                shardMaterial,
-                explosionSpriteMaterial,
-                explosionBlurMaterial
-            ].filter(Boolean),
-            age: 0,
-            duration: 0.72,
-            spriteRotationSpeed: (Math.random() - 0.5) * 1.8,
-            spriteStartScale: 2.0,
-            spriteMaxScale: Math.min(
-                10.0,
-                Math.max(5.0, (Number(weapon.explosionRadius) || 8.5) * 0.75)
-            ),
-            blurStartScale: 2.2,
-            blurMaxScale: Math.min(
-                12.0,
-                Math.max(6.0, (Number(weapon.explosionRadius) || 8.5) * 0.85)
-            ),
-            maxScale: Math.max(
-                2.4,
-                Math.min(6.0, (Number(weapon.explosionRadius) || 8.5) * 0.65)
-            )
-        });
+        return createRocketExplosionEffectFn.call(this, position, weapon, impactNormal);
     }
 
     explodeRocket(position, weapon, scoreCallback, impactNormal = null) {
-        this.applyRocketExplosionDamage(position, weapon, scoreCallback);
-        // El jugador no recibe daño de su propio RPG, pero sí el impulso
-        // radial necesario para hacer rocket jumps y desplazamientos laterales.
-        this.player?.applyRocketJumpImpulse?.(
-            position,
-            weapon.rocketJumpStrength,
-            weapon.explosionRadius
-        );
-        this.createRocketExplosionEffect(position, weapon, impactNormal);
-
-        if (this.audioManager) {
-            this.audioManager.playSound(
-                weapon.explosionSound || 'rocketExplosion',
-                0.9
-            );
-        }
+        return explodeRocketFn.call(this, position, weapon, scoreCallback, impactNormal);
     }
 
     updateRocketEffects(delta) {
-        for (let i = this.rocketEffects.length - 1; i >= 0; i--) {
-            const effect = this.rocketEffects[i];
-            effect.age += Math.max(0, delta);
-            const progress = Math.min(1, effect.age / effect.duration);
-
-            if (progress >= 1) {
-                if (effect.group.parent) this.scene.remove(effect.group);
-                effect.materials.forEach(material => material.dispose());
-                effect.light.dispose?.();
-                this.rocketEffects.splice(i, 1);
-                continue;
-            }
-
-            const eased = 1 - Math.pow(1 - progress, 2);
-            const coreScale = 0.32 + eased * effect.maxScale * 0.62;
-            const shellScale = 0.48 + eased * effect.maxScale;
-            const ringScale = 0.35 + eased * effect.maxScale * 1.12;
-            const spriteScale = effect.spriteStartScale
-                + eased * (effect.spriteMaxScale - effect.spriteStartScale);
-            const blurScale = effect.blurStartScale
-                + eased * (effect.blurMaxScale - effect.blurStartScale);
-            effect.core.scale.setScalar(coreScale);
-            effect.shell.scale.setScalar(shellScale);
-            if (effect.explosionBlur) {
-                effect.explosionBlur.scale.setScalar(blurScale);
-                effect.explosionBlur.material.opacity = 0.44 * (1 - progress);
-            }
-            if (effect.explosionSprite) {
-                effect.explosionSprite.scale.setScalar(spriteScale);
-                effect.explosionSprite.rotation.z += delta * effect.spriteRotationSpeed;
-                effect.explosionSprite.material.opacity = 0.92 * (1 - progress);
-            }
-            effect.shockwaves.forEach((shockwave, index) => {
-                shockwave.scale.setScalar(ringScale * (1 + index * 0.08));
-                shockwave.rotation.z += delta * (index % 2 === 0 ? 2.8 : -2.2);
-            });
-            effect.shards.forEach(shard => {
-                shard.position.addScaledVector(shard.userData.velocity, delta);
-                shard.rotation.x += shard.userData.spin.x * delta;
-                shard.rotation.y += shard.userData.spin.y * delta;
-                shard.rotation.z += shard.userData.spin.z * delta;
-            });
-            effect.core.material.opacity = 0.95 * (1 - progress);
-            effect.shell.material.opacity = 0.75 * (1 - progress);
-            effect.ringMaterial.opacity = 0.8 * (1 - progress);
-            effect.shardMaterial.opacity = 0.9 * (1 - progress);
-            effect.light.intensity = 4.5 * (1 - progress);
-        }
+        return updateRocketEffectsFn.call(this, delta);
     }
 
     // #region Balanceo al caminar WeaponSystem

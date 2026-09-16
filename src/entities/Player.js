@@ -1,14 +1,47 @@
 // #region Importaciones Player
 // Descripción: Importa las librerías necesarias (Three.js), datos de configuración, y clases dependientes (WeaponSystem, UIManager, Door).
-import * as THREE from '../../node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import { CONFIG, WEAPONS_DATA } from '../Constants.js';
 import { WeaponSystem } from './Weapon.js';
 import { UIManager } from '../UI.js';
 import { Door } from '../entities/Door.js';
-import { PointerLockControls } from '../../node_modules/three/examples/jsm/controls/PointerLockControls.js';
+import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { isMobileMode } from '../mobile/isMobile.js';
 import { attachTouchControls } from '../mobile/TouchControls.js';
 import { AimAssist } from '../core/AimAssist.js';
+import {
+    takeDamage as takeDamageFn,
+    beginDeath as beginDeathFn,
+    updateDeath as updateDeathFn,
+    respawn as respawnFn,
+    getDamageDirectionAngle as getDamageDirectionAngleFn,
+    gameOver as gameOverFn
+} from './player/Health.js';
+import {
+    tryInteract as tryInteractFn,
+    collectFood as collectFoodFn,
+    collectAmmo as collectAmmoFn,
+    checkAmmoItems as checkAmmoItemsFn,
+    collectWeapon as collectWeaponFn,
+    checkWeaponItems as checkWeaponItemsFn
+} from './player/Interaction.js';
+import {
+    getWorldWalls as getWorldWallsFn,
+    getPlayerCollisionBox as getPlayerCollisionBoxFn,
+    getCollisionEntries as getCollisionEntriesFn,
+    rangesOverlap as rangesOverlapFn,
+    movePlayerAlongAxis as movePlayerAlongAxisFn,
+    resolvePlayerPenetration as resolvePlayerPenetrationFn,
+    checkCollisions as checkCollisionsFn
+} from './player/Collision.js';
+import {
+    toggleRay as toggleRayFn,
+    activateRay as activateRayFn,
+    deactivateRay as deactivateRayFn,
+    updateRay as updateRayFn,
+    showImpactEffect as showImpactEffectFn,
+    highlightImpactPoint as highlightImpactPointFn
+} from './player/DebugRay.js';
 // #endregion
 
 // #region Clase Player
@@ -219,10 +252,7 @@ export class Player {
     // #region Getters y Utilidades Player
     // Descripción: Métodos auxiliares para obtener información del mundo o del estado del jugador.
     getWorldWalls() {
-        if (this.world && this.world.getWalls) {
-            return this.world.getWalls();
-        }
-        return [];
+        return getWorldWallsFn.call(this);
     }
 
     getPosition() {
@@ -350,161 +380,34 @@ export class Player {
     }
 
     tryInteract() {
-        if (Door.tryOpenNearest(this.getPosition())) {
-            console.log("PUERTA ABIERTA");
-            if (this.audioManager) {
-                this.audioManager.playSound('doorOpen', 0.5);
-            }
-            return true;
-        }
-        if (this.world?.tryEnterExitPortal?.(this.getPosition())) {
-            const destinationMap = this.world.getExitPortalDestination?.();
-            if (destinationMap && this.gameInstance?.loadMap) {
-                this.gameInstance.loadMap(destinationMap);
-            } else {
-                UIManager.showEventMessage(
-                    'PORTAL ESTABLE — EL SIGUIENTE NIVEL SE AÑADIRÁ PRÓXIMAMENTE',
-                    4000
-                );
-            }
-            return true;
-        }
-        return false;
+        return tryInteractFn.call(this);
     }
     // #endregion
 
     // #region Sistema de Rayo Azul Player
     // Descripción: Implementación de la habilidad especial "Rayo Azul", incluyendo activación, raycasting y visualización de impacto.
     toggleRay() {
-        if (this.rayActive) {
-            this.deactivateRay();
-        } else {
-            this.activateRay();
-        }
+        return toggleRayFn.call(this);
     }
 
     // NUEVA FUNCIÓN: Activar rayo
     activateRay() {
-        this.rayActive = true;
-        console.log("Ray azul activado");
-
-        // Crear visualización del rayo azul si no existe
-        if (!this.rayLine) {
-            const rayGeometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, 0, -100)
-            ]);
-            const rayMaterial = new THREE.LineBasicMaterial({
-                color: 0x0066ff, // AZUL brillante
-                linewidth: 3,
-                transparent: true,
-                opacity: 0.8
-            });
-            this.rayLine = new THREE.Line(rayGeometry, rayMaterial);
-            this.camera.add(this.rayLine);
-        }
-
-        this.rayLine.visible = true;
+        return activateRayFn.call(this);
     }
 
     // NUEVA FUNCIÓN: Desactivar rayo
     deactivateRay() {
-        this.rayActive = false;
-        console.log("Ray desactivado");
-        if (this.rayLine) {
-            this.rayLine.visible = false;
-        }
+        return deactivateRayFn.call(this);
     }
 
     // NUEVA FUNCIÓN: Actualizar visualización del rayo
     updateRay() {
-        if (!this.rayActive || !this.rayLine || !this.rayLine.visible) return;
-
-        const raycaster = new THREE.Raycaster();
-        const direction = new THREE.Vector3(0, 0, -1);
-        direction.applyQuaternion(this.camera.quaternion);
-
-        raycaster.set(this.camera.position, direction);
-
-        // Obtener todos los objetos colisionables
-        const walls = this.world.getWalls();
-        const doors = Door.instances.filter(d => !d.isOpen).map(d => d.mesh);
-        const staticModels = this.world.getStaticModels ? this.world.getStaticModels() : [];
-
-        const intersectObjects = [...walls, ...doors, ...staticModels];
-
-        const intersects = raycaster.intersectObjects(intersectObjects, true);
-
-        if (intersects.length > 0) {
-            const hitPoint = intersects[0].point;
-
-            // Actualizar línea del rayo
-            const points = [
-                this.camera.position,
-                hitPoint
-            ];
-
-            this.rayLine.geometry.setFromPoints(points);
-            this.rayLine.geometry.attributes.position.needsUpdate = true;
-
-            // Almacenar información del último impacto
-            this.lastRayHit = {
-                position: hitPoint.clone(),
-                time: Date.now()
-            };
-
-            // Crear un efecto visual en el punto de impacto (círculo azul)
-            this.showImpactEffect(hitPoint);
-        } else {
-            // Si no hay colisión, mostrar rayo a distancia máxima
-            const maxDistance = 100;
-            const endPoint = this.camera.position.clone().add(
-                direction.clone().multiplyScalar(maxDistance)
-            );
-
-            const points = [
-                this.camera.position,
-                endPoint
-            ];
-
-            this.rayLine.geometry.setFromPoints(points);
-            this.rayLine.geometry.attributes.position.needsUpdate = true;
-            this.lastRayHit = null;
-        }
+        return updateRayFn.call(this);
     }
 
     // NUEVA FUNCIÓN: Mostrar efecto de impacto
     showImpactEffect(position) {
-        // Limpiar efecto anterior si existe
-        if (this.impactEffect && this.impactEffect.parent) {
-            this.impactEffect.parent.remove(this.impactEffect);
-        }
-
-        // Crear un pequeño círculo azul en el punto de impacto
-        const circleGeometry = new THREE.CircleGeometry(0.3, 16);
-        const circleMaterial = new THREE.MeshBasicMaterial({
-            color: 0x0066ff,
-            transparent: true,
-            opacity: 0.7,
-            side: THREE.DoubleSide
-        });
-
-        this.impactEffect = new THREE.Mesh(circleGeometry, circleMaterial);
-
-        // Orientar el círculo hacia la cámara
-        this.impactEffect.lookAt(this.camera.position);
-        this.impactEffect.position.copy(position);
-
-        // Añadir a la escena
-        this.world.scene.add(this.impactEffect);
-
-        // Eliminar después de 0.5 segundos
-        if (this.impactTimeout) clearTimeout(this.impactTimeout);
-        this.impactTimeout = setTimeout(() => {
-            if (this.impactEffect && this.impactEffect.parent) {
-                this.impactEffect.parent.remove(this.impactEffect);
-            }
-        }, 500);
+        return showImpactEffectFn.call(this, position);
     }
     // #endregion
 
@@ -560,41 +463,7 @@ export class Player {
 
     // NUEVA FUNCIÓN: Destacar punto de impacto
     highlightImpactPoint(position) {
-        // Crear un efecto visual más prominente para el clic
-        const sphereGeometry = new THREE.SphereGeometry(0.5, 8, 8);
-        const sphereMaterial = new THREE.MeshBasicMaterial({
-            color: 0x0066ff,
-            transparent: true,
-            opacity: 0.9,
-            wireframe: false
-        });
-
-        const highlightSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        highlightSphere.position.copy(position);
-        const effect = { mesh: highlightSphere, material: sphereMaterial };
-        this.highlightEffects.add(effect);
-
-        this.world.scene.add(highlightSphere);
-
-        // Animación de pulsación
-        let scale = 1.0;
-        const animate = () => {
-            if (this.disposed) return;
-            scale += 0.1;
-            highlightSphere.scale.set(scale, scale, scale);
-            sphereMaterial.opacity -= 0.05;
-
-            if (sphereMaterial.opacity > 0) {
-                requestAnimationFrame(animate);
-            } else {
-                this.world.scene.remove(highlightSphere);
-                sphereGeometry.dispose();
-                sphereMaterial.dispose();
-                this.highlightEffects.delete(effect);
-            }
-        };
-
-        animate();
+        return highlightImpactPointFn.call(this, position);
     }
 
     onMouseUp() {
@@ -605,268 +474,46 @@ export class Player {
     // #region Sistema de Salud Player
     // Descripción: Administra la vida del jugador, incluyendo la lógica de recibir daño y curarse.
     takeDamage(damageAmount = 1, damageSource = null) {
-        if (this.isGameOver) return;
-
-        if (this.debugState.godMode) {
-            console.log('Daño bloqueado por God Mode');
-            return;
-        }
-
-        this.health -= damageAmount;
-        UIManager.updateHealth(this.health);
-        UIManager.showDamageIndicator(
-            this.getDamageDirectionAngle(damageSource),
-            Math.max(0.35, Math.min(1, damageAmount / 35))
-        );
-
-        if (this.audioManager) {
-            this.audioManager.playSound('playerHurt', 0.6, false, 0.9 + Math.random() * 0.2);
-        }
-
-        if (this.health <= 0) {
-            this.beginDeath(damageSource);
-        }
+        return takeDamageFn.call(this, damageAmount, damageSource);
     }
 
     beginDeath(damageSource = null) {
-        if (this.isDead) return;
-
-        this.isDead = true;
-        this.isGameOver = true;
-        UIManager.showRespawnHint();
-        if (this.gameInstance) {
-            this.gameInstance.isGameOver = true;
-            this.gameInstance.isPaused = false;
-        }
-
-        this.isShooting = false;
-        this.resetMovementState();
-        this.velocity.set(0, 0, 0);
-
-        const startRotation = this.camera.rotation.clone();
-        const incoming = damageSource
-            ? damageSource.x - this.camera.position.x
-            : 1;
-        const fallDirection = Math.sign(incoming) || 1;
-
-        this.deathAnimation = {
-            elapsed: 0,
-            duration: 650,
-            startY: this.camera.position.y,
-            targetY: 0.42,
-            startRotationX: startRotation.x,
-            startRotationZ: startRotation.z,
-            targetRotationX: startRotation.x + 0.18,
-            targetRotationZ: startRotation.z - fallDirection * Math.PI * 0.48
-        };
-
-        // Reutilizar el sonido que se reproduce al eliminar un enemigo.
-        if (this.audioManager) {
-            this.audioManager.playSound('enemyDeath', 0.5);
-        }
-
-        if (this.rayActive) {
-            this.deactivateRay();
-        }
-
-        // Liberar el pointer lock sin abrir la pantalla de game over. El
-        // bucle principal mantiene la escena viva para mostrar la caída.
-        if (this.controls.isLocked) {
-            this.controls.unlock();
-        }
+        return beginDeathFn.call(this, damageSource);
     }
 
     updateDeath(delta) {
-        if (!this.isDead || !this.deathAnimation) return;
-
-        const animation = this.deathAnimation;
-        animation.elapsed = Math.min(
-            animation.duration,
-            animation.elapsed + Math.max(0, delta) * 1000
-        );
-
-        const progress = animation.duration > 0
-            ? animation.elapsed / animation.duration
-            : 1;
-        const easedProgress = 1 - Math.pow(1 - progress, 3);
-
-        this.camera.position.y = THREE.MathUtils.lerp(
-            animation.startY,
-            animation.targetY,
-            easedProgress
-        );
-        this.camera.rotation.x = THREE.MathUtils.lerp(
-            animation.startRotationX,
-            animation.targetRotationX,
-            easedProgress
-        );
-        this.camera.rotation.z = THREE.MathUtils.lerp(
-            animation.startRotationZ,
-            animation.targetRotationZ,
-            easedProgress
-        );
+        return updateDeathFn.call(this, delta);
     }
 
     respawn() {
-        if (!this.isDead) return;
-
-        const spawnPosition = this.world?.getPlayerSpawn?.();
-        const spawnRotation = this.world?.getPlayerRotation?.() || 0;
-
-        this.isDead = false;
-        this.isGameOver = false;
-        this.deathAnimation = null;
-        UIManager.hideRespawnHint();
-        if (this.gameInstance) {
-            this.gameInstance.isGameOver = false;
-            this.gameInstance.isPaused = false;
-        }
-
-        this.health = CONFIG.PLAYER_MAX_HEALTH;
-        UIManager.updateHealth(this.health);
-        this.isShooting = false;
-        this.resetMovementState();
-
-        if (spawnPosition) {
-            this.teleport(spawnPosition, spawnRotation);
-        } else {
-            this.camera.position.y = CONFIG.PLAYER_HEIGHT;
-            this.camera.rotation.set(0, (spawnRotation * Math.PI) / 180, 0);
-            this.velocity.set(0, 0, 0);
-            this.canJump = true;
-        }
-
-        if (this.audioManager) {
-            this.audioManager.resume();
-        }
-
-        // El clic que solicita el respawn también es un gesto válido para
-        // recuperar el pointer lock y devolver el control al jugador.
-        this.controls.lock();
+        return respawnFn.call(this);
     }
 
     getDamageDirectionAngle(damageSource) {
-        if (!damageSource) return 0;
-
-        const incoming = new THREE.Vector3(
-            damageSource.x - this.camera.position.x,
-            0,
-            damageSource.z - this.camera.position.z
-        );
-        if (incoming.lengthSq() < 0.0001) return 0;
-        incoming.normalize();
-
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-        forward.y = 0;
-        if (forward.lengthSq() < 0.0001) return 0;
-        forward.normalize();
-
-        const signedCross = forward.x * incoming.z - forward.z * incoming.x;
-        return Math.atan2(signedCross, forward.dot(incoming)) * 180 / Math.PI;
+        return getDamageDirectionAngleFn.call(this, damageSource);
     }
 
     collectFood(amount, foodName = 'Comida') {
-        if (this.isGameOver) return;
-
-        this.health = Math.min(CONFIG.PLAYER_MAX_HEALTH, this.health + amount);
-        UIManager.updateHealth(this.health);
-        UIManager.showHealFlash();
-
-        if (this.audioManager) {
-            this.audioManager.playSound('collectItem', 0.5);
-        }
+        return collectFoodFn.call(this, amount, foodName);
     }
     // #endregion
 
     // #region Sistema de Munición Player
     // Descripción: Lógica para la recolección de munición y recarga de armas.
     collectAmmo(amount, weaponIndex) {
-        if (this.isGameOver) return;
-        this.weaponSystem.addAmmo(amount, weaponIndex);
-
-        if (this.audioManager) {
-            // La recogida de munición usa el mismo sonido que la recarga
-            // manual para reforzar claramente qué tipo de objeto se obtuvo.
-            this.audioManager.playSound('reload', 0.8, false, 0.95 + Math.random() * 0.08);
-        }
+        return collectAmmoFn.call(this, amount, weaponIndex);
     }
 
     checkAmmoItems() {
-        const ammoItems = this.world.getAmmoMeshes();
-        const playerPos = this.getPosition();
-
-        ammoItems.forEach(ammoMesh => {
-            if (ammoMesh.userData.collected) return;
-
-            const distance = playerPos.distanceTo(ammoMesh.position);
-            if (distance < CONFIG.PICKUP_DISTANCE) {
-                const ammoAmount = ammoMesh.userData.ammoAmount;
-                const weaponIndex = ammoMesh.userData.weaponIndex;
-
-                // Check if ammo is full
-                const weapon = WEAPONS_DATA[weaponIndex];
-                const currentAmmo = weapon
-                    ? (this.weaponSystem.getAmmoAmount?.(weapon) ?? weapon.ammo)
-                    : 0;
-                const maxAmmo = weapon
-                    ? (this.weaponSystem.getAmmoCapacity?.(weapon) ?? weapon.maxAmmo)
-                    : 0;
-                if (weapon && currentAmmo >= maxAmmo) {
-                    return; // Don't collect if full
-                }
-
-                this.collectAmmo(ammoAmount, weaponIndex);
-
-                ammoMesh.userData.collected = true;
-                this.world.scene.remove(ammoMesh);
-            }
-        });
+        return checkAmmoItemsFn.call(this);
     }
 
     collectWeapon(weaponId, ammoAmount = 0) {
-        if (this.isGameOver) return false;
-
-        const unlocked = this.weaponSystem.unlockWeapon(
-            weaponId,
-            ammoAmount,
-            true
-        );
-        if (!unlocked) return false;
-
-        if (this.audioManager) {
-            this.audioManager.playSound('collectItem', 0.8);
-        }
-        UIManager.showEventMessage(
-            `¡${unlocked.weapon.name} DESBLOQUEADO!`,
-            3000
-        );
-        return true;
+        return collectWeaponFn.call(this, weaponId, ammoAmount);
     }
 
     checkWeaponItems() {
-        const weaponItems = this.world.getWeaponMeshes?.() || [];
-        const playerPos = this.getPosition();
-
-        for (let i = weaponItems.length - 1; i >= 0; i--) {
-            const weaponMesh = weaponItems[i];
-            if (!weaponMesh || weaponMesh.userData?.collected) continue;
-
-            if (playerPos.distanceTo(weaponMesh.position) >= CONFIG.PICKUP_DISTANCE) {
-                continue;
-            }
-
-            const collected = this.collectWeapon(
-                weaponMesh.userData.weaponId,
-                weaponMesh.userData.ammoAmount
-            );
-            if (!collected) continue;
-
-            weaponMesh.userData.collected = true;
-            this.world.scene.remove(weaponMesh);
-            if (weaponMesh.material?.map) weaponMesh.material.map.dispose();
-            if (weaponMesh.material) weaponMesh.material.dispose();
-            weaponItems.splice(i, 1);
-        }
+        return checkWeaponItemsFn.call(this);
     }
     // #endregion
 
@@ -1101,238 +748,34 @@ export class Player {
     // #region Gestión de Game Over Player
     // Descripción: Maneja el estado de fin de juego, desbloqueando controles y mostrando la pantalla final.
     gameOver() {
-        this.beginDeath();
+        return gameOverFn.call(this);
     }
     // #endregion
 
     // #region Sistema de Colisiones Player
     // Descripción: Detecta colisiones con muros y puertas, impidiendo que el jugador atraviese objetos sólidos.
     getPlayerCollisionBox(position) {
-        const horizontalHalfSize = CONFIG.PLAYER_COLLISION_OFFSET || 1.0;
-        const verticalHalfSize = 1.0;
-
-        return new THREE.Box3(
-            new THREE.Vector3(
-                position.x - horizontalHalfSize,
-                position.y - verticalHalfSize,
-                position.z - horizontalHalfSize
-            ),
-            new THREE.Vector3(
-                position.x + horizontalHalfSize,
-                position.y + verticalHalfSize,
-                position.z + horizontalHalfSize
-            )
-        );
+        return getPlayerCollisionBoxFn.call(this, position);
     }
 
     getCollisionEntries() {
-        const entries = [];
-        const seenObjects = new Set();
-
-        const addObject = (object, boundingBox = object?.userData?.boundingBox) => {
-            if (!object || seenObjects.has(object) || !boundingBox || boundingBox.isEmpty()) return;
-
-            const min = boundingBox.min;
-            const max = boundingBox.max;
-            if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) return;
-
-            seenObjects.add(object);
-            entries.push({ object, box: boundingBox.clone() });
-        };
-
-        const worldObjects = [
-            ...(this.world?.getWalls?.() || []),
-            ...(this.world?.getStaticModels?.() || [])
-        ];
-        worldObjects.forEach(object => addObject(object));
-
-        // Las puertas cambian de altura mientras se abren y se cierran, por lo
-        // que su caja debe recalcularse antes de cada resolución de movimiento.
-        Door.instances.forEach(door => {
-            if (door.isOpen || !door.mesh) return;
-
-            door.mesh.updateMatrixWorld(true);
-            const doorBox = new THREE.Box3().setFromObject(door.mesh);
-            doorBox.min.x -= 0.2;
-            doorBox.max.x += 0.2;
-            doorBox.min.z -= 0.2;
-            doorBox.max.z += 0.2;
-
-            // Mantenerlo también en userData permite que el modo debug dibuje
-            // la misma caja que usa la física.
-            door.mesh.userData = door.mesh.userData || {};
-            door.mesh.userData.boundingBox = doorBox;
-            addObject(door.mesh, doorBox);
-        });
-
-        return entries;
+        return getCollisionEntriesFn.call(this);
     }
 
     rangesOverlap(minA, maxA, minB, maxB) {
-        // Ignorar el contacto exacto evita que caminar por la parte superior
-        // de un prop se interprete como una colisión lateral.
-        return Math.min(maxA, maxB) - Math.max(minA, minB) > 0.001;
+        return rangesOverlapFn.call(this, minA, maxA, minB, maxB);
     }
 
     movePlayerAlongAxis(position, axis, amount, collisionEntries) {
-        if (Math.abs(amount) < 0.000001) return false;
-
-        const offset = CONFIG.PLAYER_COLLISION_OFFSET || 1.0;
-        const halfSize = axis === 'y' ? 1.0 : offset;
-        const start = position[axis];
-        const desired = start + amount;
-        const direction = Math.sign(amount);
-        const separation = 0.02;
-        let resolved = desired;
-        let blocked = false;
-
-        for (const entry of collisionEntries) {
-            const box = entry.box;
-            const playerBox = this.getPlayerCollisionBox(position);
-
-            let overlapsOtherAxes = true;
-            for (const otherAxis of ['x', 'y', 'z']) {
-                if (otherAxis === axis) continue;
-                if (!this.rangesOverlap(
-                    playerBox.min[otherAxis],
-                    playerBox.max[otherAxis],
-                    box.min[otherAxis],
-                    box.max[otherAxis]
-                )) {
-                    overlapsOtherAxes = false;
-                    break;
-                }
-            }
-            if (!overlapsOtherAxes) continue;
-
-            const expandedMin = box.min[axis] - halfSize;
-            const expandedMax = box.max[axis] + halfSize;
-
-            // Detectar el cruce del volumen ampliado, no solo la posición
-            // final. Así no se puede atravesar una caja en un frame de salto.
-            if (direction > 0 && start <= expandedMin && desired > expandedMin) {
-                resolved = Math.min(resolved, expandedMin - separation);
-                blocked = true;
-            } else if (direction < 0 && start >= expandedMax && desired < expandedMax) {
-                resolved = Math.max(resolved, expandedMax + separation);
-                blocked = true;
-            }
-        }
-
-        position[axis] = resolved;
-
-        if (!blocked) return false;
-
-        if (axis === 'y') {
-            this.velocity.y = 0;
-            if (direction < 0) {
-                // El jugador ha descendido sobre la parte superior del prop.
-                this.canJump = true;
-            }
-        } else {
-            // x/z son los ejes locales que usa PointerLockControls. Mantener
-            // este corte de inercia evita que vuelva a penetrar en el siguiente
-            // frame, conservando el deslizamiento por el otro eje.
-            this.velocity[axis] = 0;
-        }
-
-        return true;
+        return movePlayerAlongAxisFn.call(this, position, axis, amount, collisionEntries);
     }
 
     resolvePlayerPenetration(position, collisionEntries) {
-        const separation = 0.02;
-        const floorHeight = this.isCrouching ? CONFIG.CROUCH_HEIGHT : CONFIG.PLAYER_HEIGHT;
-        let grounded = false;
-
-        // Recuperación defensiva: si el jugador ya estaba dentro por un salto
-        // o por una caja mal colocada, expulsarlo por el eje de menor
-        // penetración antes de continuar con el movimiento.
-        for (let iteration = 0; iteration < 8; iteration++) {
-            const playerBox = this.getPlayerCollisionBox(position);
-            let bestResolution = null;
-
-            for (const entry of collisionEntries) {
-                const box = entry.box;
-                const overlap = {
-                    x: Math.min(playerBox.max.x, box.max.x) - Math.max(playerBox.min.x, box.min.x),
-                    y: Math.min(playerBox.max.y, box.max.y) - Math.max(playerBox.min.y, box.min.y),
-                    z: Math.min(playerBox.max.z, box.max.z) - Math.max(playerBox.min.z, box.min.z)
-                };
-
-                if (overlap.x <= 0.001 || overlap.y <= 0.001 || overlap.z <= 0.001) continue;
-
-                for (const axis of ['x', 'z', 'y']) {
-                    const direction = position[axis] < (box.min[axis] + box.max[axis]) / 2 ? -1 : 1;
-                    const amount = direction * (overlap[axis] + separation);
-
-                    // No expulsar al jugador por debajo del suelo cuando la
-                    // caja nace en el suelo; en ese caso se prioriza salir por
-                    // un lateral o por arriba.
-                    if (
-                        axis === 'y'
-                        && direction < 0
-                        && !this.debugState.flyMode
-                        && position.y + amount < floorHeight - separation
-                    ) {
-                        continue;
-                    }
-
-                    if (!bestResolution || Math.abs(amount) < Math.abs(bestResolution.amount)) {
-                        bestResolution = { axis, amount };
-                    }
-                }
-            }
-
-            if (!bestResolution) break;
-
-            position[bestResolution.axis] += bestResolution.amount;
-            if (bestResolution.axis === 'y') {
-                this.velocity.y = 0;
-                if (bestResolution.amount > 0) {
-                    this.canJump = true;
-                    grounded = true;
-                }
-            } else {
-                this.velocity[bestResolution.axis] = 0;
-            }
-        }
-
-        return grounded;
+        return resolvePlayerPenetrationFn.call(this, position, collisionEntries);
     }
 
     checkCollisions(oldPosition) {
-        const targetPosition = this.camera.position.clone();
-        const collisionEntries = this.getCollisionEntries();
-        if (collisionEntries.length === 0) return;
-
-        const movement = targetPosition.sub(oldPosition);
-        const resolvedPosition = oldPosition.clone();
-
-        this.resolvePlayerPenetration(resolvedPosition, collisionEntries);
-
-        // Subdividir el desplazamiento evita el tunneling cuando la velocidad
-        // horizontal y el impulso de salto hacen que el jugador avance varios
-        // metros entre dos frames.
-        const largestMovement = Math.max(
-            Math.abs(movement.x),
-            Math.abs(movement.y),
-            Math.abs(movement.z)
-        );
-        const maxStepDistance = 0.5;
-        const stepCount = Math.max(1, Math.min(128, Math.ceil(largestMovement / maxStepDistance)));
-        const stepMovement = movement.clone().multiplyScalar(1 / stepCount);
-
-        for (let step = 0; step < stepCount; step++) {
-            this.movePlayerAlongAxis(resolvedPosition, 'x', stepMovement.x, collisionEntries);
-            this.movePlayerAlongAxis(resolvedPosition, 'z', stepMovement.z, collisionEntries);
-            this.movePlayerAlongAxis(resolvedPosition, 'y', stepMovement.y, collisionEntries);
-            this.resolvePlayerPenetration(resolvedPosition, collisionEntries);
-        }
-
-        // Última garantía frente a cajas solapadas o a una posición heredada
-        // de una versión anterior de la física.
-        this.resolvePlayerPenetration(resolvedPosition, collisionEntries);
-        this.camera.position.copy(resolvedPosition);
+        return checkCollisionsFn.call(this, oldPosition);
     }
     // #endregion
 }

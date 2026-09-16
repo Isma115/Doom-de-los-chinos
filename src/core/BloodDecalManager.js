@@ -1,6 +1,6 @@
 // #region Importaciones BloodDecalManager
 // Descripción: Importa Three.js para crear decals de sangre persistentes en el escenario.
-import * as THREE from '../../node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import { isMobileMode } from '../mobile/isMobile.js';
 // #endregion
 

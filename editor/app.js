@@ -1,5 +1,5 @@
-import * as THREE from '../node_modules/three/build/three.module.js';
-import { OrbitControls } from '../node_modules/three/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 // Editor 3D de mapas para Doom3D.
 // El formato de datos sigue siendo el mismo que el editor 2D anterior:
