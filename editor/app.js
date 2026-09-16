@@ -51,7 +51,7 @@ const blockName = (code) => {
   return code;
 };
 
-const DEFAULT_GAME_URL = 'http://127.0.0.1:5173/index.html';
+const DEFAULT_GAME_URL = 'http://127.0.0.1:5175/index.html';
 const GAME_URL_KEY = 'doom3d_editor_game_url';
 const desktopApi = window.doom3dDesktop || null;
 

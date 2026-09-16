@@ -23,6 +23,49 @@ export class WeaponSystem {
         this.weaponMesh = null;
         this.weaponFlashTimeout = null;
 
+        // El sprite del arma conserva sus animaciones propias (retroceso y
+        // recarga), mientras este grupo aplica únicamente el balanceo al
+        // caminar. Separarlos evita que una animación sobrescriba a la otra.
+        this.weaponSwayGroup = new THREE.Group();
+        this.weaponSwayGroup.name = 'weapon-sway-group';
+        this.camera.add(this.weaponSwayGroup);
+        // Secuencia fija para que cada paso reproduzca exactamente el mismo
+        // arco: izquierda, caída central, derecha y regreso. No depende de
+        // senos ni de la velocidad concreta del jugador.
+        this.weaponWalkCycle = 0;
+        this.weaponWalkSwayActive = false;
+        this.weaponWalkCycleRate = 0.34;
+        this.weaponWalkSwayKeyframes = [
+            { offset: [-0.24, 0, 0], rotation: [0, 0, 0.012] },
+            { offset: [-0.224, -0.030, 0], rotation: [0, 0, 0.010] },
+            { offset: [-0.192, -0.060, 0], rotation: [0, 0, 0.007] },
+            { offset: [-0.144, -0.090, 0], rotation: [0, 0, 0.004] },
+            { offset: [-0.072, -0.115, 0], rotation: [0, 0, 0.002] },
+            { offset: [0, -0.135, 0], rotation: [0, 0, 0] },
+            { offset: [0.072, -0.115, 0], rotation: [0, 0, -0.002] },
+            { offset: [0.144, -0.090, 0], rotation: [0, 0, -0.004] },
+            { offset: [0.192, -0.060, 0], rotation: [0, 0, -0.007] },
+            { offset: [0.224, -0.030, 0], rotation: [0, 0, -0.010] },
+            { offset: [0.24, 0, 0], rotation: [0, 0, -0.012] },
+            { offset: [0.224, -0.030, 0], rotation: [0, 0, -0.010] },
+            { offset: [0.192, -0.060, 0], rotation: [0, 0, -0.007] },
+            { offset: [0.144, -0.090, 0], rotation: [0, 0, -0.004] },
+            { offset: [0.072, -0.115, 0], rotation: [0, 0, -0.002] },
+            { offset: [0, -0.135, 0], rotation: [0, 0, 0] },
+            { offset: [-0.072, -0.115, 0], rotation: [0, 0, 0.002] },
+            { offset: [-0.144, -0.090, 0], rotation: [0, 0, 0.004] },
+            { offset: [-0.192, -0.060, 0], rotation: [0, 0, 0.007] },
+            { offset: [-0.224, -0.030, 0], rotation: [0, 0, 0.010] }
+        ].map(({ offset, rotation }) => ({
+            offset: new THREE.Vector3(...offset),
+            rotation: new THREE.Vector3(...rotation)
+        }));
+        this.weaponSwayBlend = 0;
+        this.weaponSwayOffset = new THREE.Vector3();
+        this.weaponSwayRotation = new THREE.Vector3();
+        this.weaponSwayTargetOffset = new THREE.Vector3();
+        this.weaponSwayTargetRotation = new THREE.Vector3();
+
         this.raycaster = new THREE.Raycaster();
         this.rayOrigin = new THREE.Vector2(0, 0);
         this.impactDecals = [];
@@ -653,8 +696,12 @@ export class WeaponSystem {
     showMuzzleFlash() {
         if (!this.weaponFlashTexture) return;
 
+        const weaponView = this.weaponSwayGroup || this.camera;
+
         if (this.flashMesh) {
-            this.camera.remove(this.flashMesh);
+            if (this.flashMesh.parent) {
+                this.flashMesh.parent.remove(this.flashMesh);
+            }
             this.flashMesh.material.map.dispose();
             this.flashMesh.material.dispose();
         }
@@ -675,14 +722,16 @@ export class WeaponSystem {
         // También evitar frustum culling
         this.flashMesh.frustumCulled = false;
 
-        this.camera.add(this.flashMesh);
+        weaponView.add(this.flashMesh);
 
         // Animación de desaparición
         const fadeOut = () => {
             if (this.flashMesh && this.flashMesh.material) {
                 this.flashMesh.material.opacity -= 0.08;
                 if (this.flashMesh.material.opacity <= 0) {
-                    this.camera.remove(this.flashMesh);
+                    if (this.flashMesh.parent) {
+                        this.flashMesh.parent.remove(this.flashMesh);
+                    }
                     this.flashMesh.material.dispose();
                     this.flashMesh = null;
                 } else {
@@ -767,7 +816,9 @@ export class WeaponSystem {
         }
 
         if (this.weaponMesh) {
-            this.camera.remove(this.weaponMesh);
+            if (this.weaponMesh.parent) {
+                this.weaponMesh.parent.remove(this.weaponMesh);
+            }
             if (this.weaponMesh.material.map) this.weaponMesh.material.map.dispose();
             this.weaponMesh.material.dispose();
         }
@@ -835,7 +886,7 @@ export class WeaponSystem {
             posX = 0.36;
         } else if (weapon.id === 'minigun') {
             scale = 0.9;
-            posY = -0.42;
+            posY = -0.58;
             posX = 0.72;
         }
 
@@ -844,7 +895,7 @@ export class WeaponSystem {
 
         this.weaponMesh.frustumCulled = false;
 
-        this.camera.add(this.weaponMesh);
+        (this.weaponSwayGroup || this.camera).add(this.weaponMesh);
 
         UIManager.updateWeapon(
             weapon.name,
@@ -1538,8 +1589,97 @@ export class WeaponSystem {
         }
     }
 
+    // #region Balanceo al caminar WeaponSystem
+    // Descripción: Reproduce una animación fija de balanceo mientras el
+    // jugador camina, sin variar su recorrido según la velocidad.
+    sampleWeaponWalkSway(progress) {
+        const keyframes = this.weaponWalkSwayKeyframes;
+        if (!keyframes?.length) return;
+
+        const framePosition = progress * keyframes.length;
+        const currentIndex = Math.floor(framePosition) % keyframes.length;
+        const nextIndex = (currentIndex + 1) % keyframes.length;
+        const interpolation = framePosition - Math.floor(framePosition);
+        const currentFrame = keyframes[currentIndex];
+        const nextFrame = keyframes[nextIndex];
+
+        this.weaponSwayTargetOffset
+            .copy(currentFrame.offset)
+            .lerp(nextFrame.offset, interpolation);
+        this.weaponSwayTargetRotation
+            .copy(currentFrame.rotation)
+            .lerp(nextFrame.rotation, interpolation);
+    }
+
+    updateWeaponSway(delta) {
+        if (!this.weaponSwayGroup) return;
+
+        const frameDelta = Math.min(
+            0.05,
+            Math.max(0, Number(delta) || 0)
+        );
+        const velocity = this.player?.velocity;
+        const horizontalSpeed = velocity
+            ? Math.hypot(velocity.x, velocity.z)
+            : 0;
+        const hasMovementInput = Boolean(
+            this.player?.direction?.lengthSq() > 0.0001
+        );
+        const isWalking = Boolean(
+            this.player?.controls?.isLocked
+            && this.player?.canJump
+            && hasMovementInput
+            && horizontalSpeed > 0.05
+        );
+        const targetBlend = isWalking ? 1 : 0;
+
+        // La respuesta exponencial mantiene el efecto suave aunque cambie
+        // la tasa de frames, y permite que el arma vuelva a su centro al
+        // dejar de caminar.
+        const blendSmoothing = 1 - Math.exp(-7 * frameDelta);
+        this.weaponSwayBlend += (
+            targetBlend - this.weaponSwayBlend
+        ) * blendSmoothing;
+
+        if (isWalking) {
+            if (!this.weaponWalkSwayActive) {
+                this.weaponWalkCycle = 0;
+            }
+            this.weaponWalkSwayActive = true;
+            this.weaponWalkCycle = (
+                this.weaponWalkCycle + frameDelta * this.weaponWalkCycleRate
+            ) % 1;
+            this.sampleWeaponWalkSway(this.weaponWalkCycle);
+        } else {
+            this.weaponWalkSwayActive = false;
+            this.weaponWalkCycle = 0;
+            this.weaponSwayTargetOffset.set(0, 0, 0);
+            this.weaponSwayTargetRotation.set(0, 0, 0);
+        }
+
+        const movementSmoothing = 1 - Math.exp(-7 * frameDelta);
+        this.weaponSwayOffset.lerp(
+            this.weaponSwayTargetOffset,
+            movementSmoothing
+        );
+        this.weaponSwayRotation.lerp(
+            this.weaponSwayTargetRotation,
+            movementSmoothing
+        );
+
+        this.weaponSwayGroup.position.copy(this.weaponSwayOffset);
+        this.weaponSwayGroup.rotation.set(
+            this.weaponSwayRotation.x,
+            this.weaponSwayRotation.y,
+            this.weaponSwayRotation.z
+        );
+    }
+    // #endregion
+
     update(delta, scoreCallback = null) {
         const now = performance.now();
+
+        this.updateWeaponSway(delta);
 
         for (let i = this.rocketProjectiles.length - 1; i >= 0; i--) {
             const rocket = this.rocketProjectiles[i];
@@ -1671,9 +1811,24 @@ export class WeaponSystem {
         }
 
         if (this.weaponMesh) {
-            this.camera.remove(this.weaponMesh);
+            if (this.weaponMesh.parent) {
+                this.weaponMesh.parent.remove(this.weaponMesh);
+            }
             this.weaponMesh.geometry = null; //
             this.weaponMesh.material = null;
+        }
+
+        if (this.flashMesh) {
+            if (this.flashMesh.parent) {
+                this.flashMesh.parent.remove(this.flashMesh);
+            }
+            this.flashMesh.material?.dispose();
+            this.flashMesh = null;
+        }
+
+        if (this.weaponSwayGroup) {
+            this.camera.remove(this.weaponSwayGroup);
+            this.weaponSwayGroup = null;
         }
 
         this.rocketProjectiles.forEach(rocket => {

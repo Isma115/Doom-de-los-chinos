@@ -263,6 +263,7 @@ export class MapLoader {
 
                     case "+":
                         foodItems.push(new THREE.Vector3(position.x, 0.5, position.z));
+                        validFloors.push(position);
                         break;
 
                     case "MA":

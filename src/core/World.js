@@ -53,6 +53,7 @@ export class World {
         this.collisionHelpers = new Map();
         this.spawnerHelpers = new Map();
         this.ventilationGateColliders = new Map();
+        this.ventilationGateStates = new Map();
         this.ventilationOpen = false;
         this.exitPortal = null;
         this.exitPortalSpawn = null;
@@ -793,6 +794,204 @@ export class World {
         console.log('Plató low poly de El Hormiguero cargado');
         return root;
     }
+
+    createHormigueroSecretRoom(model = {}) {
+        const root = new THREE.Group();
+        root.name = model.id || 'hormiguero-secret-room';
+
+        const position = model.position || {};
+        root.position.set(
+            Number(position.x) || 0,
+            Number(position.y) || 0,
+            Number(position.z) || 0
+        );
+        root.scale.setScalar(Number(model.scale) || 1);
+
+        const width = Math.max(20, Number(model.width) || 40);
+        const depth = Math.max(14, Number(model.depth) || 19);
+        const height = Math.max(5, Number(model.height) || 8);
+        const wallThickness = Math.max(0.5, Number(model.wallThickness) || 0.8);
+        const entryWidth = Math.min(width - 2, Math.max(3, Number(model.entryWidth) || 10));
+        const entryHeight = Math.min(height - 0.5, Math.max(2.5, Number(model.entryHeight) || 5));
+        const exitWidth = Math.min(depth - 2, Math.max(3, Number(model.exitWidth) || 10));
+        const exitHeight = Math.min(height - 0.5, Math.max(2.5, Number(model.exitHeight) || 5));
+        const entryX = Number.isFinite(Number(model.entryX))
+            ? Number(model.entryX)
+            : width / 2 - entryWidth / 2 - wallThickness;
+        const exitZ = Number.isFinite(Number(model.exitZ))
+            ? Number(model.exitZ)
+            : 0;
+
+        const wallMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.buildingWall,
+            Math.max(2, width / 6),
+            Math.max(1, height / 3),
+            { roughness: 0.96, metalness: 0 }
+        );
+        const floorMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.floor,
+            Math.max(1, width / 12),
+            Math.max(1, depth / 8),
+            { roughness: 0.9, metalness: 0.08 }
+        );
+        const metalMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            2,
+            1,
+            { roughness: 0.55, metalness: 0.62 }
+        );
+        const darkMetalMaterial = this.createTexturedStandardMaterial(
+            0xffffff,
+            HORMIGUERO_TEXTURES.metal,
+            1,
+            1,
+            { roughness: 0.62, metalness: 0.48 }
+        );
+        const accentMaterial = new THREE.MeshStandardMaterial({
+            color: 0xc64b2d,
+            emissive: 0x4a0e06,
+            emissiveIntensity: 0.75,
+            roughness: 0.58,
+            metalness: 0.24,
+            flatShading: true
+        });
+        const lightMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffb34a,
+            emissive: 0xff6a16,
+            emissiveIntensity: 1.8,
+            roughness: 0.42,
+            metalness: 0.12,
+            flatShading: true
+        });
+
+        const addBox = (name, dimensions, coordinates, material) => {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(...dimensions),
+                material
+            );
+            mesh.name = name;
+            mesh.position.set(...coordinates);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            root.add(mesh);
+            return mesh;
+        };
+
+        const minX = -width / 2;
+        const maxX = width / 2;
+        const minZ = -depth / 2;
+        const maxZ = depth / 2;
+        const entryMinX = Math.max(minX + wallThickness, entryX - entryWidth / 2);
+        const entryMaxX = Math.min(maxX - wallThickness, entryX + entryWidth / 2);
+        const exitMinZ = Math.max(minZ + wallThickness, exitZ - exitWidth / 2);
+        const exitMaxZ = Math.min(maxZ - wallThickness, exitZ + exitWidth / 2);
+
+        // Entrada norte desde el almacén y salida oeste hacia el conducto que
+        // continúa hasta el plató.
+        addBox('secret-room-floor', [width, 0.16, depth], [0, 0.08, 0], floorMaterial);
+        addBox('secret-room-ceiling', [width, 0.5, depth], [0, height + 0.25, 0], metalMaterial);
+        addBox('secret-room-wall-south', [width, height, wallThickness], [0, height / 2, minZ], wallMaterial);
+        addBox('secret-room-wall-east', [wallThickness, height, depth], [maxX, height / 2, 0], wallMaterial);
+        addBox(
+            'secret-room-wall-north-left',
+            [entryMinX - minX, height, wallThickness],
+            [(minX + entryMinX) / 2, height / 2, maxZ],
+            wallMaterial
+        );
+        addBox(
+            'secret-room-wall-north-right',
+            [maxX - entryMaxX, height, wallThickness],
+            [(entryMaxX + maxX) / 2, height / 2, maxZ],
+            wallMaterial
+        );
+        addBox(
+            'secret-room-wall-north-header',
+            [entryMaxX - entryMinX, height - entryHeight, wallThickness],
+            [(entryMinX + entryMaxX) / 2, entryHeight + (height - entryHeight) / 2, maxZ],
+            wallMaterial
+        );
+        addBox(
+            'secret-room-wall-west-front',
+            [wallThickness, height, exitMinZ - minZ],
+            [minX, height / 2, (minZ + exitMinZ) / 2],
+            wallMaterial
+        );
+        addBox(
+            'secret-room-wall-west-back',
+            [wallThickness, height, maxZ - exitMaxZ],
+            [minX, height / 2, (exitMaxZ + maxZ) / 2],
+            wallMaterial
+        );
+        addBox(
+            'secret-room-wall-west-header',
+            [wallThickness, height - exitHeight, exitMaxZ - exitMinZ],
+            [minX, exitHeight + (height - exitHeight) / 2, (exitMinZ + exitMaxZ) / 2],
+            wallMaterial
+        );
+
+        // Detalles visuales de la estancia, sin textos flotantes en el mapa.
+        addBox('secret-room-entry-trim', [entryWidth, 0.28, 0.18], [entryX, entryHeight, maxZ + 0.48], accentMaterial);
+        addBox('secret-room-exit-trim', [0.18, 0.28, exitWidth], [minX - 0.48, exitHeight, exitZ], accentMaterial);
+        addBox('secret-room-console', [5.5, 1.1, 2.6], [0, 0.75, 1.2], darkMetalMaterial);
+        addBox('secret-room-console-panel', [3.6, 1.25, 0.12], [0, 1.85, -0.14], lightMaterial);
+        addBox('secret-room-seal', [7.5, 0.22, 0.22], [0, 3.7, maxZ - 0.5], accentMaterial);
+        [-1, 1].forEach(side => {
+            addBox(
+                `secret-room-light-${side < 0 ? 'left' : 'right'}`,
+                [0.28, 3.8, 0.28],
+                [side * (width / 2 - 2.2), 4.4, 0],
+                lightMaterial
+            );
+        });
+
+        root.userData = {
+            id: root.name,
+            type: 'staticModel',
+            propType: 'hormiguero-secret-room',
+            bulletImpact: true,
+            isStatic: true
+        };
+
+        this.scene.add(root);
+        root.updateMatrixWorld(true);
+
+        const addCollider = (name, min, max) => {
+            if (model.collision === false) return;
+
+            const collider = new THREE.Object3D();
+            collider.name = `${root.name}-${name}-collider`;
+            collider.userData = {
+                type: 'staticCollider',
+                isStatic: true,
+                bulletImpact: false,
+                bulletImpactFallback: false,
+                simpleBoxCollider: true,
+                boundingBox: new THREE.Box3(
+                    new THREE.Vector3(...min),
+                    new THREE.Vector3(...max)
+                ).applyMatrix4(root.matrixWorld)
+            };
+            root.add(collider);
+            this.walls.push(collider);
+        };
+
+        addCollider('ceiling', [minX, height, minZ], [maxX, height + 0.5, maxZ]);
+        addCollider('wall-south', [minX, 0, minZ - wallThickness / 2], [maxX, height, minZ + wallThickness / 2]);
+        addCollider('wall-east', [maxX - wallThickness / 2, 0, minZ], [maxX + wallThickness / 2, height, maxZ]);
+        addCollider('wall-north-left', [minX, 0, maxZ - wallThickness / 2], [entryMinX, height, maxZ + wallThickness / 2]);
+        addCollider('wall-north-right', [entryMaxX, 0, maxZ - wallThickness / 2], [maxX, height, maxZ + wallThickness / 2]);
+        addCollider('wall-north-header', [entryMinX, entryHeight, maxZ - wallThickness / 2], [entryMaxX, height, maxZ + wallThickness / 2]);
+        addCollider('wall-west-front', [minX - wallThickness / 2, 0, minZ], [minX + wallThickness / 2, height, exitMinZ]);
+        addCollider('wall-west-back', [minX - wallThickness / 2, 0, exitMaxZ], [minX + wallThickness / 2, height, maxZ]);
+        addCollider('wall-west-header', [minX - wallThickness / 2, exitHeight, exitMinZ], [minX + wallThickness / 2, height, exitMaxZ]);
+
+        this.staticModels.push(root);
+        console.log(`Habitación secreta de El Hormiguero cargada en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return root;
+    }
     // #endregion
 
     // #region Portal de Salida World
@@ -965,47 +1164,102 @@ export class World {
         });
     }
 
-    setVentilationOpen(open = true) {
-        this.ventilationOpen = Boolean(open);
+    applyVentilationGateState(grate, collider, open) {
+        const isOpen = Boolean(open);
+        const cover = grate?.userData?.ventilationCover;
+        if (cover) {
+            if (grate.userData?.ventilationCoverMode === 'visibility') {
+                cover.visible = !isOpen;
+            } else {
+                cover.rotation.x = isOpen ? -1.2 : 0;
+            }
+        }
+
+        if (isOpen) {
+            const colliderIndex = this.walls.indexOf(collider);
+            if (colliderIndex !== -1) this.walls.splice(colliderIndex, 1);
+            if (collider?.parent) collider.parent.remove(collider);
+
+            const helper = this.collisionHelpers.get(collider);
+            if (helper) {
+                this.scene.remove(helper);
+                this.collisionHelpers.delete(collider);
+            }
+        } else {
+            if (!collider?.parent) this.scene.add(collider);
+            if (collider && !this.walls.includes(collider)) this.walls.push(collider);
+        }
+
+        if (grate?.userData) grate.userData.ventilationOpen = isOpen;
+        if (collider?.userData) collider.userData.isOpen = isOpen;
+
+        return isOpen;
+    }
+
+    setVentilationGateOpen(gateId, open = true) {
+        const normalizedGateId = String(gateId || '').trim();
+        if (!normalizedGateId) return false;
+
+        const isOpen = Boolean(open);
+        this.ventilationGateStates.set(normalizedGateId, isOpen);
+        let matched = false;
 
         this.ventilationGateColliders.forEach((collider, grate) => {
-            const cover = grate.userData?.ventilationCover;
-            if (cover) {
-                cover.rotation.x = this.ventilationOpen ? -1.2 : 0;
-            }
+            if (grate.userData?.ventilationGateId !== normalizedGateId) return;
 
-            if (this.ventilationOpen) {
-                const colliderIndex = this.walls.indexOf(collider);
-                if (colliderIndex !== -1) this.walls.splice(colliderIndex, 1);
-                if (collider.parent) collider.parent.remove(collider);
-
-                const helper = this.collisionHelpers.get(collider);
-                if (helper) {
-                    this.scene.remove(helper);
-                    this.collisionHelpers.delete(collider);
-                }
-            } else {
-                if (!collider.parent) this.scene.add(collider);
-                if (!this.walls.includes(collider)) this.walls.push(collider);
-            }
-
-            grate.userData.ventilationOpen = this.ventilationOpen;
-            collider.userData.isOpen = this.ventilationOpen;
+            matched = true;
+            this.applyVentilationGateState(grate, collider, isOpen);
         });
 
-        // Las entradas que no son compuertas del patio conservan su estado
-        // decorativo, pero comparten la señal para cualquier interacción futura.
-        this.scene.traverse(object => {
-            if (object.userData?.propType === 'vent-grate') {
-                object.userData.ventilationOpen = this.ventilationOpen;
-            }
-        });
+        return matched;
+    }
+
+    setVentilationOpen(open = true, gateIds = null) {
+        this.ventilationOpen = Boolean(open);
+
+        const requestedGateIds = Array.isArray(gateIds)
+            ? gateIds.map(gateId => String(gateId || '').trim()).filter(Boolean)
+            : null;
+
+        if (requestedGateIds && requestedGateIds.length > 0) {
+            requestedGateIds.forEach(gateId => {
+                this.setVentilationGateOpen(gateId, this.ventilationOpen);
+            });
+        } else {
+            this.ventilationGateColliders.forEach((collider, grate) => {
+                const gateId = grate.userData?.ventilationGateId;
+                if (gateId) this.setVentilationGateOpen(gateId, this.ventilationOpen);
+            });
+        }
 
         return this.ventilationOpen;
     }
 
     isVentilationOpen() {
         return this.ventilationOpen;
+    }
+
+    addGenericSpawner(id, position, options = {}) {
+        const spawnerId = String(id || '').trim();
+        if (!spawnerId || !position) return null;
+
+        const existingSpawner = this.genericSpawners.find(spawner => spawner.id === spawnerId);
+        if (existingSpawner) return existingSpawner;
+
+        const spawner = {
+            id: spawnerId,
+            position: position.clone ? position.clone() : new THREE.Vector3(
+                Number(position.x) || 0,
+                Number(position.y) || 1,
+                Number(position.z) || 0
+            ),
+            rotation: Number(options.rotation) || 0,
+            encounter: options.encounter || null
+        };
+
+        this.genericSpawners.push(spawner);
+        this.createEnemySpawnerDebugBounds();
+        return spawner;
     }
 
     setCollisionDebugVisible(visible) {
@@ -1460,6 +1714,11 @@ export class World {
 
                 if (type === "hormiguero_set") {
                     this.createHormigueroSet(model);
+                    continue;
+                }
+
+                if (type === "hormiguero_secret_room") {
+                    this.createHormigueroSecretRoom(model);
                     continue;
                 }
 
@@ -2233,6 +2492,20 @@ export class World {
         const propScale = Number(model.scale) || 1;
         const isVentilationGate = this.currentMapName === 'mapa2' &&
             model.ventilationGate === true;
+        const ventilationGateId = isVentilationGate
+            ? String(model.ventilationGateId || model.id || 'ventilation-gate')
+            : null;
+        const configuredInitialOpen = model.ventilationInitialOpen === true ||
+            model.initialOpen === true;
+        const initialOpen = isVentilationGate
+            ? (this.ventilationGateStates.has(ventilationGateId)
+                ? this.ventilationGateStates.get(ventilationGateId)
+                : configuredInitialOpen)
+            : true;
+
+        if (isVentilationGate) {
+            this.ventilationGateStates.set(ventilationGateId, initialOpen);
+        }
 
         const steelDark = this.createTexturedStandardMaterial(
             0xffffff,
@@ -2289,7 +2562,7 @@ export class World {
         const hinge = new THREE.Group();
         hinge.name = 'grate-cover-hinge';
         hinge.position.set(0, 3.1, 0);
-        hinge.rotation.x = isVentilationGate && !this.ventilationOpen ? 0 : -1.2;
+        hinge.rotation.x = initialOpen ? -1.2 : 0;
         group.add(hinge);
         for (let i = 0; i < 6; i++) {
             const bx = -3.75 + i * 1.5;
@@ -2332,7 +2605,9 @@ export class World {
             type: 'staticModel',
             propType: 'vent-grate',
             ventilationGate: isVentilationGate,
-            ventilationOpen: isVentilationGate ? this.ventilationOpen : true,
+            ventilationGateId,
+            ventilationStage: model.ventilationStage || null,
+            ventilationOpen: initialOpen,
             ventilationCover: hinge,
             bulletImpact: model.bulletImpact !== false,
             isStatic: true
@@ -2342,13 +2617,14 @@ export class World {
         group.updateMatrixWorld(true);
         this.decorativeMeshes.push(group);
 
-        if (isVentilationGate && !this.ventilationOpen) {
+        if (isVentilationGate) {
             const collider = new THREE.Object3D();
             collider.name = `${group.name}-closed-collider`;
             collider.userData = {
                 type: 'ventilationGate',
+                ventilationGateId,
                 isStatic: true,
-                isOpen: false,
+                isOpen: initialOpen,
                 bulletImpact: false,
                 bulletImpactFallback: false,
                 simpleBoxCollider: true,
@@ -2361,8 +2637,10 @@ export class World {
                 ).applyMatrix4(group.matrixWorld)
             };
 
-            this.scene.add(collider);
-            this.walls.push(collider);
+            if (!initialOpen) {
+                this.scene.add(collider);
+                this.walls.push(collider);
+            }
             this.ventilationGateColliders.set(group, collider);
         }
 
@@ -2477,6 +2755,22 @@ export class World {
     createHormigueroProp(model = {}) {
         const group = new THREE.Group();
         const variant = String(model.variant || model.prop || '').toLowerCase();
+        const isVentilationGate = this.currentMapName === 'mapa2' &&
+            model.ventilationGate === true;
+        const ventilationGateId = isVentilationGate
+            ? String(model.ventilationGateId || model.id || 'ventilation-gate')
+            : null;
+        const configuredInitialOpen = model.ventilationInitialOpen === true ||
+            model.initialOpen === true;
+        const initialOpen = isVentilationGate
+            ? (this.ventilationGateStates.has(ventilationGateId)
+                ? this.ventilationGateStates.get(ventilationGateId)
+                : configuredInitialOpen)
+            : true;
+
+        if (isVentilationGate) {
+            this.ventilationGateStates.set(ventilationGateId, initialOpen);
+        }
 
         const makeMaterial = (color, options = {}) => {
             const {
@@ -2656,6 +2950,8 @@ export class World {
         };
 
         const colliderBoxes = [];
+        let ventilationGateCover = null;
+        let ventilationGateLocalBox = null;
         const addColliderBox = (width, height, depth, x = 0, y = height / 2, z = 0) => {
             colliderBoxes.push(new THREE.Box3(
                 new THREE.Vector3(x - width / 2, y - height / 2, z - depth / 2),
@@ -2804,6 +3100,35 @@ export class World {
                 addBox('vent-corner-wall-x', width, ceilingY, wallThickness, 0, ceilingY / 2, -(width / 2 - wallThickness / 2), steel);
                 addBox('vent-corner-seam-x', width - 0.4, 0.15, 0.18, 0, ceilingY - 0.38, -(width / 2 - 0.32), steelLight);
             }
+
+            // La unión de almacenamiento tiene una cara norte abierta que
+            // funciona como salida del conducto hacia el almacén. En mapa2
+            // puede cerrarse durante el encuentro de la sala.
+            if (isVentilationGate && opensNegativeZ) {
+                ventilationGateCover = addBox(
+                    'vent-corner-closed-cover',
+                    width,
+                    ceilingY,
+                    wallThickness,
+                    0,
+                    ceilingY / 2,
+                    -(width / 2 - wallThickness / 2),
+                    steelDark
+                );
+                ventilationGateCover.visible = !initialOpen;
+                ventilationGateLocalBox = new THREE.Box3(
+                    new THREE.Vector3(
+                        -width / 2,
+                        0,
+                        -width / 2 - wallThickness / 2
+                    ),
+                    new THREE.Vector3(
+                        width / 2,
+                        ceilingY,
+                        -width / 2 + wallThickness / 2
+                    )
+                );
+            }
             addBox('vent-corner-wall-z', wallThickness, ceilingY, width, -(width / 2 - wallThickness / 2), ceilingY / 2, 0, steel);
             addBox('vent-corner-seam-z', 0.18, 0.15, width - 0.4, -(width / 2 - 0.32), ceilingY - 0.38, 0, steelLight);
             addBox('vent-corner-light', 1.7, 0.12, 1.15, width * 0.18, ceilingY - 0.06, width * 0.18, honeyLight);
@@ -2928,6 +3253,12 @@ export class World {
             id: model.id || `hormiguero-prop-${variant}`,
             type: 'staticModel',
             propType: `hormiguero-${variant}`,
+            ventilationGate: isVentilationGate,
+            ventilationGateId,
+            ventilationStage: model.ventilationStage || null,
+            ventilationOpen: initialOpen,
+            ventilationCover: ventilationGateCover,
+            ventilationCoverMode: ventilationGateCover ? 'visibility' : null,
             bulletImpact: model.bulletImpact !== false,
             bulletImpactFallback: model.collision !== false,
             isStatic: true
@@ -2952,6 +3283,27 @@ export class World {
                 group.add(collider);
                 this.walls.push(collider);
             });
+        }
+
+        if (isVentilationGate && ventilationGateLocalBox) {
+            const collider = new THREE.Object3D();
+            collider.name = `${group.name || variant}-closed-collider`;
+            collider.userData = {
+                type: 'ventilationGate',
+                ventilationGateId,
+                isStatic: true,
+                isOpen: initialOpen,
+                bulletImpact: false,
+                bulletImpactFallback: false,
+                simpleBoxCollider: true,
+                boundingBox: ventilationGateLocalBox.clone().applyMatrix4(group.matrixWorld)
+            };
+
+            if (!initialOpen) {
+                this.scene.add(collider);
+                this.walls.push(collider);
+            }
+            this.ventilationGateColliders.set(group, collider);
         }
 
         if (!hasCollision || model.decorative === true) {
@@ -3680,6 +4032,7 @@ export class World {
         this.spawnerHelpers.clear();
         this.ventilationGateColliders.forEach(collider => this.scene.remove(collider));
         this.ventilationGateColliders.clear();
+        this.ventilationGateStates.clear();
 
         this.walls = [];
         this.doorMeshes = [];

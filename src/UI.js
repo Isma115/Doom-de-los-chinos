@@ -101,14 +101,11 @@ export class UIManager {
         this.showScreenFlash('heal-flash-overlay', 'healFlashTimeout');
     }
 
-    static updateScore(score) {
-        let el = document.getElementById('score-display');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'score-display';
-            document.getElementById('ui-layer').appendChild(el);
-        }
-        el.innerText = "Enemigos: " + score;
+    // El marcador interno sigue disponible para la lógica del juego, pero
+    // no se muestra ningún contador de enemigos en pantalla.
+    static updateScore() {
+        // Se conserva el método para que las llamadas existentes no alteren
+        // la lógica de puntuación ni creen elementos en el HUD.
     }
 
     static updateWeapon(name, ammo) {
@@ -148,7 +145,23 @@ export class UIManager {
     // #endregion
 
     // #region Mensajes y Eventos UIManager
+    static hideEventMessage() {
+        const msgEl = document.getElementById('event-message');
+        if (this.currentMsgTimeout) {
+            clearTimeout(this.currentMsgTimeout);
+            this.currentMsgTimeout = null;
+        }
+        if (msgEl) msgEl.style.opacity = '0';
+    }
+
     static showEventMessage(text, duration = 3000) {
+        // El Hormiguero no muestra textos emergentes; se mantiene el HUD
+        // jugable, pero se silencian mensajes de oleadas, armas y eventos.
+        if (this.currentMapName === 'mapa2') {
+            this.hideEventMessage();
+            return;
+        }
+
         let msgEl = document.getElementById('event-message');
         if (!msgEl) {
             msgEl = document.createElement('div');
@@ -167,6 +180,11 @@ export class UIManager {
     }
 
     static showCountdown(seconds) {
+        if (this.currentMapName === 'mapa2') {
+            this.hideCountdown();
+            return;
+        }
+
         let countdownEl = document.getElementById('wave-countdown');
         if (!countdownEl) {
             countdownEl = document.createElement('div');
@@ -193,6 +211,9 @@ export class UIManager {
     }
 
     static showLoadingScreen(mapName = 'default') {
+        this.currentMapName = mapName;
+        this.hideEventMessage();
+
         const screen = document.getElementById('loading-screen');
         if (!screen) return;
 
@@ -666,7 +687,6 @@ export class DebugPanel {
                 <div class="debug-info">
                     <p><strong>Posición:</strong> <span id="debug-pos-info">X: 0, Y: 0, Z: 0</span></p>
                     <p><strong>Salud:</strong> <span id="debug-health-info">${CONFIG.PLAYER_MAX_HEALTH}</span></p>
-                    <p><strong>Enemigos vivos:</strong> <span id="debug-enemies-info">0</span></p>
                 </div>
             </div>
         `;
@@ -938,9 +958,6 @@ export class DebugPanel {
 
         document.getElementById('debug-health-info').textContent =
             Math.floor(this.player.health);
-
-        document.getElementById('debug-enemies-info').textContent =
-            this.player.enemyManager.enemies.length;
 
         this.updatePerformanceInfo();
     }

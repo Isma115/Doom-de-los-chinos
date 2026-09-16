@@ -14,7 +14,7 @@ npm run editor:preview  # previsualizar la build (puerto 4174)
 ```
 
 En desarrollo, Electron levanta el editor en `http://127.0.0.1:5174/` y también
-el servidor del juego en `http://127.0.0.1:5173/` para que **Probar en juego**
+el servidor del juego en `http://127.0.0.1:5175/` para que **Probar en juego**
 funcione desde la misma sesión. El juego por separado sigue arrancándose con
 `npm run dev`.
 

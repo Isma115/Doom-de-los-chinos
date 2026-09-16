@@ -18,6 +18,30 @@ const HUMAN_NPC_TYPE_IDS = [
 ];
 const HUMAN_NPC_TYPE_SET = new Set(HUMAN_NPC_TYPE_IDS);
 
+// El encuentro de El Hormiguero se divide en dos zonas. S1-S3 son los
+// spawners del patio; S4 se crea al entrar en el almacén de la captura.
+const HORMIGUERO_PATIO_SPAWNER_IDS = new Set(['S1', 'S2', 'S3']);
+const HORMIGUERO_ROOM_SPAWNER_ID = 'S4';
+const HORMIGUERO_PATIO_GATE_IDS = ['patio-entry', 'studio-nook'];
+const HORMIGUERO_ROOM_GATE_IDS = ['secret-room-entry'];
+const HORMIGUERO_ROOM_BOUNDS = Object.freeze({
+    minX: 55,
+    maxX: 115,
+    minZ: -64,
+    maxZ: -20
+});
+const HORMIGUERO_ROOM_SPAWNER_POSITION = Object.freeze({
+    x: 75,
+    y: 1,
+    z: -45
+});
+const HORMIGUERO_ROOM_ENEMIES = Object.freeze([
+    { type: 'street_npc', count: 5 },
+    { type: 'street_npc_female', count: 5 },
+    { type: 'street_npc_phone', count: 5 },
+    { type: 'old_man', count: 5 }
+]);
+
 export class WaveEvent {
     constructor(enemyManager, world, audioManager = null, player = null) {
         this.disposed = false;
@@ -33,6 +57,11 @@ export class WaveEvent {
         this.hormigueroTarget = 30;
         this.hormigueroSpawnTarget = 50;
         this.ventilationOpen = false;
+        this.hormigueroStage = this.isHormigueroPatio ? 'patio' : null;
+        this.hormigueroRoomEntered = false;
+        this.hormigueroRoomDefeated = 0;
+        this.hormigueroRoomTarget = 20;
+        this.hormigueroRoomSpawner = null;
 
         this.enemyManager.setEnemyDefeatedCallback?.(enemy => {
             this.handleEnemyDefeated(enemy);
@@ -251,6 +280,10 @@ export class WaveEvent {
             return;
         }
 
+        if (this.isHormigueroPatio && this.hormigueroStage !== 'patio') {
+            return;
+        }
+
         this.waveActive = true;
         this.enemiesSpawned = 0;
         this.enemySpawnQueue = [];
@@ -399,7 +432,9 @@ export class WaveEvent {
 
                 this.enemySpawnQueue.push({
                     enemyType,
-                    spawnPosition: spawnPos
+                    spawnPosition: spawnPos,
+                    spawnerId: spawner.id,
+                    encounter: this.isHormigueroPatio ? 'patio' : null
                 });
             }
         });
@@ -459,10 +494,18 @@ export class WaveEvent {
         const spawnedEnemy = this.enemyManager.spawn(
             performance.now(),
             nextEnemy.enemyType,
-            nextEnemy.spawnPosition
+            nextEnemy.spawnPosition || this.hormigueroRoomSpawner?.position || null
         );
 
         if (!spawnedEnemy) {
+            // La ronda de la sala debe producir exactamente 20 enemigos. Si
+            // el spawner está ocupado en este frame, reintentamos la entrada
+            // en lugar de perderla silenciosamente.
+            if (nextEnemy.encounter === 'room') {
+                this.timeSinceLastEnemySpawn = 0;
+                return;
+            }
+
             this.enemySpawnQueue.shift();
             this.timeSinceLastEnemySpawn = 0;
             return;
@@ -470,22 +513,39 @@ export class WaveEvent {
 
         this.enemySpawnQueue.shift();
         this.enemiesSpawned++;
-        spawnedEnemy.userData.isHormigueroPatioEnemy = this.isHormigueroPatio;
+        spawnedEnemy.userData.spawnSourceId = nextEnemy.spawnerId || null;
+        spawnedEnemy.userData.hormigueroEncounter = nextEnemy.encounter || null;
+        spawnedEnemy.userData.isHormigueroPatioEnemy =
+            nextEnemy.encounter === 'patio' &&
+            HORMIGUERO_PATIO_SPAWNER_IDS.has(nextEnemy.spawnerId);
         this.timeSinceLastEnemySpawn = 0;
     }
 
     handleEnemyDefeated(enemy) {
-        if (
-            !this.isHormigueroPatio ||
-            this.ventilationOpen ||
-            !enemy?.userData?.isHormigueroPatioEnemy
-        ) {
+        if (!this.isHormigueroPatio || !enemy?.userData) {
             return;
         }
 
-        this.hormigueroDefeated++;
-        if (this.hormigueroDefeated >= this.hormigueroTarget) {
-            this.openVentilation();
+        if (
+            this.hormigueroStage === 'patio' &&
+            enemy.userData.hormigueroEncounter === 'patio' &&
+            enemy.userData.isHormigueroPatioEnemy
+        ) {
+            this.hormigueroDefeated++;
+            if (this.hormigueroDefeated >= this.hormigueroTarget) {
+                this.openVentilation();
+            }
+            return;
+        }
+
+        if (
+            this.hormigueroStage === 'room' &&
+            enemy.userData.hormigueroEncounter === 'room'
+        ) {
+            this.hormigueroRoomDefeated++;
+            if (this.hormigueroRoomDefeated >= this.hormigueroRoomTarget) {
+                this.openRoomVentilation();
+            }
         }
     }
 
@@ -496,14 +556,116 @@ export class WaveEvent {
         this.waveActive = false;
         this.enemySpawnQueue = [];
         this.cancelPendingWaveTransitions();
-        this.world?.setVentilationOpen?.(true);
-        UIManager.showEventMessage('Ventilación abierta', 6000);
+        this.world?.setVentilationOpen?.(true, HORMIGUERO_PATIO_GATE_IDS);
+        UIManager.showEventMessage(
+            'Ventilación del patio abierta — VE A LA NUEVA SALA',
+            6000
+        );
 
         if (this.audioManager) {
             this.audioManager.stopMusic();
         }
 
         console.log(`Ventilación abierta tras derrotar ${this.hormigueroDefeated} enemigos`);
+    }
+
+    isPlayerInHormigueroRoom(playerPosition) {
+        if (!playerPosition) return false;
+
+        return playerPosition.x >= HORMIGUERO_ROOM_BOUNDS.minX &&
+            playerPosition.x <= HORMIGUERO_ROOM_BOUNDS.maxX &&
+            playerPosition.z >= HORMIGUERO_ROOM_BOUNDS.minZ &&
+            playerPosition.z <= HORMIGUERO_ROOM_BOUNDS.maxZ;
+    }
+
+    enterHormigueroRoom(playerPosition) {
+        if (
+            !this.isHormigueroPatio ||
+            !this.ventilationOpen ||
+            this.hormigueroStage !== 'patio' ||
+            !this.isPlayerInHormigueroRoom(playerPosition)
+        ) {
+            return false;
+        }
+
+        this.hormigueroStage = 'room';
+        this.hormigueroRoomEntered = true;
+        this.hormigueroRoomDefeated = 0;
+        this.waveActive = true;
+        this.enemiesSpawned = 0;
+        this.timeSinceLastEnemySpawn = this.enemySpawnInterval;
+
+        // Los que sigan vivos solo pueden proceder de S1, S2 o S3. Se
+        // eliminan por origen, sin tocar enemigos de otros encuentros.
+        const removedPatioEnemies = this.enemyManager
+            ?.removeEnemiesBySpawnerIds?.([...HORMIGUERO_PATIO_SPAWNER_IDS]) || 0;
+
+        this.enemySpawnQueue = [];
+        const roomSpawnerPosition = new THREE.Vector3(
+            HORMIGUERO_ROOM_SPAWNER_POSITION.x,
+            HORMIGUERO_ROOM_SPAWNER_POSITION.y,
+            HORMIGUERO_ROOM_SPAWNER_POSITION.z
+        );
+        this.hormigueroRoomSpawner = this.world?.addGenericSpawner?.(
+            HORMIGUERO_ROOM_SPAWNER_ID,
+            roomSpawnerPosition,
+            { encounter: 'room' }
+        ) || {
+            id: HORMIGUERO_ROOM_SPAWNER_ID,
+            position: roomSpawnerPosition,
+            encounter: 'room'
+        };
+
+        // Esta cola no aplica spawnChance: el objetivo del encuentro son
+        // exactamente 20 bajas, no hasta 20 intentos de aparición.
+        HORMIGUERO_ROOM_ENEMIES.forEach(roomEnemy => {
+            const enemyType = ENEMY_TYPES.find(type => type.id === roomEnemy.type);
+            if (!enemyType) {
+                console.warn(`Tipo de enemigo de sala no encontrado: ${roomEnemy.type}`);
+                return;
+            }
+
+            for (let i = 0; i < roomEnemy.count; i++) {
+                this.enemySpawnQueue.push({
+                    enemyType,
+                    spawnPosition: this.hormigueroRoomSpawner.position.clone(),
+                    spawnerId: HORMIGUERO_ROOM_SPAWNER_ID,
+                    encounter: 'room'
+                });
+            }
+        });
+
+        // Las compuertas del conducto que comunican el almacén con el plató
+        // se cierran solo después de que el jugador haya cruzado al almacén
+        // y permanecen bloqueadas hasta completar las 20 bajas de esta sala.
+        HORMIGUERO_ROOM_GATE_IDS.forEach(gateId => {
+            this.world?.setVentilationGateOpen?.(gateId, false);
+        });
+
+        UIManager.showEventMessage(
+            `SALA ASEGURADA — DERROTA ${this.hormigueroRoomTarget} ENEMIGOS`,
+            6000
+        );
+        console.log(
+            `Entrada en la sala: ${removedPatioEnemies} enemigos restantes del patio eliminados; ` +
+            `${this.enemySpawnQueue.length} enemigos preparados en ${HORMIGUERO_ROOM_SPAWNER_ID}`
+        );
+        return true;
+    }
+
+    openRoomVentilation() {
+        if (this.hormigueroStage !== 'room') return;
+
+        this.hormigueroStage = 'complete';
+        this.waveActive = false;
+        this.enemySpawnQueue = [];
+        HORMIGUERO_ROOM_GATE_IDS.forEach(gateId => {
+            this.world?.setVentilationGateOpen?.(gateId, true);
+        });
+        UIManager.showEventMessage('SALA DESPEJADA — ACCESO A LA HABITACIÓN SECRETA ABIERTO', 6000);
+        console.log(
+            `Acceso a la habitación secreta abierto tras derrotar ${this.hormigueroRoomDefeated} enemigos de la sala`
+        );
     }
 
     /**
@@ -658,6 +820,10 @@ export class WaveEvent {
         if (this.disposed) return;
         this.updateEnemySpawning(delta);
         this.checkWaveCompletion(playerPosition);
+
+        if (this.isHormigueroPatio) {
+            this.enterHormigueroRoom(playerPosition);
+        }
 
         this.timeSinceLastAmmoSpawn += delta;
         this.timeSinceLastFoodSpawn += delta;

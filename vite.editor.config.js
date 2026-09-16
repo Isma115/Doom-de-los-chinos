@@ -11,7 +11,7 @@ import { createReadStream, existsSync, statSync } from 'fs';
 //   npm run editor:build    → build en dist-editor/
 //   npm run editor:preview  → previsualizar la build
 //
-// El juego corre por defecto en http://127.0.0.1:5173/ (npm run dev).
+// El juego corre por defecto en http://127.0.0.1:5175/ (npm run dev).
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const editorRoot = resolve(rootDir, 'editor');

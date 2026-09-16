@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const rootDir = path.join(__dirname, '..');
 const isEditorMode = process.argv.includes('--editor') || process.env.DOOM3D_EDITOR === '1';
-const gameDevUrl = 'http://127.0.0.1:5173/';
+const gameDevUrl = 'http://127.0.0.1:5175/';
 const editorDevUrl = 'http://127.0.0.1:5174/';
 const viteProcesses = new Map();
 
@@ -172,7 +172,7 @@ function waitForServer(url, timeoutMs = 15000) {
 function startVite(kind) {
     const config = kind === 'editor'
         ? { script: 'editor:web', port: 5174 }
-        : { script: 'dev', port: 5173 };
+        : { script: 'dev', port: 5175 };
     const existingProcess = viteProcesses.get(kind);
     if (existingProcess && !existingProcess.killed) {
         return;

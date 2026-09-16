@@ -172,6 +172,38 @@ export class EnemyManager {
         this.enemyDefeatedCallback = typeof callback === 'function' ? callback : null;
     }
 
+    removeEnemiesBySpawnerIds(spawnerIds = []) {
+        const ids = new Set(
+            (Array.isArray(spawnerIds) ? spawnerIds : [spawnerIds])
+                .map(id => String(id || '').trim())
+                .filter(Boolean)
+        );
+        if (ids.size === 0) return 0;
+
+        const enemiesToRemove = this.enemies.filter(enemy =>
+            ids.has(enemy?.userData?.spawnSourceId)
+        );
+        const removedEnemies = new Set(enemiesToRemove);
+
+        enemiesToRemove.forEach(enemy => {
+            // La limpieza administrativa no cuenta como una baja del jugador
+            // ni vuelve a disparar el callback de eventos.
+            this.finalizeEnemyRemoval(enemy);
+        });
+
+        // Quitar también los proyectiles que ya estaban en vuelo de esos
+        // enemigos evita que el patio siga dañando al jugador desde fuera.
+        if (removedEnemies.size > 0 && Array.isArray(this.projectiles)) {
+            this.projectiles = this.projectiles.filter(projectile => {
+                if (!removedEnemies.has(projectile?.userData?.owner)) return true;
+                if (projectile?.parent) projectile.parent.remove(projectile);
+                return false;
+            });
+        }
+
+        return enemiesToRemove.length;
+    }
+
     getHitBloodSpritePaths(bloodType = 'red') {
         return bloodType === 'white'
             ? ['assets/textures/white_blood_splash.png']
@@ -2545,7 +2577,8 @@ export class EnemyManager {
         projectile.userData = {
             velocity: direction.multiplyScalar(enemy.userData.projectileSpeed),
             damage: enemy.userData.damage,
-            radius: size
+            radius: size,
+            owner: enemy
         };
         this.scene.add(projectile);
         this.projectiles.push(projectile);
