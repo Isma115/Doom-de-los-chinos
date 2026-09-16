@@ -122,10 +122,11 @@ export class BloodDecalManager {
     // Descripción: Genera una explosión masiva de sangre al morir un enemigo.
     spawnBloodExplosion(position, bloodType = 'red') {
         // La muerte deja una huella amplia con pocas manchas grandes.
-        const floorDecalCount = 12 + Math.floor(Math.random() * 7);
+        const centralDecalCount = 1 + Math.floor(Math.random() * 2);
+        const floorDecalCount = 2 + Math.floor(Math.random() * 2);
 
         // Crear decals centrales (grandes)
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < centralDecalCount; i++) {
             const randomOffset = new THREE.Vector3(
                 (Math.random() - 0.5) * 2.0,
                 0,
@@ -150,8 +151,8 @@ export class BloodDecalManager {
             this.createFloorDecal(decalPos, bloodType);
         }
 
-        // Las paredes conservan su propio abanico de salpicaduras.
-        const wallDecalCount = 45 + Math.floor(Math.random() * 26);
+        // Las paredes conservan algunas salpicaduras, sin llenar la escena.
+        const wallDecalCount = 6 + Math.floor(Math.random() * 4);
         for (let i = 0; i < wallDecalCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const distance = 1.0 + Math.random() * 9.0;
@@ -161,7 +162,7 @@ export class BloodDecalManager {
                 Math.sin(angle) * distance
             ));
 
-            if (Math.random() > 0.15) { // 85% probabilidad
+            if (Math.random() > 0.35) { // 65% probabilidad
                 this.createWallDecal(decalPos, bloodType);
             }
         }
@@ -253,11 +254,10 @@ export class BloodDecalManager {
     // #region Creación de Decal Individual BloodDecalManager
     // Descripción: Crea un mesh de plano con textura de sangre orientado según la superficie.
     createDecal(position, normal, texture, type) {
-        // Las manchas del suelo son más visibles, manteniendo las salpicaduras
-        // de pared con su tamaño actual.
+        // Menos decals, pero con una silueta mucho más grande y legible.
         const baseSize = type === 'floor'
-            ? (0.35 + Math.random() * 0.75) * 3.0
-            : 0.3 + Math.random() * 0.65;
+            ? (0.35 + Math.random() * 0.75) * 5.5
+            : (0.65 + Math.random() * 0.75) * 1.8;
         const width = baseSize * (0.65 + Math.random() * 0.6);
         const height = baseSize * (0.65 + Math.random() * 0.6);
 

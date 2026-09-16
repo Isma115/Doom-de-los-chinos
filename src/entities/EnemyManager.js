@@ -1055,8 +1055,8 @@ export class EnemyManager {
         const explosionCenter = enemy.position.clone();
         explosionCenter.y += 1.0; // Centro del cuerpo
 
-        // 1. Crear múltiples sprites de sangre (10-16) con tamaños y formas variadas.
-        const spriteCount = 10 + Math.floor(Math.random() * 7);
+        // 1. Crear pocos sprites de sangre (4-7), pero mucho más grandes.
+        const spriteCount = 4 + Math.floor(Math.random() * 4);
 
         // Cargar todas las texturas una sola vez
         const textureLoader = new THREE.TextureLoader();
@@ -1091,8 +1091,8 @@ export class EnemyManager {
             );
             bloodSplash.position.copy(explosionCenter).add(randomOffset);
 
-            // Tamaño reducido y ligeramente deformado para que no parezcan clones.
-            const scale = 0.8 + Math.random() * 1.4;
+            // Tamaño grande y ligeramente deformado para que no parezcan clones.
+            const scale = 1.6 + Math.random() * 1.8;
             bloodSplash.scale.set(
                 scale * (0.75 + Math.random() * 0.45),
                 scale * (0.75 + Math.random() * 0.45),
@@ -1140,7 +1140,7 @@ export class EnemyManager {
         }
 
         // 2. Explosión adicional de partículas geométricas
-        const particleCount = 75 + Math.floor(Math.random() * 36);
+        const particleCount = 32 + Math.floor(Math.random() * 17);
         const particles = [];
 
         for (let i = 0; i < particleCount; i++) {
@@ -1171,7 +1171,7 @@ export class EnemyManager {
 
             // Escala no uniforme para resaltar las siluetas de las cuatro
             // variantes y darles un aspecto más orgánico al girar.
-            const s = 0.25 + Math.random() * 0.75;
+            const s = 0.65 + Math.random() * 0.75;
             particle.scale.set(
                 s * (0.75 + Math.random() * 0.45),
                 s * (0.75 + Math.random() * 0.65),
@@ -1208,7 +1208,7 @@ export class EnemyManager {
         const sprite = new THREE.Sprite(material);
         sprite.position.copy(position);
 
-        const initialScale = 0.6 + Math.random() * 0.6;
+        const initialScale = 1.1 + Math.random() * 0.8;
         sprite.scale.setScalar(initialScale);
         this.scene.add(sprite);
         this.goreSprites.push({
@@ -1240,11 +1240,11 @@ export class EnemyManager {
             texture.needsUpdate = true;
         });
 
-        // Generar 18-30 proyectiles de sangre para formar varias ráfagas.
-        const projectileCount = 18 + Math.floor(Math.random() * 13);
+        // Generar solo 5-8 proyectiles: cada impacto deja una mancha grande.
+        const projectileCount = 5 + Math.floor(Math.random() * 4);
 
         // Número de ráfagas (direcciones principales de la explosión)
-        const streakCount = 3 + Math.floor(Math.random() * 4); // 3 a 6 ráfagas
+        const streakCount = 2 + Math.floor(Math.random() * 2); // 2 a 3 ráfagas
 
         for (let s = 0; s < streakCount; s++) {
             // Ángulo base para esta ráfaga
@@ -1268,8 +1268,8 @@ export class EnemyManager {
 
                 const projectile = new THREE.Sprite(spriteMaterial);
 
-                // Tamaño variado
-                const scale = 0.16 + Math.random() * 0.24;
+                // Gotas grandes para acompañar las pocas manchas del suelo.
+                const scale = 0.30 + Math.random() * 0.30;
                 projectile.scale.set(scale, scale, scale);
 
                 projectile.position.copy(spawnCenter);

@@ -16,7 +16,11 @@ const HUMAN_NPC_TYPE_IDS = [
     'old_woman',
     'old_woman_flag'
 ];
-const HUMAN_NPC_TYPE_SET = new Set(HUMAN_NPC_TYPE_IDS);
+const HUMAN_NPC_TYPE_SET = new Set([
+    ...HUMAN_NPC_TYPE_IDS,
+    // El patio también usa esta variante, sin alterar el roster de Parque.
+    'curly_black_tshirt_man'
+]);
 
 // El encuentro de El Hormiguero se divide en dos zonas. S1-S3 son los
 // spawners del patio; S4 se crea al entrar en el almacén de la captura.
@@ -41,6 +45,38 @@ const HORMIGUERO_ROOM_ENEMIES = Object.freeze([
     { type: 'street_npc_phone', count: 5 },
     { type: 'old_man', count: 5 }
 ]);
+const HORMIGUERO_PATIO_SPAWN_TARGET = 40;
+
+// La cola del patio está ordenada por amenaza: primero los NPC débiles y
+// después los enemigos que aportan más vida, velocidad o daño. Se incluyen
+// todas las variantes jugables que tienen recursos visuales en el proyecto.
+const HORMIGUERO_PATIO_ENEMIES = Object.freeze([
+    // NPC débiles: aparecen primero y dan al jugador una fase de entrada.
+    { type: 'street_npc', count: 4 },
+    { type: 'street_npc_female', count: 4 },
+    { type: 'street_npc_phone', count: 4 },
+    { type: 'old_man', count: 1 },
+    { type: 'black_hat_man', count: 1 },
+    { type: 'curly_black_tshirt_man', count: 1 },
+    { type: 'young_man', count: 1 },
+    { type: 'middle_aged_man', count: 1 },
+    { type: 'black_dress_woman', count: 1 },
+    { type: 'blonde_black_dress_woman', count: 1 },
+    { type: 'floral_dress_woman', count: 1 },
+    { type: 'old_woman', count: 1 },
+    { type: 'old_woman_flag', count: 1 },
+
+    // Enemigos de dificultad creciente: cuerpo a cuerpo, rápidos y tiradores.
+    { type: 'pablo', count: 2 },
+    { type: 'pera', count: 2 },
+    { type: 'charo', count: 2 },
+    { type: 'charo2', count: 2 },
+    { type: 'patica', count: 2 },
+    { type: 'trancas_barrancas', count: 2 },
+    { type: 'amego', count: 2 },
+    { type: 'alien', count: 2 },
+    { type: 'skeleton_minigun', count: 2 }
+]);
 
 export class WaveEvent {
     constructor(enemyManager, world, audioManager = null, player = null) {
@@ -54,8 +90,10 @@ export class WaveEvent {
         this.foodSpawners = world.getFoodSpawners();
         this.isHormigueroPatio = world.currentMapName === 'mapa2';
         this.hormigueroDefeated = 0;
+        // Mantener el objetivo de progreso del patio separado del número de
+        // enemigos disponibles para que el flujo del mapa no cambie.
         this.hormigueroTarget = 30;
-        this.hormigueroSpawnTarget = 50;
+        this.hormigueroSpawnTarget = HORMIGUERO_PATIO_SPAWN_TARGET;
         this.ventilationOpen = false;
         this.hormigueroStage = this.isHormigueroPatio ? 'patio' : null;
         this.hormigueroRoomEntered = false;
@@ -110,12 +148,7 @@ export class WaveEvent {
             return [
                 {
                     spawners: ['S1', 'S2', 'S3'],
-                    enemies: [
-                        { type: 'street_npc', count: 13 },
-                        { type: 'street_npc_female', count: 13 },
-                        { type: 'street_npc_phone', count: 12 },
-                        { type: 'old_man', count: 12 }
-                    ]
+                    enemies: HORMIGUERO_PATIO_ENEMIES
                 }
             ];
         }
@@ -415,7 +448,10 @@ export class WaveEvent {
                 : 1.0;
 
             for (let i = 0; i < enemyConfig.count; i++) {
-                if (Math.random() >= spawnChance) continue;
+                // En el patio la lista es un encuentro cerrado de 40 enemigos:
+                // las probabilidades globales (por ejemplo, la pera al 5%) no
+                // deben eliminar tipos de la composición solicitada.
+                if (!this.isHormigueroPatio && Math.random() >= spawnChance) continue;
 
                 // Randomly select a spawner from active spawners
                 const spawner = validSpawners[Math.floor(Math.random() * validSpawners.length)];
@@ -675,7 +711,8 @@ export class WaveEvent {
         if (!this.waveActive) return;
 
         // El patio no usa rondas encadenadas: el acceso se desbloquea al
-        // contabilizar 30 bajas, aunque la cola de apariciones ya esté vacía.
+        // contabilizar el objetivo de bajas, aunque la cola contenga 40
+        // enemigos para dar margen al encuentro.
         if (this.isHormigueroPatio) return;
 
         // Check if all enemies are dead

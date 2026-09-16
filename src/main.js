@@ -99,6 +99,7 @@ class Game {
         this.isGameOver = false;
         this.player?.onMouseUp?.();
         this.player?.controls?.unlock?.();
+        this.audioManager?.stopMusic?.();
         UIManager.showLoadingScreen(mapName);
 
         // El portal se usa como cambio de escena: no se conserva ninguna
@@ -116,6 +117,24 @@ class Game {
         } finally {
             this.mapTransitioning = false;
         }
+    }
+
+    tryTransitionThroughExitPortal() {
+        if (this.mapTransitioning || !this.player || !this.world) return false;
+
+        const playerPosition = this.player.getPosition();
+        if (!this.world.tryEnterExitPortal?.(playerPosition)) return false;
+
+        const destinationMap = this.world.getExitPortalDestination?.();
+        if (!destinationMap || destinationMap === this.world.currentMapName) {
+            return false;
+        }
+
+        // loadMap libera el mundo actual de forma síncrona antes de su primer
+        // await. El bucle debe detenerse aquí para no consultar referencias ya
+        // liberadas durante este mismo frame.
+        void this.loadMap(destinationMap);
+        return true;
     }
 
     disposeCurrentMap() {
@@ -309,6 +328,12 @@ class Game {
         //  Actualización de Lógica
         if (this.player && !this.player.isGameOver) {
             this.player.update(delta);
+
+            // Los portales de salida se atraviesan al llegar a ellos; no
+            // requieren una interacción adicional del jugador.
+            if (this.tryTransitionThroughExitPortal()) {
+                return;
+            }
 
             // Actualizar los cohetes después del disparo del jugador para que
             // puedan avanzar, detectar impactos y aplicar el daño de área.

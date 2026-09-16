@@ -4043,6 +4043,15 @@ export class World {
         this.foodMeshes = [];
         Object.values(this.foodTextures).forEach(texture => texture.dispose());
         this.foodTextures = {};
+        const ammoTextures = new Set();
+        this.ammoMeshes.forEach(ammoMesh => {
+            this.scene.remove(ammoMesh);
+
+            const material = ammoMesh?.material;
+            if (material?.map) ammoTextures.add(material.map);
+            material?.dispose?.();
+        });
+        ammoTextures.forEach(texture => texture.dispose());
         this.ammoMeshes = [];
         this.weaponMeshes.forEach(weaponMesh => {
             this.scene.remove(weaponMesh);
