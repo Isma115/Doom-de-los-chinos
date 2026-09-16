@@ -838,3 +838,50 @@ p { font-size: 20px;
     box-shadow: 0 0 20px rgba(100, 100, 255, 0.6);
     transform: scale(1.05);
 }
+
+/* === Modo Construcción === */
+#build-mode-hud {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: none;
+    max-width: min(92vw, 760px);
+    padding: 10px 14px;
+    background: rgba(6, 20, 10, 0.82);
+    border: 1px solid #35d05a;
+    border-radius: 10px;
+    color: #d8ffd8;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    text-align: center;
+    pointer-events: none;
+}
+#build-mode-hud.visible { display: block; }
+#build-mode-hud .build-title {
+    font-weight: bold;
+    font-size: 14px;
+    letter-spacing: 1px;
+    color: #7dff9b;
+    margin-bottom: 4px;
+}
+#build-mode-hud .build-state { margin-bottom: 6px; }
+#build-mode-hud .build-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    justify-content: center;
+    opacity: 0.9;
+}
+#build-mode-hud .build-hints b { color: #fff; }
+#build-mode-hud .build-save {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #b9f5c6;
+}
+/* Cruceta verde martillo mientras se construye */
+body.build-mode-active #crosshair {
+    background: #35d05a;
+    box-shadow: 0 0 8px #35d05a;
+}

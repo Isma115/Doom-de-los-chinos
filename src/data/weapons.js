@@ -105,6 +105,22 @@ export const WEAPONS_DATA = [
         viewRecoilDrop: 0.02,
         viewRecoilDuration: 70,
         isMelee: false
+    },
+    {
+        id: 'constructor',
+        name: "CONSTRUCTOR",
+        damage: 0,
+        delay: 200,
+        ammo: Infinity,
+        maxAmmo: Infinity,
+        shootSound: null,
+        // Sin sprite: es una herramienta, no un arma. WeaponSystem la
+        // oculta y muestra el HUD de construcción en su lugar.
+        sprite: null,
+        flash: null,
+        isMelee: false,
+        isTool: true,
+        isConstruction: true
     }
 ];
 

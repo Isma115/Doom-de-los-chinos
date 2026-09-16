@@ -167,10 +167,16 @@ export class MapLoader {
         let playerRotation = 0;
         let exitPortalSpawn = null;
 
+        // Rejilla cruda de tokens internos (sin paréntesis) para poder
+        // serializar de vuelta a .txt tras editar en modo Construcción.
+        // rawGrid[y][x] = { base, rotation, maxSpawns, spawnRate }
+        const rawGrid = [];
+
         for (let y = 0; y < height; y++) {
             const line = lines[y];
             let x = 0;
             let blockIndex = 0;
+            const gridRow = [];
 
             while (x < line.length) {
 
@@ -195,13 +201,15 @@ export class MapLoader {
                 let rotation = 0;
                 let maxSpawns = 5;
                 let spawnRate = 5000;
+                let hasMaxSpawns = false;
+                let hasSpawnRate = false;
 
                 const fullMatch = rawToken.match(/^(.+?)(?:\[(\d+)\])?(?:\{(\d+)\})?(?:<(\d+)>)?$/);
                 if (fullMatch) {
                     base = fullMatch[1];
                     if (fullMatch[2]) rotation = parseInt(fullMatch[2], 10);
-                    if (fullMatch[3]) maxSpawns = parseInt(fullMatch[3], 10);
-                    if (fullMatch[4]) spawnRate = parseInt(fullMatch[4], 10);
+                    if (fullMatch[3]) { maxSpawns = parseInt(fullMatch[3], 10); hasMaxSpawns = true; }
+                    if (fullMatch[4]) { spawnRate = parseInt(fullMatch[4], 10); hasSpawnRate = true; }
                 }
 
                 const position = this.gridToWorld(
@@ -384,7 +392,10 @@ export class MapLoader {
                         validFloors.push(position);
                         break;
                 }
+
+                gridRow.push({ base, rotation, maxSpawns, spawnRate, hasMaxSpawns, hasSpawnRate });
             }
+            rawGrid.push(gridRow);
         }
 
         if (!playerSpawn) {
@@ -415,6 +426,8 @@ export class MapLoader {
             extraItems,
             width,
             height,
+            worldLayout: { ...worldLayout },
+            rawGrid,
             terrainBounds: {
                 minX: (-worldLayout.width * this.blockSize) / 2 + worldLayout.offsetX * this.blockSize,
                 maxX: (-worldLayout.width * this.blockSize) / 2 + (worldLayout.offsetX + width) * this.blockSize,
@@ -453,8 +466,31 @@ export class MapLoader {
             extraItems: [],
             width: 0,
             height: 0,
+            worldLayout: { width: 0, height: 0, offsetX: 0, offsetY: 0 },
+            rawGrid: [],
             terrainBounds: null,
             blockSize: this.blockSize
         };
+    }
+
+    // Serializa la rejilla editable de vuelta a texto .txt clásico.
+    // cell = { base, rotation, maxSpawns, spawnRate }
+    static serializeGridToTxt(rawGrid) {
+        const tokenFor = (cell) => {
+            if (!cell) return '(.)';
+            const base = cell.base ?? '.';
+            let token = String(base);
+            if (cell.rotation) token += `[${cell.rotation}]`;
+            // maxSpawns/spawnRate solo si venían explícitos en el .txt: los
+            // valores por defecto del parseo no deben ensuciar el fichero.
+            if (cell.hasMaxSpawns && String(base).match(/^(S\d+|[1-7]|A|ALIEN|MINIGUN)$/)) {
+                token += `{${cell.maxSpawns}}`;
+            }
+            if (cell.hasSpawnRate && String(base).match(/^(S\d+|[1-7]|A|ALIEN|MINIGUN)$/)) {
+                token += `<${cell.spawnRate}>`;
+            }
+            return `(${token})`;
+        };
+        return rawGrid.map(row => row.map(tokenFor).join('')).join('\n') + '\n';
     }
 }

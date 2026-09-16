@@ -63,7 +63,11 @@ export class GameLoop {
                 game.world.updateBillboards(game.camera);
             }
 
-            if (game.eventManager) {
+            // Modo Construcción: oleadas y enemigos en pausa para construir
+            // tranquilo (el jugador además lleva god-mode automático).
+            const buildActive = game.player?.constructionMode?.isActive?.() === true;
+
+            if (game.eventManager && !buildActive) {
                 game.eventManager.update(delta, game.player.getPosition());
             }
 
@@ -71,16 +75,18 @@ export class GameLoop {
                 game.world.updateExitPortal(delta, game.camera.position);
             }
 
-            SpawnDirector.updateSpawns(game, time);
+            if (!buildActive) {
+                SpawnDirector.updateSpawns(game, time);
 
-            game.enemyManager.update(
-                delta,
-                game.player.getPosition(),
-                (damage, damageSource) => {
-                    game.player.takeDamage(damage, damageSource);
-                },
-                game.camera
-            );
+                game.enemyManager.update(
+                    delta,
+                    game.player.getPosition(),
+                    (damage, damageSource) => {
+                        game.player.takeDamage(damage, damageSource);
+                    },
+                    game.camera
+                );
+            }
             Door.updateAll(delta, game.player.getPosition());
 
             game.updateFoodItems(delta);

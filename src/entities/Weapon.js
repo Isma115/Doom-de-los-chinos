@@ -15,6 +15,7 @@ import {
     findWeaponIndex as findWeaponIndexFn,
     unlockWeapon as unlockWeaponFn,
     unlockAllWeapons as unlockAllWeaponsFn,
+    selectWeapon as selectWeaponFn,
     addAmmo as addAmmoFn,
     switchWeapon as switchWeaponFn,
     reloadCurrentWeapon as reloadCurrentWeaponFn
@@ -274,6 +275,10 @@ export class WeaponSystem {
         return unlockAllWeaponsFn.call(this, equipLast);
     }
 
+    selectWeapon(weaponId) {
+        return selectWeaponFn.call(this, weaponId);
+    }
+
     shouldLeaveBulletHole(weapon) {
         return shouldLeaveBulletHoleFn.call(this, weapon);
     }
@@ -358,6 +363,24 @@ export class WeaponSystem {
 
         const loader = new THREE.TextureLoader();
         const weapon = this.getCurrentWeapon();
+
+        // Herramienta de construcción: sin sprite visible. Se oculta la
+        // malla y el HUD de construcción informa del estado.
+        if (weapon?.isConstruction || weapon?.isTool) {
+            this.weaponTexture = null;
+            this.weaponFlashTexture = null;
+            if (this.weaponMesh) {
+                this.weaponMesh.visible = false;
+            }
+            UIManager.updateWeapon('🔨 ' + weapon.name, '🔨');
+            if (typeof document !== 'undefined') {
+                document.body?.classList?.add('build-mode-active');
+            }
+            return;
+        }
+        if (typeof document !== 'undefined') {
+            document.body?.classList?.remove('build-mode-active');
+        }
 
         // Cargar sprite solo si existe, si no, usar textura transparente/vacía
         if (weapon.sprite) {
@@ -444,6 +467,10 @@ export class WeaponSystem {
         const weapon = this.getCurrentWeapon();
 
         if (!weapon || !this.isWeaponUnlocked(weapon)) return false;
+
+        // La herramienta de construcción no dispara: los clics los
+        // gestiona ConstructionMode desde Player.
+        if (weapon.isConstruction || weapon.isTool) return false;
 
         // CORRECCIÓN: Aplicar el multiplicador de cadencia de disparo
         const fireRateMultiplier = this.debugState.fireRateMultiplier || 1.0;
@@ -893,6 +920,9 @@ export class WeaponSystem {
     // #region Limpieza WeaponSystem
     // Descripción: Liberación de recursos y geometrías del sistema de armas.
     dispose() {
+        if (typeof document !== 'undefined') {
+            document.body?.classList?.remove('build-mode-active');
+        }
         if (this.weaponFlashTimeout !== null) {
             clearTimeout(this.weaponFlashTimeout);
             this.weaponFlashTimeout = null;

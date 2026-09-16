@@ -77,10 +77,6 @@ export function beginDeath(damageSource = null) {
             this.audioManager.playSound('enemyDeath', 0.5);
         }
 
-        if (this.rayActive) {
-            this.deactivateRay();
-        }
-
         // Liberar el pointer lock sin abrir la pantalla de game over. El
         // bucle principal mantiene la escena viva para mostrar la caída.
         if (this.controls.isLocked) {

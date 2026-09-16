@@ -1,318 +1,318 @@
 [
-    {
-        "type": "square",
-        "id": "park_tree_west",
-        "position": {
-            "x": -35,
-            "y": 5.8,
-            "z": -15
-        },
-        "rotationX": 0,
-        "rotationY": 0,
-        "rotationZ": 0,
-        "width": 8.5,
-        "height": 12.5,
-        "collisionWidth": 1,
-        "collisionHeight": 3,
-        "collisionDepth": 1,
-        "collisionBottom": 0,
-        "texture": "assets/textures/park/park_tree.png",
-        "collision": true,
-        "bulletImpact": true
+  {
+    "type": "square",
+    "id": "park_tree_west",
+    "position": {
+      "x": -35,
+      "y": 5.8,
+      "z": -15
     },
-    {
-        "type": "square",
-        "id": "park_tree_north_west",
-        "position": {
-            "x": -35,
-            "y": 5.8,
-            "z": 35
-        },
-        "rotationX": 0,
-        "rotationY": 10,
-        "rotationZ": 0,
-        "width": 8.5,
-        "height": 12.5,
-        "collisionWidth": 1,
-        "collisionHeight": 3,
-        "collisionDepth": 1,
-        "collisionBottom": 0,
-        "texture": "assets/textures/park/park_tree.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 0,
+    "width": 8.5,
+    "height": 12.5,
+    "collisionWidth": 1,
+    "collisionHeight": 3,
+    "collisionDepth": 1,
+    "collisionBottom": 0,
+    "texture": "assets/textures/park/park_tree.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "square",
+    "id": "park_tree_north_west",
+    "position": {
+      "x": -35,
+      "y": 5.8,
+      "z": 35
     },
-    {
-        "type": "square",
-        "id": "park_tree_north",
-        "position": {
-            "x": -5,
-            "y": 5.8,
-            "z": 35
-        },
-        "rotationX": 0,
-        "rotationY": -8,
-        "rotationZ": 0,
-        "width": 8.5,
-        "height": 12.5,
-        "collisionWidth": 1,
-        "collisionHeight": 3,
-        "collisionDepth": 1,
-        "collisionBottom": 0,
-        "texture": "assets/textures/park/park_tree.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationX": 0,
+    "rotationY": 10,
+    "rotationZ": 0,
+    "width": 8.5,
+    "height": 12.5,
+    "collisionWidth": 1,
+    "collisionHeight": 3,
+    "collisionDepth": 1,
+    "collisionBottom": 0,
+    "texture": "assets/textures/park/park_tree.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "square",
+    "id": "park_tree_north",
+    "position": {
+      "x": -5,
+      "y": 5.8,
+      "z": 35
     },
-    {
-        "type": "square",
-        "id": "park_tree_north_east",
-        "position": {
-            "x": 25,
-            "y": 5.8,
-            "z": 35
-        },
-        "rotationX": 0,
-        "rotationY": 5,
-        "rotationZ": 0,
-        "width": 8.5,
-        "height": 12.5,
-        "collisionWidth": 1,
-        "collisionHeight": 3,
-        "collisionDepth": 1,
-        "collisionBottom": 0,
-        "texture": "assets/textures/park/park_tree.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationX": 0,
+    "rotationY": -8,
+    "rotationZ": 0,
+    "width": 8.5,
+    "height": 12.5,
+    "collisionWidth": 1,
+    "collisionHeight": 3,
+    "collisionDepth": 1,
+    "collisionBottom": 0,
+    "texture": "assets/textures/park/park_tree.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "square",
+    "id": "park_tree_north_east",
+    "position": {
+      "x": 25.389885430322316,
+      "y": 5.8,
+      "z": 34.40517297310597
     },
-    {
-        "type": "square",
-        "id": "park_tree_east",
-        "position": {
-            "x": 45,
-            "y": 5.8,
-            "z": -15
-        },
-        "rotationX": 0,
-        "rotationY": -12,
-        "rotationZ": 0,
-        "width": 8.5,
-        "height": 12.5,
-        "collisionWidth": 1,
-        "collisionHeight": 3,
-        "collisionDepth": 1,
-        "collisionBottom": 0,
-        "texture": "assets/textures/park/park_tree.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationX": 0,
+    "rotationY": -95.33772795841658,
+    "rotationZ": 0,
+    "width": 8.5,
+    "height": 12.5,
+    "collisionWidth": 1,
+    "collisionHeight": 3,
+    "collisionDepth": 1,
+    "collisionBottom": 0,
+    "texture": "assets/textures/park/park_tree.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "square",
+    "id": "park_tree_east",
+    "position": {
+      "x": 45,
+      "y": 5.8,
+      "z": -15
     },
-    {
-        "type": "square",
-        "id": "park_tree_south_west",
-        "position": {
-            "x": -45,
-            "y": 5.8,
-            "z": 25
-        },
-        "rotationX": 0,
-        "rotationY": 6,
-        "rotationZ": 0,
-        "width": 8.5,
-        "height": 12.5,
-        "collisionWidth": 1,
-        "collisionHeight": 3,
-        "collisionDepth": 1,
-        "collisionBottom": 0,
-        "texture": "assets/textures/park/park_tree.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationX": 0,
+    "rotationY": -12,
+    "rotationZ": 0,
+    "width": 8.5,
+    "height": 12.5,
+    "collisionWidth": 1,
+    "collisionHeight": 3,
+    "collisionDepth": 1,
+    "collisionBottom": 0,
+    "texture": "assets/textures/park/park_tree.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "square",
+    "id": "park_tree_south_west",
+    "position": {
+      "x": -45,
+      "y": 5.8,
+      "z": 25
     },
-    {
-        "type": "fountain",
-        "id": "park_fountain",
-        "position": {
-            "x": 5,
-            "y": 0,
-            "z": -5
-        },
-        "rotation": 0,
-        "scale": 1,
-        "width": 7,
-        "height": 3.2,
-        "depth": 7,
-        "collisionWidth": 5.6,
-        "collisionHeight": 2.2,
-        "collisionDepth": 5.6,
-        "collision": true,
-        "bulletImpact": true
+    "rotationX": 0,
+    "rotationY": 6,
+    "rotationZ": 0,
+    "width": 8.5,
+    "height": 12.5,
+    "collisionWidth": 1,
+    "collisionHeight": 3,
+    "collisionDepth": 1,
+    "collisionBottom": 0,
+    "texture": "assets/textures/park/park_tree.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "fountain",
+    "id": "park_fountain",
+    "position": {
+      "x": 5,
+      "y": 0,
+      "z": -5
     },
-    {
-        "type": "obj",
-        "id": "park_bench_west",
-        "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
-        "position": {
-            "x": -15,
-            "y": 0,
-            "z": -15
-        },
-        "scale": 0.6,
-        "rotationX": 0,
-        "rotationY": 90,
-        "rotationZ": 0,
-        "collision": true,
-        "bulletImpact": true
+    "rotation": 0,
+    "scale": 1,
+    "width": 7,
+    "height": 3.2,
+    "depth": 7,
+    "collisionWidth": 5.6,
+    "collisionHeight": 2.2,
+    "collisionDepth": 5.6,
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "obj",
+    "id": "park_bench_west",
+    "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
+    "position": {
+      "x": -15,
+      "y": 0,
+      "z": -15
     },
-    {
-        "type": "obj",
-        "id": "park_bench_east",
-        "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
-        "position": {
-            "x": 15,
-            "y": 0,
-            "z": 5
-        },
-        "scale": 0.6,
-        "rotationX": 0,
-        "rotationY": -90,
-        "rotationZ": 0,
-        "collision": true,
-        "bulletImpact": true
+    "scale": 0.6,
+    "rotationX": 0,
+    "rotationY": 90,
+    "rotationZ": 0,
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "obj",
+    "id": "park_bench_east",
+    "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
+    "position": {
+      "x": 15,
+      "y": 0,
+      "z": 5
     },
-    {
-        "type": "obj",
-        "id": "park_bench_north",
-        "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
-        "position": {
-            "x": 5,
-            "y": 0,
-            "z": 15
-        },
-        "scale": 0.6,
-        "rotationX": 0,
-        "rotationY": 0,
-        "rotationZ": 0,
-        "collision": true,
-        "bulletImpact": true
+    "scale": 0.6,
+    "rotationX": 0,
+    "rotationY": -90,
+    "rotationZ": 0,
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "obj",
+    "id": "park_bench_north",
+    "path": "assets/3D/decoracion/urban/street_bench/street_bench.obj",
+    "position": {
+      "x": 5,
+      "y": 0,
+      "z": 15
     },
-    {
-        "type": "square",
-        "id": "park_picnic_table",
-        "position": {
-            "x": -25,
-            "y": 1.35,
-            "z": 15
-        },
-        "rotationX": 0,
-        "rotationY": 0,
-        "rotationZ": 0,
-        "width": 8,
-        "height": 4.5,
-        "texture": "assets/textures/park/park_picnic_table.png",
-        "collision": true,
-        "bulletImpact": true
+    "scale": 0.6,
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 0,
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "square",
+    "id": "park_picnic_table",
+    "position": {
+      "x": -25,
+      "y": 1.35,
+      "z": 15
     },
-    {
-        "type": "flower_pot_3d",
-        "id": "park_flower_bed_west",
-        "position": {
-            "x": -35,
-            "y": 0,
-            "z": 5
-        },
-        "rotationY": 0,
-        "scale": 1,
-        "width": 8.5,
-        "height": 3.5,
-        "depth": 2.4,
-        "texture": "assets/textures/park/park_flower_pot.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 0,
+    "width": 8,
+    "height": 4.5,
+    "texture": "assets/textures/park/park_picnic_table.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "flower_pot_3d",
+    "id": "park_flower_bed_west",
+    "position": {
+      "x": -35,
+      "y": 0,
+      "z": 5
     },
-    {
-        "type": "flower_pot_3d",
-        "id": "park_flower_bed_north",
-        "position": {
-            "x": -15,
-            "y": 0,
-            "z": 25
-        },
-        "rotationY": -5,
-        "scale": 1,
-        "width": 8.5,
-        "height": 3.5,
-        "depth": 2.4,
-        "texture": "assets/textures/park/park_flower_pot.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationY": 0,
+    "scale": 1,
+    "width": 8.5,
+    "height": 3.5,
+    "depth": 2.4,
+    "texture": "assets/textures/park/park_flower_pot.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "flower_pot_3d",
+    "id": "park_flower_bed_north",
+    "position": {
+      "x": -15,
+      "y": 0,
+      "z": 25
     },
-    {
-        "type": "flower_pot_3d",
-        "id": "park_flower_bed_east",
-        "position": {
-            "x": 25,
-            "y": 0,
-            "z": 25
-        },
-        "rotationY": 5,
-        "scale": 1,
-        "width": 8.5,
-        "height": 3.5,
-        "depth": 2.4,
-        "texture": "assets/textures/park/park_flower_pot.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationY": -5,
+    "scale": 1,
+    "width": 8.5,
+    "height": 3.5,
+    "depth": 2.4,
+    "texture": "assets/textures/park/park_flower_pot.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "flower_pot_3d",
+    "id": "park_flower_bed_east",
+    "position": {
+      "x": 25.568264439461018,
+      "y": 0,
+      "z": 21.892459272207837
     },
-    {
-        "type": "flower_pot_3d",
-        "id": "park_flower_bed_south",
-        "position": {
-            "x": 15,
-            "y": 0,
-            "z": -25
-        },
-        "rotationY": 90,
-        "scale": 1,
-        "width": 8.5,
-        "height": 3.5,
-        "depth": 2.4,
-        "texture": "assets/textures/park/park_flower_pot.png",
-        "collision": true,
-        "bulletImpact": true
+    "rotationY": 5,
+    "scale": 1,
+    "width": 8.5,
+    "height": 3.5,
+    "depth": 2.4,
+    "texture": "assets/textures/park/park_flower_pot.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "flower_pot_3d",
+    "id": "park_flower_bed_south",
+    "position": {
+      "x": 15,
+      "y": 0,
+      "z": -25
     },
-    {
-        "type": "square",
-        "id": "park_sandcastle",
-        "position": {
-            "x": 47,
-            "y": 0.72,
-            "z": -25
-        },
-        "rotationX": 0,
-        "rotationY": 0,
-        "rotationZ": 0,
-        "width": 3,
-        "height": 2.8,
-        "texture": "assets/textures/park/park_sandcastle.png",
-        "collision": false,
-        "bulletImpact": false
+    "rotationY": 90,
+    "scale": 1,
+    "width": 8.5,
+    "height": 3.5,
+    "depth": 2.4,
+    "texture": "assets/textures/park/park_flower_pot.png",
+    "collision": true,
+    "bulletImpact": true
+  },
+  {
+    "type": "square",
+    "id": "park_sandcastle",
+    "position": {
+      "x": 47,
+      "y": 0.72,
+      "z": -25
     },
-    {
-        "type": "swing",
-        "id": "park_swing",
-        "position": {
-            "x": 28,
-            "y": 0,
-            "z": -25
-        },
-        "rotationY": 0,
-        "scale": 1,
-        "width": 8,
-        "height": 6.5,
-        "depth": 3.8,
-        "collisionCubeSize": 6.5,
-        "seatWidth": 2.6,
-        "seatDepth": 0.75,
-        "seatHeight": 2.1,
-        "texture": "assets/textures/park/park_swing.png",
-        "collision": true,
-        "bulletImpact": true
-    }
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 0,
+    "width": 3,
+    "height": 2.8,
+    "texture": "assets/textures/park/park_sandcastle.png",
+    "collision": false,
+    "bulletImpact": false
+  },
+  {
+    "type": "swing",
+    "id": "park_swing",
+    "position": {
+      "x": 28,
+      "y": 0,
+      "z": -25
+    },
+    "rotationY": 0,
+    "scale": 1,
+    "width": 8,
+    "height": 6.5,
+    "depth": 3.8,
+    "collisionCubeSize": 6.5,
+    "seatWidth": 2.6,
+    "seatDepth": 0.75,
+    "seatHeight": 2.1,
+    "texture": "assets/textures/park/park_swing.png",
+    "collision": true,
+    "bulletImpact": true
+  }
 ]

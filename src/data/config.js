@@ -25,6 +25,12 @@ export const CONFIG = {
     // Colisiones
     PLAYER_COLLISION_RADIUS: 2.0,
     PLAYER_COLLISION_OFFSET: 1.0,
+    // Modo Construcción: sprint con Shift (×3) y noclip de muros/objetos
+    // (el suelo sigue siendo sólido).
+    BUILD_SPRINT_MULTIPLIER: 3.0,
+    // Velocidad al mantener Espacio en construcción. Se aplica en la
+    // dirección exacta de la cámara, incluida la inclinación vertical.
+    BUILD_FLY_SPEED: 45.0,
 
     // Pickups
     PICKUP_DISTANCE: 2.0,

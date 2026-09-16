@@ -66,8 +66,468 @@ export class World {
         this.surfaceTextures = new Set();
         this.environmentLights = [];
         this.backgroundTexture = null;
+        // --- Modo Construcción: trazabilidad editable ---
+        // mapGrid: rejilla cruda de tokens para serializar a .txt.
+        // gridLayout: { width, height, offsetX, offsetY } + blockSize.
+        // propModels: copia editable de modelos/<mapa>_models.json.
+        // editableRegistry: mesh/grupo -> ficha { kind: 'grid'|'prop', ... }.
+        this.mapGrid = null;
+        this.gridLayout = null;
+        this.propModels = [];
+        this.editableRegistry = new Map();
     }
     // #endregion
+
+    // #region Trazabilidad editable (Modo Construcción)
+    // Descripción: registra qué malla corresponde a qué dato del mapa
+    // (celda de rejilla o entrada de modelos/*.json) para poder mover,
+    // rotar, borrar y serializar de vuelta a fichero.
+    registerEditable(object, record) {
+        if (!object || !record) return;
+        this.editableRegistry.set(object, record);
+    }
+
+    unregisterEditable(object) {
+        if (!object) return;
+        this.editableRegistry.delete(object);
+    }
+
+    getEditableRecord(object) {
+        let current = object || null;
+        while (current) {
+            const record = this.editableRegistry.get(current);
+            if (record) return { holder: current, record };
+            current = current.parent || null;
+        }
+        return null;
+    }
+
+    getEditableObjects() {
+        return [...this.editableRegistry.keys()].filter(obj => Boolean(obj?.parent));
+    }
+
+    registerPropEditable(holder, modelIndex) {
+        if (!holder) return null;
+        const model = this.propModels?.[modelIndex];
+        if (!model) return null;
+        // Los sets completos (plató, sala secreta) no se editan pieza a
+        // pieza: son demasiado grandes para moverlos con el constructor.
+        if (model.type === 'hormiguero_set' || model.type === 'hormiguero_secret_room') return null;
+        holder.userData.propModelIndex = modelIndex;
+        const record = {
+            kind: 'prop',
+            modelIndex,
+            id: model.id || model.type,
+            label: model.id || model.variant || model.type,
+            collisionBoxSize: holder.userData?.collisionBoxSize || null,
+            groundY: model.position?.y ?? holder.position?.y ?? 0
+        };
+        this.registerEditable(holder, record);
+        return holder;
+    }
+
+    // Elimina un objeto editable de escena, listas y datos (rejilla o
+    // modelos). Devuelve true si se eliminó.
+    removeEditableObject(holder) {
+        const found = this.getEditableRecord(holder);
+        if (!found) return false;
+        const { holder: target, record } = found;
+        this.unregisterEditable(target);
+        const removeFrom = (arr, item) => {
+            const i = arr?.indexOf?.(item);
+            if (i >= 0) arr.splice(i, 1);
+        };
+        removeFrom(this.walls, target);
+        removeFrom(this.staticModels, target);
+        removeFrom(this.decorativeMeshes, target);
+        removeFrom(this.billboardMeshes, target);
+        removeFrom(this.doorMeshes, target);
+        // Si era una puerta con instancia lógica, retirarla también para
+        // que no siga animándose fuera de la escena.
+        const doorInstanceIndex = Door.instances?.findIndex?.(door => door.mesh === target) ?? -1;
+        if (doorInstanceIndex >= 0) Door.instances.splice(doorInstanceIndex, 1);
+        removeFrom(this.foodMeshes, target);
+        removeFrom(this.ammoMeshes, target);
+        removeFrom(this.weaponMeshes, target);
+        if (target.parent) target.parent.remove(target);
+
+        if (record.kind === 'grid') {
+            if (record.dataList && record.dataRef) {
+                const i = record.dataList.indexOf(record.dataRef);
+                if (i >= 0) record.dataList.splice(i, 1);
+            }
+            if (record.cellX != null && record.cellY != null && this.mapGrid?.[record.cellY]) {
+                this.mapGrid[record.cellY][record.cellX] = { base: '.', rotation: 0 };
+            }
+        } else if (record.kind === 'prop') {
+            if (Number.isInteger(record.modelIndex) && this.propModels?.[record.modelIndex]) {
+                this.propModels.splice(record.modelIndex, 1);
+                // Reindexar: los holders conservan su índice en userData.
+                this.editableRegistry.forEach((rec, obj) => {
+                    if (rec.kind === 'prop' && rec.modelIndex > record.modelIndex) {
+                        rec.modelIndex -= 1;
+                        if (obj?.userData) obj.userData.propModelIndex = rec.modelIndex;
+                    }
+                });
+            }
+        }
+        return true;
+    }
+
+    // Mueve un objeto de rejilla a otra celda (actualiza malla, mapData y
+    // mapGrid). Se puede colocar en cualquier celda: si está ocupada se
+    // retira lo que haya (salvo spawn P y portal, protegidos).
+    // Devuelve false solo si la celda es exterior o está protegida.
+    moveGridEditableToCell(holder, record, cellX, cellY, rotationDeg = null) {
+        if (!this.mapGrid?.[cellY] || !this.mapGrid[cellY][cellX]) return false;
+        const isSameCell = record.cellX === cellX && record.cellY === cellY;
+        this.lastCellCleared = [];
+        this.lastPlaceBlocked = null;
+        if (!isSameCell) {
+            const cleared = this.clearCell(cellX, cellY, { exceptHolder: holder });
+            if (!cleared.ok) {
+                this.lastPlaceBlocked = cleared.reason;
+                return false;
+            }
+            this.lastCellCleared = cleared.cleared;
+        }
+        const newRotation = rotationDeg != null ? rotationDeg : (record.rotation || 0);
+        // Liberar celda origen.
+        if (record.cellX != null && record.cellY != null && this.mapGrid[record.cellY]?.[record.cellX] && !isSameCell) {
+            this.mapGrid[record.cellY][record.cellX] = { base: '.', rotation: 0 };
+        }
+        this.mapGrid[cellY][cellX] = { base: record.base, rotation: newRotation };
+        const worldPos = this.gridToWorldPos(cellX, cellY);
+        const groundY = record.groundY ?? holder.position.y;
+        holder.position.set(worldPos.x, groundY, worldPos.z);
+        holder.rotation.y = THREE.MathUtils.degToRad(newRotation);
+        holder.updateMatrixWorld(true);
+        this.refreshColliderFor(holder);
+        if (record.dataRef?.position) {
+            record.dataRef.position.x = worldPos.x;
+            record.dataRef.position.z = worldPos.z;
+        }
+        if (record.dataRef && 'rotation' in record.dataRef) {
+            record.dataRef.rotation = newRotation;
+        }
+        record.cellX = cellX;
+        record.cellY = cellY;
+        record.rotation = newRotation;
+        return true;
+    }
+
+    // Añade un objeto de rejilla nuevo (muro, puerta, item) en cualquier
+    // celda, retirando lo que hubiera (salvo spawn P y portal). Devuelve el
+    // holder o null si la celda es exterior o está protegida.
+    addGridEditableAtCell(base, cellX, cellY, rotationDeg = 0) {
+        if (!this.mapGrid?.[cellY] || !this.mapGrid[cellY][cellX]) return null;
+        this.lastCellCleared = [];
+        this.lastPlaceBlocked = null;
+        const cleared = this.clearCell(cellX, cellY);
+        if (!cleared.ok) {
+            this.lastPlaceBlocked = cleared.reason;
+            return null;
+        }
+        this.lastCellCleared = cleared.cleared;
+        const worldPos = this.gridToWorldPos(cellX, cellY);
+        // Reutilizar los creadores existentes según el tipo de bloque.
+        if (base === '#') {
+            const itemData = { position: { x: worldPos.x, y: 0, z: worldPos.z }, type: 'wall', rotation: rotationDeg };
+            this.mapData.walls.push(itemData);
+            this.mapGrid[cellY][cellX] = { base, rotation: rotationDeg };
+            return this.spawnWallMeshForConstruction('wall', itemData, cellX, cellY);
+        }
+        if (base === 'B' || base === 'L') {
+            const list = base === 'B' ? this.mapData.bushes : this.mapData.bricks;
+            const itemData = { position: { x: worldPos.x, y: 0, z: worldPos.z }, type: base === 'B' ? 'bush' : 'brick', rotation: rotationDeg };
+            list.push(itemData);
+            this.mapGrid[cellY][cellX] = { base, rotation: rotationDeg };
+            return this.spawnWallMeshForConstruction(base === 'B' ? 'bush' : 'brick', itemData, cellX, cellY);
+        }
+        if (base === 'D') {
+            const doorData = { position: { x: worldPos.x, y: 0, z: worldPos.z }, rotation: rotationDeg };
+            this.mapData.doorPositions.push(doorData);
+            this.mapGrid[cellY][cellX] = { base, rotation: rotationDeg };
+            return this.spawnDoorMeshForConstruction(doorData, cellX, cellY);
+        }
+        if (base === '+') {
+            const foodData = { x: worldPos.x, y: 0.5, z: worldPos.z };
+            // foodItems acepta Vector3 o {position}; usar Vector3 simple.
+            const vec = new THREE.Vector3(worldPos.x, 0.5, worldPos.z);
+            this.mapData.foodItems.push(vec);
+            this.mapGrid[cellY][cellX] = { base, rotation: 0 };
+            const sprite = this.createFoodSprite({ x: worldPos.x, z: worldPos.z });
+            const cell = { x: cellX, y: cellY };
+            this.registerEditable(sprite, {
+                kind: 'grid', base, cellX: cell.x, cellY: cell.y, rotation: 0,
+                groundY: CONFIG.PICKUP_SPRITE_HEIGHT, dataRef: vec,
+                dataList: this.mapData.foodItems, label: 'comida'
+            });
+            void foodData;
+            return sprite;
+        }
+        if (base === 'MA' || base === 'MP') {
+            const ammoData = {
+                position: new THREE.Vector3(worldPos.x, 0.5, worldPos.z),
+                type: base === 'MP' ? 'pistol' : 'machinegun',
+                rotation: rotationDeg
+            };
+            this.mapData.ammoItems.push(ammoData);
+            this.mapGrid[cellY][cellX] = { base, rotation: rotationDeg };
+            // Reutilizar la creación estándar volviendo a generar solo este item.
+            const prevLen = this.ammoMeshes.length;
+            this.createAmmoItemsFromMapTail(ammoData);
+            void prevLen;
+            return this.ammoMeshes[this.ammoMeshes.length - 1] || null;
+        }
+        return null;
+    }
+
+    spawnWallMeshForConstruction(key, itemData, cellX, cellY) {
+        const sizes = {
+            wall: { w: CONFIG.BLOCK_SIZE, h: CONFIG.BLOCK_SIZE },
+            bush: { w: CONFIG.BLOCK_SIZE, h: CONFIG.BLOCK_SIZE * 0.5 },
+            brick: { w: CONFIG.BLOCK_SIZE * 0.7, h: CONFIG.BLOCK_SIZE * 0.6 }
+        };
+        const size = sizes[key] || sizes.wall;
+        const geo = this.sharedGeometries[key] || new THREE.BoxGeometry(size.w, size.h, size.w);
+        this.sharedGeometries[key] = this.sharedGeometries[key] || geo;
+        const mat = this.sharedMaterials[key] || new THREE.MeshLambertMaterial({ color: 0x888888 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(itemData.position.x, size.h / 2, itemData.position.z);
+        mesh.rotation.y = THREE.MathUtils.degToRad(itemData.rotation || 0);
+        mesh.updateMatrixWorld(true);
+        mesh.userData = {
+            ...mesh.userData,
+            boundingBox: new THREE.Box3().setFromObject(mesh),
+            isStatic: true, type: 'wall', bulletImpact: true, bulletImpactFallback: true
+        };
+        this.scene.add(mesh);
+        this.walls.push(mesh);
+        const baseByKey = { wall: '#', bush: 'B', brick: 'L' };
+        this.registerEditable(mesh, {
+            kind: 'grid', base: baseByKey[key] || '#', cellX, cellY,
+            rotation: itemData.rotation || 0, groundY: size.h / 2,
+            dataRef: itemData,
+            dataList: key === 'wall' ? this.mapData.walls : key === 'bush' ? this.mapData.bushes : this.mapData.bricks,
+            label: key
+        });
+        return mesh;
+    }
+
+    spawnDoorMeshForConstruction(doorData, cellX, cellY) {
+        const doorHeight = CONFIG.BLOCK_SIZE;
+        const geo = new THREE.PlaneGeometry(CONFIG.BLOCK_SIZE, doorHeight);
+        const mat = new THREE.MeshLambertMaterial({ color: 0x00ffff, side: THREE.DoubleSide });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(doorData.position.x, doorHeight / 2, doorData.position.z);
+        mesh.rotation.y = THREE.MathUtils.degToRad(doorData.rotation || 0);
+        mesh.userData = {
+            closedY: doorHeight / 2, openY: doorHeight + 10, targetY: doorHeight / 2,
+            id: Math.random(), bulletImpact: true, bulletImpactFallback: true
+        };
+        this.scene.add(mesh);
+        this.doorMeshes.push(mesh);
+        // Las puertas nuevas también deben abrirse con E.
+        try { new Door(mesh); } catch { /* noop */ }
+        this.registerEditable(mesh, {
+            kind: 'grid', base: 'D', cellX, cellY, rotation: doorData.rotation || 0,
+            groundY: doorHeight / 2, dataRef: doorData, dataList: this.mapData.doorPositions, label: 'puerta'
+        });
+        return mesh;
+    }
+
+    createAmmoItemsFromMapTail(ammoData) {
+        const textureLoader = new THREE.TextureLoader();
+        const texture = textureLoader.load(
+            ammoData.type === 'pistol' ? 'assets/textures/pistol_ammo.png' : 'assets/textures/municion_ametra.png'
+        );
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+        const ammoScale = CONFIG.AMMO_SPRITE_SCALE || 0.75;
+        sprite.scale.set(ammoScale, ammoScale, 1);
+        sprite.position.set(ammoData.position.x, CONFIG.PICKUP_SPRITE_HEIGHT, ammoData.position.z);
+        sprite.userData = {
+            type: 'ammo', ammoType: ammoData.type,
+            ammoAmount: ammoData.type === 'pistol' ? CONFIG.PISTOL_AMMO_AMOUNT : CONFIG.MACHINEGUN_AMMO_AMOUNT,
+            weaponIndex: ammoData.type === 'pistol' ? 0 : 1, collected: false, rotationSpeed: 2.0
+        };
+        this.scene.add(sprite);
+        this.ammoMeshes.push(sprite);
+        const cell = this.worldToGridCell?.(sprite.position) || null;
+        this.registerEditable(sprite, {
+            kind: 'grid', base: ammoData.type === 'pistol' ? 'MP' : 'MA',
+            cellX: cell?.x ?? null, cellY: cell?.y ?? null, rotation: ammoData.rotation || 0,
+            groundY: CONFIG.PICKUP_SPRITE_HEIGHT, dataRef: ammoData, dataList: this.mapData.ammoItems, label: 'munición'
+        });
+        return sprite;
+    }
+
+    gridToWorldPos(cellX, cellY) {
+        const layout = this.gridLayout;
+        const blockSize = this.mapData?.blockSize || CONFIG.BLOCK_SIZE;
+        const mapWidth = layout?.width ?? this.mapData?.width ?? 0;
+        const mapHeight = layout?.height ?? this.mapData?.height ?? 0;
+        const offsetX = layout?.offsetX || 0;
+        const offsetY = layout?.offsetY || 0;
+        const offsetWorldX = (mapWidth * blockSize) / 2;
+        const offsetWorldZ = (mapHeight * blockSize) / 2;
+        return {
+            x: ((cellX - offsetX) * blockSize) - offsetWorldX + (blockSize / 2),
+            z: ((cellY - offsetY) * blockSize) - offsetWorldZ + (blockSize / 2)
+        };
+    }
+
+    worldToGridCell(worldPos) {
+        const layout = this.gridLayout;
+        if (!layout || !this.mapGrid?.length) return null;
+        const blockSize = this.mapData?.blockSize || CONFIG.BLOCK_SIZE;
+        const mapWidth = layout.width ?? 0;
+        const mapHeight = layout.height ?? 0;
+        const offsetX = layout.offsetX || 0;
+        const offsetY = layout.offsetY || 0;
+        const offsetWorldX = (mapWidth * blockSize) / 2;
+        const offsetWorldZ = (mapHeight * blockSize) / 2;
+        const cellX = Math.floor((worldPos.x + offsetWorldX - (blockSize / 2)) / blockSize + 0.5) + offsetX;
+        const cellY = Math.floor((worldPos.z + offsetWorldZ - (blockSize / 2)) / blockSize + 0.5) + offsetY;
+        if (cellY < 0 || cellY >= this.mapGrid.length) return null;
+        if (cellX < 0 || cellX >= (this.mapGrid[cellY]?.length || 0)) return null;
+        return { x: cellX, y: cellY };
+    }
+
+    getGridCell(cellX, cellY) {
+        return this.mapGrid?.[cellY]?.[cellX] || null;
+    }
+
+    static isGridCellFree(cell) {
+        if (!cell) return false;
+        return cell.base === '.' || cell.base === ' ' || cell.base === '';
+    }
+
+    static isGridCellProtected(cell) {
+        // El spawn del jugador y el portal de salida no se pueden
+        // sobrescribir: romperían el mapa.
+        return cell?.base === 'P' || cell?.base === 'PORTAL';
+    }
+
+    // Vacía una celda para construir sobre ella: retira mallas editables y
+    // datos sin malla (spawners de enemigos, de munición/comida, palmeras de
+    // texto, decorados e items extra). Devuelve { ok, reason?, cleared: [] }.
+    // reason: 'outside' | 'protected'. P y PORTAL están protegidos.
+    clearCell(cellX, cellY, { exceptHolder = null } = {}) {
+        if (!this.mapGrid?.[cellY] || !this.mapGrid[cellY][cellX]) {
+            return { ok: false, reason: 'outside', cleared: [] };
+        }
+        const token = this.mapGrid[cellY][cellX];
+        if (World.isGridCellProtected(token)) {
+            return { ok: false, reason: 'protected', cleared: [] };
+        }
+        const cleared = [];
+
+        // 1) Mallas editables registradas en esa celda.
+        const holders = [];
+        this.editableRegistry.forEach((rec, holder) => {
+            if (holder && holder !== exceptHolder && rec?.kind === 'grid' &&
+                rec.cellX === cellX && rec.cellY === cellY) {
+                holders.push({ holder, rec });
+            }
+        });
+        holders.forEach(({ holder, rec }) => {
+            cleared.push(rec.label || rec.base || 'objeto');
+            this.removeEditableObject(holder);
+        });
+
+        // 2) Datos sin malla (spawners y restos del .txt) en esa celda.
+        const cellOf = (position) => {
+            if (!position) return null;
+            try {
+                return this.worldToGridCell({
+                    x: Number(position.x) || 0,
+                    z: Number(position.z) || 0
+                });
+            } catch {
+                return null;
+            }
+        };
+        const dataLists = [
+            ['spawner', this.genericSpawners, (s) => s?.id || 'spawner', (s) => s?.position],
+            ['enemigo', this.enemySpawns, (s) => s?.type || 'enemigo', (s) => s?.position],
+            ['munición', this.ammoSpawners, () => 'munición', (s) => s?.position],
+            ['comida', this.foodSpawners, () => 'comida', (s) => s?.position],
+            ['palmera', this.mapData?.models3D, () => 'palmera', (s) => s?.position],
+            ['decorado', this.mapData?.decorationItems, () => 'decorado', (s) => s?.position],
+            ['extra', this.mapData?.extraItems, (s) => s?.code || 'extra', (s) => s?.position]
+        ];
+        dataLists.forEach(([kind, list, labelOf, posOf]) => {
+            if (!Array.isArray(list)) return;
+            void kind;
+            for (let i = list.length - 1; i >= 0; i--) {
+                const entry = list[i];
+                const cell = cellOf(posOf(entry));
+                if (cell && cell.x === cellX && cell.y === cellY) {
+                    try { cleared.push(labelOf(entry)); } catch { cleared.push('objeto'); }
+                    list.splice(i, 1);
+                }
+            }
+        });
+
+        this.mapGrid[cellY][cellX] = { base: '.', rotation: 0 };
+        return { ok: true, cleared };
+    }
+
+    serializeGridToTxt() {
+        if (!this.mapGrid) return null;
+        const tokenFor = (cell) => {
+            const base = cell?.base ?? '.';
+            let token = String(base);
+            if (cell?.rotation) token += `[${cell.rotation}]`;
+            return `(${token})`;
+        };
+        // Conservar maxSpawns/spawnRate solo donde venían explícitos.
+        const fullTokenFor = (cell) => {
+            const base = cell?.base ?? '.';
+            let token = String(base);
+            if (cell?.rotation) token += `[${cell.rotation}]`;
+            if (cell?.hasMaxSpawns && String(base).match(/^(S\d+|[1-7]|A|ALIEN|MINIGUN)$/)) token += `{${cell.maxSpawns}}`;
+            if (cell?.hasSpawnRate && String(base).match(/^(S\d+|[1-7]|A|ALIEN|MINIGUN)$/)) token += `<${cell.spawnRate}>`;
+            return `(${token})`;
+        };
+        void tokenFor;
+        return this.mapGrid.map(row => row.map(fullTokenFor).join('')).join('\n') + '\n';
+    }
+
+    refreshColliderFor(holder) {
+        if (!holder) return;
+        const record = this.editableRegistry.get(holder)?.kind
+            ? this.editableRegistry.get(holder)
+            : null;
+        try {
+            holder.updateMatrixWorld(true);
+            const freshBox = new THREE.Box3().setFromObject(holder);
+            if (record?.kind === 'prop' && record.collisionBoxSize) {
+                const size = record.collisionBoxSize;
+                const pos = holder.position;
+                const w = Number(size.width) || 2;
+                const h = Number(size.height) || 2;
+                const d = Number(size.depth) || 2;
+                // Para grupos rotados se recalcula el AABB real y se
+                // conserva la altura lógica del prop.
+                const box = new THREE.Box3().setFromObject(holder);
+                const realSize = box.getSize(new THREE.Vector3());
+                const cx = (box.min.x + box.max.x) / 2;
+                const cz = (box.min.z + box.max.z) / 2;
+                holder.userData.boundingBox = new THREE.Box3(
+                    new THREE.Vector3(cx - Math.max(w, realSize.x) / 2, pos.y, cz - Math.max(d, realSize.z) / 2),
+                    new THREE.Vector3(cx + Math.max(w, realSize.x) / 2, pos.y + Math.max(h, realSize.y), cz + Math.max(d, realSize.z) / 2)
+                );
+            } else if (holder.userData?.boundingBox) {
+                holder.userData.boundingBox.copy(freshBox);
+            } else {
+                holder.userData.boundingBox = freshBox;
+            }
+        } catch (err) {
+            console.warn('[Construcción] No se pudo refrescar colisión:', err);
+        }
+    }
 
     loadTiledTexture(path, repeatX = 1, repeatY = 1) {
         const textureLoader = new THREE.TextureLoader();
@@ -127,6 +587,14 @@ export class World {
         this.currentMapName = mapName;
         // Carga de Datos
         this.mapData = await this.mapLoader.loadMapFile(mapName);
+        this.mapGrid = Array.isArray(this.mapData.rawGrid)
+            ? this.mapData.rawGrid.map(row => row.map(cell => ({ ...cell })))
+            : null;
+        this.gridLayout = this.mapData.worldLayout
+            ? { ...this.mapData.worldLayout }
+            : { width: this.mapData.width, height: this.mapData.height, offsetX: 0, offsetY: 0 };
+        this.propModels = [];
+        this.editableRegistry = new Map();
         this.enemySpawns = this.mapData.enemySpawns;
         this.genericSpawners = this.mapData.genericSpawners;
         this.exitPortalSpawn = this.mapData.exitPortalSpawn || null;
@@ -950,6 +1418,19 @@ export class World {
 
             this.scene.add(ammoSprite);
             this.ammoMeshes.push(ammoSprite);
+
+            const ammoCell = this.worldToGridCell?.(ammoSprite.position) || null;
+            this.registerEditable(ammoSprite, {
+                kind: 'grid',
+                base: ammoData.type === 'pistol' ? 'MP' : 'MA',
+                cellX: ammoCell?.x ?? null,
+                cellY: ammoCell?.y ?? null,
+                rotation: ammoData.rotation || 0,
+                groundY: CONFIG.PICKUP_SPRITE_HEIGHT,
+                dataRef: ammoData,
+                dataList: this.mapData.ammoItems,
+                label: 'munición'
+            });
         });
     }
 
@@ -967,7 +1448,19 @@ export class World {
                     ? foodData.type
                     : null
             );
-            this.createFoodSprite(position, foodType);
+            const sprite = this.createFoodSprite(position, foodType);
+            const cell = this.worldToGridCell?.(sprite.position) || null;
+            this.registerEditable(sprite, {
+                kind: 'grid',
+                base: '+',
+                cellX: cell?.x ?? null,
+                cellY: cell?.y ?? null,
+                rotation: 0,
+                groundY: CONFIG.PICKUP_SPRITE_HEIGHT,
+                dataRef: foodData,
+                dataList: this.mapData.foodItems,
+                label: 'comida'
+            });
         });
     }
     // #endregion
@@ -984,13 +1477,17 @@ export class World {
 
             const modelsData = await response.json();
             console.log(`Cargados ${modelsData.length} modelos 3D desde JSON para ${mapName}`);
+            // Copia editable: ConstructionMode modifica estas entradas y
+            // las serializa de vuelta a modelos/<mapa>_models.json.
+            this.propModels = modelsData;
 
             const objLoader = new OBJLoader();
             const mtlLoader = new MTLLoader();
             const tdsLoader = new TDSLoader();
             const textureLoader = new THREE.TextureLoader();
 
-            for (const model of modelsData) {
+            for (let modelIndex = 0; modelIndex < modelsData.length; modelIndex++) {
+                const model = modelsData[modelIndex];
                 const { type = "obj", path, position, rotation = 0, scale = 1, texture, width = 10, height = 10 } = model;
                 const hasCollision = model.collision !== false;
                 const modelIdentity = [model.id, path, texture]
@@ -1010,37 +1507,37 @@ export class World {
                 }
 
                 if (type === "swing" || type === "columpio") {
-                    this.createSwingProp(model, textureLoader);
+                    this.registerPropEditable(this.createSwingProp(model, textureLoader), modelIndex);
                     continue;
                 }
 
                 if (type === "flower_pot" || type === "flower_pot_3d" || type === "maceta_3d") {
-                    this.createFlowerPotProp(model, textureLoader);
+                    this.registerPropEditable(this.createFlowerPotProp(model, textureLoader), modelIndex);
                     continue;
                 }
 
                 if (type === "fountain" || type === "fuente") {
-                    this.createFountainProp(model);
+                    this.registerPropEditable(this.createFountainProp(model), modelIndex);
                     continue;
                 }
 
                 if (type === "vent_duct" || type === "conducto") {
-                    this.createVentDuctProp(model);
+                    this.registerPropEditable(this.createVentDuctProp(model), modelIndex);
                     continue;
                 }
 
                 if (type === "vent_grate" || type === "reja") {
-                    this.createVentGrateProp(model);
+                    this.registerPropEditable(this.createVentGrateProp(model), modelIndex);
                     continue;
                 }
 
                 if (type === "crate" || type === "caja") {
-                    this.createCrateProp(model);
+                    this.registerPropEditable(this.createCrateProp(model), modelIndex);
                     continue;
                 }
 
                 if (type === "hormiguero_prop" || type === "map2_prop") {
-                    this.createHormigueroProp(model);
+                    this.registerPropEditable(this.createHormigueroProp(model), modelIndex);
                     continue;
                 }
 
@@ -1129,6 +1626,7 @@ export class World {
                         }
 
                         console.log(`Modelo 3DS cargado: ${path}`);
+                        this.registerPropEditable(object, modelIndex);
                         continue;
 
                     } catch (err) {
@@ -1292,6 +1790,7 @@ export class World {
                     }
 
                     console.log(`Objeto decorativo cuadrado cargado: ${texture || "sin textura"} en (${position.x}, ${position.y}, ${position.z})`);
+                    this.registerPropEditable(squareMesh, modelIndex);
                     continue; // Saltar al siguiente modelo
                 }
 
@@ -1433,6 +1932,7 @@ export class World {
                     }
 
                     console.log(`Modelo 3D cargado: ${path} en (${position.x}, ${position.y}, ${position.z})`);
+                    this.registerPropEditable(finalObject, modelIndex);
 
                 } catch (err) {
                     console.error(`Error cargando modelo 3D: ${path}`, err);
@@ -3135,6 +3635,19 @@ export class World {
 
             this.scene.add(doorMesh);
             this.doorMeshes.push(doorMesh);
+
+            const doorCell = this.worldToGridCell?.(doorMesh.position) || null;
+            this.registerEditable(doorMesh, {
+                kind: 'grid',
+                base: 'D',
+                cellX: doorCell?.x ?? null,
+                cellY: doorCell?.y ?? null,
+                rotation: doorData.rotation || 0,
+                groundY: doorHeight / 2,
+                dataRef: doorData,
+                dataList: this.mapData.doorPositions,
+                label: 'puerta'
+            });
         });
     }
     // #endregion
@@ -3235,6 +3748,21 @@ export class World {
                 mesh.updateMatrixWorld(true);
                 this.walls.push(mesh);
                 this.scene.add(mesh);
+
+                // Registro editable para modo Construcción.
+                const cell = this.worldToGridCell?.(mesh.position) || null;
+                const baseByKey = { wall: '#', bush: 'B', brick: 'L' };
+                this.registerEditable(mesh, {
+                    kind: 'grid',
+                    base: baseByKey[config.key] || '#',
+                    cellX: cell?.x ?? null,
+                    cellY: cell?.y ?? null,
+                    rotation: itemData.rotation || 0,
+                    groundY: config.height / 2,
+                    dataRef: itemData,
+                    dataList: config.data,
+                    label: config.key
+                });
             });
         });
     }
@@ -3368,6 +3896,10 @@ export class World {
         this.currentMapName = null;
         this.sharedGeometries = {};
         this.sharedMaterials = {};
+        this.mapGrid = null;
+        this.gridLayout = null;
+        this.propModels = [];
+        this.editableRegistry?.clear?.();
     }
     // #endregion
 }

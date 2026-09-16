@@ -145,6 +145,38 @@ ipcMain.handle('editor:save-map', async (_event, payload = {}) => {
     return { canceled: false, filePath: result.filePath };
 });
 
+// Modo Construcción (juego): autoguardado directo sin diálogo.
+// Sobrescribe mapas/<id>.txt y modelos/<id>_models.json del proyecto.
+ipcMain.handle('build:save-map-files', async (_event, payload = {}) => {
+    const { mkdir } = require('node:fs/promises');
+    const mapId = safeMapId(payload.mapId);
+    if (!mapId) return { ok: false, error: 'mapId inválido' };
+    if (typeof payload.txt !== 'string' || typeof payload.modelsJson !== 'string') {
+        return { ok: false, error: 'contenido inválido' };
+    }
+    // Validar que el JSON de modelos parsea antes de sobrescribir.
+    try {
+        const parsed = JSON.parse(payload.modelsJson);
+        if (!Array.isArray(parsed)) throw new Error('modelsJson debe ser un array');
+    } catch (err) {
+        return { ok: false, error: `modelsJson inválido: ${err.message}` };
+    }
+    try {
+        const mapsDir = path.join(rootDir, 'mapas');
+        const modelsDir = path.join(rootDir, 'modelos');
+        await mkdir(mapsDir, { recursive: true });
+        await mkdir(modelsDir, { recursive: true });
+        const txtPath = path.join(mapsDir, `${mapId}.txt`);
+        const modelsPath = path.join(modelsDir, `${mapId}_models.json`);
+        await writeFile(txtPath, payload.txt, 'utf8');
+        await writeFile(modelsPath, payload.modelsJson, 'utf8');
+        return { ok: true, txtPath, modelsPath };
+    } catch (err) {
+        console.error('[build:save-map-files]', err);
+        return { ok: false, error: err.message };
+    }
+});
+
 function waitForServer(url, timeoutMs = 15000) {
     const startedAt = Date.now();
 

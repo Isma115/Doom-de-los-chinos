@@ -129,6 +129,19 @@ export function unlockAllWeapons(equipLast = true) {
         return unlockedWeapons;
 }
 
+// Equipa un arma ya desbloqueada sin hacer que la herramienta de construcción
+// forme parte de la selección cíclica de la rueda.
+export function selectWeapon(weaponId) {
+        const weaponIndex = this.findWeaponIndex(weaponId);
+        const weapon = weaponIndex >= 0 ? WEAPONS_DATA[weaponIndex] : null;
+        if (!weapon || !this.isWeaponUnlocked(weapon)) return false;
+
+        this.currentIndex = weaponIndex;
+        this.updateVisuals();
+        try { this.player?.constructionMode?.syncToolState?.(); } catch { /* noop */ }
+        return true;
+}
+
 export function addAmmo(amount, weaponIndex = null) {
         const weapon = weaponIndex !== null
             ? WEAPONS_DATA[weaponIndex]
@@ -160,8 +173,15 @@ export function switchWeapon(direction) {
             ) % WEAPONS_DATA.length;
 
             this.currentIndex = nextIndex;
-            if (this.isWeaponUnlocked(WEAPONS_DATA[nextIndex])) {
+            if (
+                !WEAPONS_DATA[nextIndex]?.isTool &&
+                !WEAPONS_DATA[nextIndex]?.isConstruction &&
+                this.isWeaponUnlocked(WEAPONS_DATA[nextIndex])
+            ) {
                 this.updateVisuals();
+                // El modo Construcción activa/restaura god-mode y pausa de
+                // enemigos al instante, incluso con el juego en pausa.
+                try { this.player?.constructionMode?.syncToolState?.(); } catch { /* noop */ }
                 return true;
             }
         }

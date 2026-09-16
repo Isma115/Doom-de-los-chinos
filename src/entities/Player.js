@@ -34,14 +34,7 @@ import {
     resolvePlayerPenetration as resolvePlayerPenetrationFn,
     checkCollisions as checkCollisionsFn
 } from './player/Collision.js';
-import {
-    toggleRay as toggleRayFn,
-    activateRay as activateRayFn,
-    deactivateRay as deactivateRayFn,
-    updateRay as updateRayFn,
-    showImpactEffect as showImpactEffectFn,
-    highlightImpactPoint as highlightImpactPointFn
-} from './player/DebugRay.js';
+import { ConstructionMode } from './build/ConstructionMode.js';
 // #endregion
 
 // #region Clase Player
@@ -82,6 +75,14 @@ export class Player {
         this.direction = new THREE.Vector3();
         this.moveFlags = { fwd: false, bwd: false, left: false, right: false };
         this.isCrouching = false;
+        // Sprint del modo Construcción (Shift): se rastrea aquí para no
+        // interferir con el descenso de vuelo, que también usa Shift.
+        this.shiftHeld = false;
+        // En construcción, mantener Espacio desplaza la cámara hacia donde
+        // mira, en vez de aplicar un salto vertical.
+        this.buildFlyHeld = false;
+        this.buildFlyDirection = new THREE.Vector3();
+        this.previousCombatWeaponIndex = null;
         this.canJump = false;
 
         this.health = CONFIG.PLAYER_MAX_HEALTH;
@@ -92,13 +93,6 @@ export class Player {
 
         this.radius = 2.0;
 
-        // NUEVAS PROPIEDADES PARA EL RAYO AZUL
-        this.rayActive = false;
-        this.rayLine = null;
-        this.lastRayHit = null;
-        this.impactEffect = null;
-        this.impactTimeout = null;
-        this.highlightEffects = new Set();
         this.eventCleanup = [];
         this.touchControlsCleanup = null;
         this.disposed = false;
@@ -119,6 +113,8 @@ export class Player {
         this.isShooting = false;
         // Imán de cruceta sutil: barato (mates vectoriales, sin raycasts).
         this.aimAssist = new AimAssist(camera, () => this.enemyManager?.enemies);
+        // Modo Construcción: herramienta sin sprite para editar el mapa.
+        this.constructionMode = new ConstructionMode({ scene, camera, world, player: this });
 
         this.initEvents(domElement);
     }
@@ -183,7 +179,16 @@ export class Player {
         listen(document, 'mousedown', (event) => this.onMouseDown(event));
         listen(document, 'mouseup', () => this.onMouseUp());
 
-        listen(document, 'wheel', (e) => this.weaponSystem.switchWeapon(e.deltaY));
+        // Fuera de construcción, la rueda sigue cambiando de arma. Al entrar
+        // con 0, la misma rueda queda reservada para recorrer objetos nuevos.
+        listen(document, 'wheel', (e) => {
+            if (this.constructionMode?.isActive()) {
+                this.constructionMode.handleWheel?.(e.deltaY);
+                if (e.cancelable) e.preventDefault();
+                return;
+            }
+            this.weaponSystem.switchWeapon(e.deltaY);
+        }, { passive: false });
 
         const screamButton = document.getElementById('scream-button');
         if (screamButton) {
@@ -215,31 +220,8 @@ export class Player {
         this.eventCleanup = [];
         this.controls?.dispose?.();
 
-        if (this.impactTimeout !== null) {
-            clearTimeout(this.impactTimeout);
-            this.impactTimeout = null;
-        }
-        if (this.impactEffect) {
-            this.impactEffect.parent?.remove(this.impactEffect);
-            this.impactEffect.geometry?.dispose?.();
-            this.impactEffect.material?.dispose?.();
-            this.impactEffect = null;
-        }
-
-        if (this.rayLine) {
-            this.camera.remove(this.rayLine);
-            this.rayLine.geometry?.dispose?.();
-            this.rayLine.material?.dispose?.();
-            this.rayLine = null;
-        }
-
-        this.highlightEffects.forEach(effect => {
-            effect.mesh.parent?.remove(effect.mesh);
-            effect.mesh.geometry?.dispose?.();
-            effect.material?.dispose?.();
-        });
-        this.highlightEffects.clear();
-
+        this.constructionMode?.dispose?.();
+        this.constructionMode = null;
         this.weaponSystem?.dispose?.();
         this.aimAssist = null;
         this.gameInstance = null;
@@ -263,6 +245,26 @@ export class Player {
     // #region Control de Input (Teclado) Player
     // Descripción: Procesa las pulsaciones de teclas para movimiento, salto, interacción con puertas y habilidades especiales.
     onKey(event, isDown) {
+        // El constructor tiene una tecla propia: no entra en el ciclo de
+        // armas y al pulsar 0 de nuevo se vuelve al arma anterior.
+        if (event.code === 'Digit0' || event.code === 'Numpad0') {
+            if (isDown && !this.isGameOver) this.toggleConstructionTool();
+            if (event.cancelable) event.preventDefault();
+            return;
+        }
+
+        // Espacio es vuelo direccional mientras la herramienta está activa.
+        if (this.constructionMode?.isActive() && event.code === 'Space') {
+            this.buildFlyHeld = isDown;
+            if (event.cancelable) event.preventDefault();
+            return;
+        }
+
+        // Modo Construcción: flechas editan el preview, N/B catálogo,
+        // Supr borra, Esc cancela, R queda desactivada.
+        if (this.constructionMode?.handleKey(event, isDown)) {
+            return;
+        }
         // Las teclas Fn/Globe y Command no siempre tienen un keyup fiable en
         // macOS. Si se pulsan mientras una tecla de movimiento está activa,
         // dejamos el movimiento en un estado seguro inmediatamente.
@@ -308,6 +310,7 @@ export class Player {
                 break;
             case 'ShiftLeft':
             case 'ShiftRight':
+                this.shiftHeld = isDown;
                 if (isDown && this.debugState.flyMode) {
                     this.velocity.y = -CONFIG.JUMP_FORCE * 1.5;
                 }
@@ -333,11 +336,6 @@ export class Player {
                 if (event.cancelable) event.preventDefault();
                 this.setCrouching(isDown);
                 break;
-            case 'Digit1':
-                if (isDown) {
-                    this.toggleRay();
-                }
-                break;
         }
     }
 
@@ -361,6 +359,8 @@ export class Player {
         this.moveFlags.left = false;
         this.moveFlags.right = false;
         this.isCrouching = false;
+        this.shiftHeld = false;
+        this.buildFlyHeld = false;
         this.velocity.x = 0;
         this.velocity.z = 0;
         if (this.touchState) {
@@ -371,6 +371,10 @@ export class Player {
     }
 
     jumpPressed() {
+        if (this.constructionMode?.isActive()) {
+            this.buildFlyHeld = true;
+            return;
+        }
         if (this.debugState.flyMode) {
             this.velocity.y = CONFIG.JUMP_FORCE * 1.5;
         } else if (this.canJump) {
@@ -379,35 +383,30 @@ export class Player {
         }
     }
 
+    toggleConstructionTool() {
+        const currentWeapon = this.weaponSystem?.getCurrentWeapon?.();
+        if (!currentWeapon || !this.weaponSystem) return false;
+
+        if (currentWeapon.isConstruction || currentWeapon.isTool) {
+            const fallback = Number.isInteger(this.previousCombatWeaponIndex)
+                ? this.previousCombatWeaponIndex
+                : WEAPONS_DATA.findIndex(weapon =>
+                    !weapon.isTool && !weapon.isConstruction &&
+                    this.weaponSystem.isWeaponUnlocked(weapon)
+                );
+            const selected = fallback >= 0
+                ? this.weaponSystem.selectWeapon(fallback)
+                : false;
+            if (selected) this.previousCombatWeaponIndex = null;
+            return selected;
+        }
+
+        this.previousCombatWeaponIndex = this.weaponSystem.currentIndex;
+        return this.weaponSystem.selectWeapon('constructor');
+    }
+
     tryInteract() {
         return tryInteractFn.call(this);
-    }
-    // #endregion
-
-    // #region Sistema de Rayo Azul Player
-    // Descripción: Implementación de la habilidad especial "Rayo Azul", incluyendo activación, raycasting y visualización de impacto.
-    toggleRay() {
-        return toggleRayFn.call(this);
-    }
-
-    // NUEVA FUNCIÓN: Activar rayo
-    activateRay() {
-        return activateRayFn.call(this);
-    }
-
-    // NUEVA FUNCIÓN: Desactivar rayo
-    deactivateRay() {
-        return deactivateRayFn.call(this);
-    }
-
-    // NUEVA FUNCIÓN: Actualizar visualización del rayo
-    updateRay() {
-        return updateRayFn.call(this);
-    }
-
-    // NUEVA FUNCIÓN: Mostrar efecto de impacto
-    showImpactEffect(position) {
-        return showImpactEffectFn.call(this, position);
     }
     // #endregion
 
@@ -429,41 +428,24 @@ export class Player {
             return;
         }
 
+        // Modo Construcción: clic izq. recoge a preview, clic der. coloca.
+        // No se dispara con la herramienta seleccionada.
+        if (this.constructionMode?.isActive()) {
+            if (this.controls.isLocked && !this.isGameOver && event) {
+                this.constructionMode.handleMouseButton(event.button ?? 0);
+            }
+            this.isShooting = false;
+            return;
+        }
+
         if (this.controls.isLocked && !this.isGameOver) {
             this.isShooting = true;
 
-            // NUEVA FUNCIONALIDAD: Si el rayo está activo, mostrar coordenadas de impacto
-            if (this.rayActive && this.lastRayHit) {
-                const hitPos = this.lastRayHit.position;
-                console.log(`📍 Ray Impact Coordinates: X: ${hitPos.x.toFixed(2)}, Y: ${hitPos.y.toFixed(2)}, Z: ${hitPos.z.toFixed(2)}`);
-
-                // Mostrar en UI con estilo azul para coincidir con el rayo
-                UIManager.showEventMessage(
-                    `📍 IMPACTO RAYO AZUL: X:${hitPos.x.toFixed(1)} Y:${hitPos.y.toFixed(1)} Z:${hitPos.z.toFixed(1)}`,
-                    3000
-                );
-
-                // Destacar visualmente el punto de impacto
-                this.highlightImpactPoint(hitPos);
-
-                // También disparar normal si se mantiene presionado
-                this.weaponSystem.tryShoot(() => {
-                    this.score++;
-                    UIManager.updateScore(this.score);
-                });
-            } else {
-                // Disparo normal
-                this.weaponSystem.tryShoot(() => {
-                    this.score++;
-                    UIManager.updateScore(this.score);
-                });
-            }
+            this.weaponSystem.tryShoot(() => {
+                this.score++;
+                UIManager.updateScore(this.score);
+            });
         }
-    }
-
-    // NUEVA FUNCIÓN: Destacar punto de impacto
-    highlightImpactPoint(position) {
-        return highlightImpactPointFn.call(this, position);
     }
 
     onMouseUp() {
@@ -638,12 +620,22 @@ export class Player {
         const crouchSpeedMultiplier = this.isCrouching
             ? CONFIG.CROUCH_SPEED_MULTIPLIER
             : 1.0;
-        const movementMultiplier = speedMultiplier * crouchSpeedMultiplier;
+        // Modo Construcción: atraviesa muros/objetos (el suelo sigue sólido)
+        // y Shift multiplica la velocidad para recorrer el mapa.
+        const buildActive = this.constructionMode?.isActive?.() === true;
+        const buildSprint = buildActive && this.shiftHeld
+            ? (CONFIG.BUILD_SPRINT_MULTIPLIER || 3.0)
+            : 1.0;
+        const movementMultiplier = speedMultiplier * crouchSpeedMultiplier * buildSprint;
 
         this.velocity.x -= this.velocity.x * 12.0 * delta;
         this.velocity.z -= this.velocity.z * 12.0 * delta;
 
-        if (!this.debugState.flyMode) {
+        if (buildActive) {
+            // El constructor no tiene gravedad: la altura solo cambia con
+            // el vuelo direccional de Espacio.
+            this.velocity.y = 0;
+        } else if (!this.debugState.flyMode) {
             if (!this.canJump) {
                 this.velocity.y -= CONFIG.GRAVITY * delta;
             } else {
@@ -680,9 +672,17 @@ export class Player {
 
         this.controls.moveRight(-this.velocity.x * delta);
         this.controls.moveForward(-this.velocity.z * delta);
-        this.camera.position.y += (this.velocity.y * delta);
+        if (buildActive && this.buildFlyHeld) {
+            this.camera.getWorldDirection(this.buildFlyDirection);
+            this.camera.position.addScaledVector(
+                this.buildFlyDirection,
+                (CONFIG.BUILD_FLY_SPEED || 45) * movementMultiplier * delta
+            );
+        } else if (!buildActive) {
+            this.camera.position.y += (this.velocity.y * delta);
+        }
 
-        if (!this.debugState.flyMode) {
+        if (!buildActive && !this.debugState.flyMode) {
             const targetHeight = this.isCrouching
                 ? CONFIG.CROUCH_HEIGHT
                 : CONFIG.PLAYER_HEIGHT;
@@ -706,7 +706,8 @@ export class Player {
         // Variable para detectar si hubo colisión con pared (bloqueo de movimiento)
         let wallSliding = false;
 
-        if (!this.debugState.noClip) {
+        // En construcción no hay colisión con muros/objetos (solo suelo).
+        if (!this.debugState.noClip && !buildActive) {
             const previousPosition = this.camera.position.clone();
 
             this.checkCollisions(oldPosition);
@@ -738,10 +739,9 @@ export class Player {
         // Corrección sutil hacia el enemigo encarado (si lo hay).
         this.aimAssist?.update(delta, this.isShooting);
 
-        // NUEVA ESTRUCTURA: Actualizar visualización del rayo azul
-        if (this.rayActive) {
-            this.updateRay();
-        }
+        // Modo Construcción: el fantasma sigue al punto de mira.
+        this.constructionMode?.update?.();
+
     }
     // #endregion
 
