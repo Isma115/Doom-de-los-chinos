@@ -12,6 +12,8 @@ import { Door } from '../entities/Door.js';
 import { ExitPortal } from '../entities/ExitPortal.js';
 import { buildHormigueroSet } from './world/HormigueroSetBuilder.js';
 import { buildHormigueroSecretRoom } from './world/SecretRoomBuilder.js';
+import { buildHormigueroDesk } from './world/HormigueroDeskBuilder.js';
+import { buildHormigueroBleachers } from './world/HormigueroBleachersBuilder.js';
 import {
     findExitPortalPosition as findExitPortalPositionFn,
     spawnExitPortal as spawnExitPortalFn,
@@ -139,6 +141,11 @@ export class World {
         };
         removeFrom(this.walls, target);
         removeFrom(this.staticModels, target);
+        // Los colliders hijos (celdas rectangulares, paneles...) también
+        // salen de walls para no dejar colisiones fantasma.
+        target?.traverse?.(obj => {
+            if (obj !== target) removeFrom(this.walls, obj);
+        });
         removeFrom(this.decorativeMeshes, target);
         removeFrom(this.billboardMeshes, target);
         removeFrom(this.doorMeshes, target);
@@ -502,6 +509,25 @@ export class World {
             : null;
         try {
             holder.updateMatrixWorld(true);
+            // Props con celdas rectangulares (p. ej. mesa del Hormiguero):
+            // cada celda guarda su rectángulo local y se reproyecta al
+            // mundo, así la colisión sigue al modelo al moverlo o rotarlo.
+            // No se escribe caja única en el holder para no hinchar la
+            // colisión a la caja ejes-alineada.
+            const cells = [];
+            holder.traverse?.(obj => {
+                if (obj !== holder && obj?.userData?.colliderCell) cells.push(obj);
+            });
+            if (cells.length > 0) {
+                cells.forEach(cell => {
+                    const c = cell.userData.colliderCell;
+                    cell.userData.boundingBox = new THREE.Box3(
+                        new THREE.Vector3(c.x - c.w / 2, c.y0, c.z - c.d / 2),
+                        new THREE.Vector3(c.x + c.w / 2, c.y1, c.z + c.d / 2)
+                    ).applyMatrix4(holder.matrixWorld);
+                });
+                return;
+            }
             const freshBox = new THREE.Box3().setFromObject(holder);
             if (record?.kind === 'prop' && record.collisionBoxSize) {
                 const size = record.collisionBoxSize;
@@ -529,7 +555,36 @@ export class World {
         }
     }
 
-    loadTiledTexture(path, repeatX = 1, repeatY = 1) {
+    // Colliders hijos de un holder (celdas de la mesa, paneles de
+    // conducto...): se retiran de walls mientras se arrastra el fantasma
+    // y se restauran al colocar o cancelar.
+    removeHolderChildColliders(holder) {
+        const removed = [];
+        if (!holder?.traverse || !this.walls) return removed;
+        holder.traverse(obj => {
+            if (obj !== holder && obj?.userData?.boundingBox && this.walls.includes(obj)) {
+                this.walls.splice(this.walls.indexOf(obj), 1);
+                removed.push(obj);
+            }
+        });
+        return removed;
+    }
+
+    restoreHolderChildColliders(removed) {
+        (removed || []).forEach(obj => {
+            if (obj && this.walls && !this.walls.includes(obj)) this.walls.push(obj);
+        });
+    }
+
+    holderHasColliderCells(holder) {
+        let found = false;
+        holder?.traverse?.(obj => {
+            if (obj !== holder && obj?.userData?.colliderCell) found = true;
+        });
+        return found;
+    }
+
+    loadTiledTexture(path, repeatX = 1, repeatY = 1, { pixelated = false } = {}) {
         const textureLoader = new THREE.TextureLoader();
         const texture = textureLoader.load(
             path,
@@ -541,8 +596,13 @@ export class World {
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(repeatX, repeatY);
-        texture.magFilter = THREE.LinearFilter;
-        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        // Los props pixel-art necesitan conservar sus píxeles incluso cuando
+        // se amplían en pantalla. El resto del mundo mantiene el filtrado
+        // lineal original.
+        texture.magFilter = pixelated ? THREE.NearestFilter : THREE.LinearFilter;
+        texture.minFilter = pixelated
+            ? THREE.NearestMipmapNearestFilter
+            : THREE.LinearMipmapLinearFilter;
         texture.generateMipmaps = true;
         texture.needsUpdate = true;
         this.surfaceTextures.add(texture);
@@ -556,14 +616,15 @@ export class World {
         repeatY = 1,
         options = {}
     ) {
+        const { pixelated = false, ...materialOptions } = options;
         const map = texturePath
-            ? this.loadTiledTexture(texturePath, repeatX, repeatY)
+            ? this.loadTiledTexture(texturePath, repeatX, repeatY, { pixelated })
             : null;
 
         const material = new THREE.MeshStandardMaterial({
             color,
             map,
-            ...options
+            ...materialOptions
         });
 
         // El plató no usa un entorno HDRI y sus superficies metálicas
@@ -840,6 +901,14 @@ export class World {
 
     createHormigueroSecretRoom(model = {}) {
         return buildHormigueroSecretRoom.call(this, model);
+    }
+
+    createHormigueroDesk(model = {}) {
+        return buildHormigueroDesk.call(this, model);
+    }
+
+    createHormigueroBleachers(model = {}) {
+        return buildHormigueroBleachers.call(this, model);
     }
     // #endregion
 
@@ -1506,6 +1575,16 @@ export class World {
                     continue;
                 }
 
+                if (type === "hormiguero_desk") {
+                    this.registerPropEditable(this.createHormigueroDesk(model), modelIndex);
+                    continue;
+                }
+
+                if (type === "hormiguero_bleachers") {
+                    this.registerPropEditable(this.createHormigueroBleachers(model), modelIndex);
+                    continue;
+                }
+
                 if (type === "swing" || type === "columpio") {
                     this.registerPropEditable(this.createSwingProp(model, textureLoader), modelIndex);
                     continue;
@@ -1533,6 +1612,11 @@ export class World {
 
                 if (type === "crate" || type === "caja") {
                     this.registerPropEditable(this.createCrateProp(model), modelIndex);
+                    continue;
+                }
+
+                if (type === "dustbin" || type === "trash_bin" || type === "dumpster") {
+                    this.registerPropEditable(this.createDustbinProp(model), modelIndex);
                     continue;
                 }
 
@@ -2534,6 +2618,244 @@ export class World {
     }
     // #endregion
 
+    // #region Creación de Contenedor de Basura World
+    // Descripción: Contenedor de basura low-poly con tapa abierta, nervios,
+    // placa frontal y ruedas. Se mantiene procedural para que también pueda
+    // colocarse desde el modo Construcción sin depender de un asset externo.
+    createDustbinProp(model = {}) {
+        const group = new THREE.Group();
+        const width = Math.max(2.5, Number(model.width) || 4.6);
+        const height = Math.max(2.8, Number(model.height) || 4.4);
+        const depth = Math.max(2, Number(model.depth) || 3.5);
+        const propScale = Number(model.scale) || 1;
+        const bodyHeight = Math.min(height * 0.78, Math.max(2.2, height - 0.7));
+        const lidDepth = depth * 0.52;
+        const dustbinTexture = this.loadTiledTexture(
+            'assets/textures/dustbin_green_lowres.png',
+            1.35,
+            1.35
+        );
+
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+            color: model.color !== undefined ? Number(model.color) : 0xffffff,
+            map: dustbinTexture,
+            roughness: 0.82,
+            metalness: 0.18,
+            flatShading: true
+        });
+        const bodyDarkMaterial = new THREE.MeshStandardMaterial({
+            color: 0x9aa995,
+            map: dustbinTexture,
+            roughness: 0.9,
+            metalness: 0.12,
+            flatShading: true
+        });
+        const rimMaterial = new THREE.MeshStandardMaterial({
+            color: 0xb7c6b1,
+            map: dustbinTexture,
+            roughness: 0.74,
+            metalness: 0.24,
+            flatShading: true
+        });
+        const lidMaterial = new THREE.MeshStandardMaterial({
+            color: 0xd0ddd0,
+            map: dustbinTexture,
+            roughness: 0.86,
+            metalness: 0.2,
+            flatShading: true
+        });
+        const insideMaterial = new THREE.MeshStandardMaterial({
+            color: 0x101813,
+            roughness: 1,
+            metalness: 0
+        });
+        const rubberMaterial = new THREE.MeshStandardMaterial({
+            color: 0x111513,
+            roughness: 0.96,
+            metalness: 0.04,
+            flatShading: true
+        });
+        const warningMaterial = new THREE.MeshStandardMaterial({
+            color: 0xe2b83f,
+            emissive: 0x3b2504,
+            emissiveIntensity: 0.24,
+            roughness: 0.7,
+            metalness: 0.1,
+            flatShading: true
+        });
+        const labelMaterial = new THREE.MeshStandardMaterial({
+            color: 0xc8d0bd,
+            roughness: 0.76,
+            metalness: 0.12,
+            flatShading: true
+        });
+
+        const addBox = (name, boxWidth, boxHeight, boxDepth, x, y, z, material, parent = group) => {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth),
+                material
+            );
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            parent.add(mesh);
+            return mesh;
+        };
+
+        const addCylinder = (name, radiusTop, radiusBottom, cylinderHeight, segments, x, y, z, material, parent = group) => {
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(radiusTop, radiusBottom, cylinderHeight, segments),
+                material
+            );
+            mesh.name = name;
+            mesh.position.set(x, y, z);
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            parent.add(mesh);
+            return mesh;
+        };
+
+        // Cuerpo principal y hueco oscuro que da profundidad al contenedor.
+        addBox('dustbin-body', width, bodyHeight, depth, 0, bodyHeight / 2, 0, bodyMaterial);
+        addBox('dustbin-interior', width * 0.84, 0.08, depth * 0.76, 0, bodyHeight + 0.055, 0, insideMaterial);
+
+        // Refuerzo inferior, cuatro esquinas y nervios frontales.
+        addBox('dustbin-base', width + 0.22, 0.25, depth + 0.22, 0, 0.13, 0, bodyDarkMaterial);
+        const cornerWidth = Math.min(0.22, width * 0.07);
+        [-1, 1].forEach((sx) => {
+            [-1, 1].forEach((sz) => {
+                addBox(
+                    `dustbin-corner-${sx < 0 ? 'left' : 'right'}-${sz < 0 ? 'front' : 'back'}`,
+                    cornerWidth,
+                    bodyHeight * 0.94,
+                    cornerWidth,
+                    sx * (width / 2 - cornerWidth / 2 + 0.03),
+                    bodyHeight / 2,
+                    sz * (depth / 2 - cornerWidth / 2 + 0.03),
+                    rimMaterial
+                );
+            });
+        });
+        for (let index = -1; index <= 1; index++) {
+            addBox(
+                `dustbin-front-rib-${index + 2}`,
+                0.16,
+                bodyHeight * 0.76,
+                0.16,
+                index * width * 0.28,
+                bodyHeight * 0.42,
+                -depth / 2 - 0.09,
+                rimMaterial
+            );
+        }
+
+        // Borde superior y asa frontal.
+        addBox('dustbin-rim-front', width + 0.26, 0.24, 0.26, 0, bodyHeight + 0.14, -depth / 2, rimMaterial);
+        addBox('dustbin-rim-back', width + 0.26, 0.24, 0.26, 0, bodyHeight + 0.14, depth / 2, rimMaterial);
+        addBox('dustbin-rim-left', 0.26, 0.24, depth, -width / 2, bodyHeight + 0.14, 0, rimMaterial);
+        addBox('dustbin-rim-right', 0.26, 0.24, depth, width / 2, bodyHeight + 0.14, 0, rimMaterial);
+        addBox('dustbin-front-handle', width * 0.48, 0.16, 0.18, 0, bodyHeight * 0.88, -depth / 2 - 0.14, rimMaterial);
+        addBox('dustbin-front-handle-left', 0.16, 0.34, 0.18, -width * 0.24, bodyHeight * 0.84, -depth / 2 - 0.14, rimMaterial);
+        addBox('dustbin-front-handle-right', 0.16, 0.34, 0.18, width * 0.24, bodyHeight * 0.84, -depth / 2 - 0.14, rimMaterial);
+
+        // Tapa articulada levantada hacia atrás.
+        const lidGroup = new THREE.Group();
+        lidGroup.name = 'dustbin-lid-hinge';
+        lidGroup.position.set(0, bodyHeight + 0.24, depth / 2 - 0.12);
+        lidGroup.rotation.x = THREE.MathUtils.degToRad(-24);
+        group.add(lidGroup);
+        addBox('dustbin-lid', width + 0.28, 0.22, lidDepth, 0, 0.05, -lidDepth / 2, lidMaterial, lidGroup);
+        addBox('dustbin-lid-rim-front', width + 0.38, 0.22, 0.2, 0, 0.05, -lidDepth + 0.04, rimMaterial, lidGroup);
+        addBox('dustbin-lid-rim-left', 0.2, 0.22, lidDepth, -width / 2, 0.05, -lidDepth / 2, rimMaterial, lidGroup);
+        addBox('dustbin-lid-rim-right', 0.2, 0.22, lidDepth, width / 2, 0.05, -lidDepth / 2, rimMaterial, lidGroup);
+        addCylinder('dustbin-lid-hinge-left', 0.14, 0.14, width * 0.18, 8, -width * 0.32, 0, 0, rubberMaterial, lidGroup).rotation.z = Math.PI / 2;
+        addCylinder('dustbin-lid-hinge-right', 0.14, 0.14, width * 0.18, 8, width * 0.32, 0, 0, rubberMaterial, lidGroup).rotation.z = Math.PI / 2;
+
+        // Placa de identificación y bandas de seguridad en el frontal.
+        addBox('dustbin-label', width * 0.44, 0.62, 0.06, 0, bodyHeight * 0.57, -depth / 2 - 0.12, labelMaterial);
+        addBox('dustbin-label-stripe-top', width * 0.36, 0.07, 0.04, 0, bodyHeight * 0.68, -depth / 2 - 0.16, warningMaterial);
+        addBox('dustbin-label-stripe-bottom', width * 0.36, 0.07, 0.04, 0, bodyHeight * 0.46, -depth / 2 - 0.16, warningMaterial);
+        [-1, 1].forEach((side) => {
+            addBox(
+                `dustbin-warning-${side < 0 ? 'left' : 'right'}`,
+                width * 0.1,
+                0.28,
+                0.05,
+                side * width * 0.38,
+                bodyHeight * 0.18,
+                -depth / 2 - 0.13,
+                warningMaterial
+            );
+        });
+
+        // Cuatro ruedas con ejes visibles. El cilindro gira para que su eje
+        // quede alineado de lado a lado del contenedor.
+        const wheelRadius = Math.max(0.28, Math.min(0.48, width * 0.1));
+        [-1, 1].forEach((sx) => {
+            [-1, 1].forEach((sz) => {
+                const wheel = addCylinder(
+                    `dustbin-wheel-${sx < 0 ? 'left' : 'right'}-${sz < 0 ? 'front' : 'back'}`,
+                    wheelRadius,
+                    wheelRadius,
+                    0.28,
+                    10,
+                    sx * (width / 2 + 0.1),
+                    wheelRadius + 0.18,
+                    sz * (depth * 0.33),
+                    rubberMaterial
+                );
+                wheel.rotation.z = Math.PI / 2;
+                addBox(
+                    `dustbin-wheel-bracket-${sx < 0 ? 'left' : 'right'}-${sz < 0 ? 'front' : 'back'}`,
+                    0.18,
+                    0.55,
+                    0.24,
+                    sx * (width / 2 - 0.14),
+                    wheelRadius + 0.48,
+                    sz * (depth * 0.33),
+                    rimMaterial
+                );
+            });
+        });
+
+        const position = model.position || { x: 0, y: 0, z: 0 };
+        group.position.set(Number(position.x) || 0, Number(position.y) || 0, Number(position.z) || 0);
+        group.rotation.order = model.rotationOrder || 'XYZ';
+        group.rotation.x = THREE.MathUtils.degToRad(Number(model.rotationX) || 0);
+        group.rotation.y = THREE.MathUtils.degToRad(
+            model.rotationY !== undefined ? Number(model.rotationY) : Number(model.rotation) || 0
+        );
+        group.rotation.z = THREE.MathUtils.degToRad(Number(model.rotationZ) || 0);
+        group.scale.setScalar(propScale);
+        group.userData = {
+            id: model.id || 'dustbin',
+            type: 'staticModel',
+            propType: 'dustbin',
+            bulletImpact: model.bulletImpact !== false,
+            bulletImpactFallback: model.collision !== false,
+            isStatic: true
+        };
+
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+
+        const colliderHeight = height + 0.15;
+        group.userData.simpleBoxCollider = true;
+        group.userData.collisionBoxSize = { width: width + 0.2, height: colliderHeight, depth: depth + 0.2 };
+        group.userData.boundingBox = new THREE.Box3(
+            new THREE.Vector3(-(width + 0.2) / 2, 0, -(depth + 0.2) / 2),
+            new THREE.Vector3((width + 0.2) / 2, colliderHeight, (depth + 0.2) / 2)
+        ).applyMatrix4(group.matrixWorld);
+
+        if (model.collision !== false) this.walls.push(group);
+        this.staticModels.push(group);
+
+        console.log(`Contenedor de basura cargado en (${position.x || 0}, ${position.y || 0}, ${position.z || 0})`);
+        return group;
+    }
+    // #endregion
+
     // #region Creación de Kit de Props de El Hormiguero World
     // Descripción: Colección de props procedurales ligeros para vestir el
     // exterior, el almacén, la red de ventilación y el plató. Se mantienen en
@@ -2956,22 +3278,112 @@ export class World {
             const depth = Math.max(1.8, Number(model.depth) || 2.5);
             const bodyY = Math.min(height - 1.2, 3.75);
 
-            addBox('studio-camera-body', width, 1.7, depth, 0, bodyY, 0, steelDark);
-            addBox('studio-camera-top', width * 0.74, 0.28, depth * 0.72, 0, bodyY + 0.98, 0, steel);
-            addCylinder('studio-camera-lens', 0.62, 0.7, 1.08, 8, 0, bodyY, -depth / 2 - 0.48, screen, group);
-            addCylinder('studio-camera-lens-ring', 0.82, 0.82, 0.16, 8, 0, bodyY, -depth / 2 - 0.06, honey, group);
-            addBox('studio-camera-viewfinder', 0.5, 0.55, 0.72, -width * 0.22, bodyY + 1.17, 0, steelLight);
-            addCylinder('studio-camera-pan-head', 0.34, 0.34, 0.35, 8, 0, bodyY - 1.02, 0, steel);
-            addCylinderBetween('studio-camera-tripod-center', new THREE.Vector3(0, bodyY - 1.15, 0), new THREE.Vector3(0, 1.1, 0), 0.16, steelLight, 7);
-            [-1, 1].forEach(side => {
+            // Texturas pixel-art propias del modelo. Se pueden sobreescribir
+            // por instancia desde el JSON, pero la cámara trae un look
+            // coherente por defecto con sus cuatro mapas low-res.
+            const cameraBodyMaterial = makeMaterial(0xffffff, {
+                texturePath: model.textureBody || HORMIGUERO_TEXTURES.cameraBody,
+                textureRepeatX: 1,
+                textureRepeatY: 1,
+                pixelated: true,
+                roughness: 0.66,
+                metalness: 0.34
+            });
+            const cameraMetalMaterial = makeMaterial(0xffffff, {
+                texturePath: model.textureMetal || HORMIGUERO_TEXTURES.cameraMetal,
+                textureRepeatX: 1,
+                textureRepeatY: 1,
+                pixelated: true,
+                roughness: 0.48,
+                metalness: 0.72
+            });
+            const cameraLensMaterial = makeMaterial(0xffffff, {
+                texturePath: model.textureLens || HORMIGUERO_TEXTURES.cameraLens,
+                textureRepeatX: 1,
+                textureRepeatY: 1,
+                pixelated: true,
+                emissive: 0x062e67,
+                emissiveIntensity: 1.15,
+                roughness: 0.2,
+                metalness: 0.28
+            });
+            const cameraAmberMaterial = makeMaterial(0xffffff, {
+                texturePath: model.textureAmber || HORMIGUERO_TEXTURES.cameraAmber,
+                textureRepeatX: 1,
+                textureRepeatY: 1,
+                pixelated: true,
+                emissive: 0x6a2804,
+                emissiveIntensity: 0.72,
+                roughness: 0.42,
+                metalness: 0.52
+            });
+
+            addBox('studio-camera-body', width, 1.7, depth, 0, bodyY, 0, cameraBodyMaterial);
+            addBox('studio-camera-top', width * 0.74, 0.28, depth * 0.72, 0, bodyY + 0.98, 0, cameraMetalMaterial);
+            addBox('studio-camera-top-handle', width * 0.52, 0.16, 0.24, 0, bodyY + 1.28, 0, cameraMetalMaterial);
+            addBox('studio-camera-handle-left', 0.16, 0.42, 0.24, -width * 0.22, bodyY + 1.12, 0, cameraMetalMaterial);
+            addBox('studio-camera-handle-right', 0.16, 0.42, 0.24, width * 0.22, bodyY + 1.12, 0, cameraMetalMaterial);
+
+            // El objetivo apunta hacia -Z; CylinderGeometry nace alineada con
+            // Y, por eso las dos piezas ópticas giran 90 grados sobre X.
+            const lens = addCylinder(
+                'studio-camera-lens',
+                0.62,
+                0.7,
+                1.08,
+                8,
+                0,
+                bodyY,
+                -depth / 2 - 0.48,
+                cameraLensMaterial,
+                group
+            );
+            lens.rotation.x = Math.PI / 2;
+            const lensHood = addCylinder(
+                'studio-camera-lens-hood',
+                0.79,
+                0.79,
+                0.18,
+                8,
+                0,
+                bodyY,
+                -depth / 2 - 1.03,
+                cameraMetalMaterial,
+                group
+            );
+            lensHood.rotation.x = Math.PI / 2;
+            const lensRing = new THREE.Mesh(
+                new THREE.TorusGeometry(0.78, 0.1, 4, 8),
+                cameraAmberMaterial
+            );
+            lensRing.name = 'studio-camera-lens-ring';
+            lensRing.position.set(0, bodyY, -depth / 2 - 1.15);
+            lensRing.rotation.x = Math.PI / 2;
+            lensRing.castShadow = false;
+            lensRing.receiveShadow = false;
+            group.add(lensRing);
+
+            addBox('studio-camera-viewfinder', 0.5, 0.55, 0.72, -width * 0.22, bodyY + 1.17, 0, cameraMetalMaterial);
+            addBox('studio-camera-rear-panel', width * 0.58, 0.58, 0.08, 0, bodyY - 0.24, depth / 2 + 0.05, cameraMetalMaterial);
+            addBox('studio-camera-rear-slot', width * 0.3, 0.1, 0.04, 0, bodyY - 0.27, depth / 2 + 0.11, cameraBodyMaterial);
+            addCylinder('studio-camera-pan-head', 0.34, 0.34, 0.35, 8, 0, bodyY - 1.02, 0, cameraMetalMaterial);
+            addCylinderBetween('studio-camera-tripod-center', new THREE.Vector3(0, bodyY - 1.15, 0), new THREE.Vector3(0, 1.1, 0), 0.16, cameraMetalMaterial, 7);
+
+            const tripodLegs = [
+                { name: 'left', x: -width * 0.52, z: depth * 0.42 },
+                { name: 'right', x: width * 0.52, z: depth * 0.42 },
+                { name: 'rear', x: 0, z: -depth * 0.48 }
+            ];
+            tripodLegs.forEach(({ name, x, z }) => {
                 addCylinderBetween(
-                    `studio-camera-tripod-leg-${side < 0 ? 'left' : 'right'}`,
+                    `studio-camera-tripod-leg-${name}`,
                     new THREE.Vector3(0, bodyY - 1.1, 0),
-                    new THREE.Vector3(side * width * 0.52, 0.18, depth * 0.42),
+                    new THREE.Vector3(x, 0.18, z),
                     0.12,
-                    steel,
+                    cameraMetalMaterial,
                     7
                 );
+                addBox(`studio-camera-tripod-foot-${name}`, 0.42, 0.14, 0.62, x, 0.09, z, cameraBodyMaterial);
             });
             addBox('studio-camera-rec-light', 0.3, 0.22, 0.12, width * 0.27, bodyY + 0.25, -depth / 2 - 0.08, red);
             addCylinderBetween('studio-camera-cable', new THREE.Vector3(width * 0.35, bodyY - 0.55, depth * 0.4), new THREE.Vector3(width * 0.55, 0.16, depth * 0.5), 0.045, cable, 6);

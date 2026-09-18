@@ -26,6 +26,17 @@ export const BUILD_PROP_CATALOG = [
         template: { type: 'crate', width: 4, height: 3, depth: 4, collision: true, bulletImpact: true }
     },
     {
+        kind: 'prop', label: 'Contenedor de basura',
+        template: {
+            type: 'dustbin',
+            width: 4.6,
+            height: 4.4,
+            depth: 3.5,
+            collision: true,
+            bulletImpact: true
+        }
+    },
+    {
         kind: 'prop', label: 'Panel',
         template: { type: 'square', width: 6, height: 6, rotationX: 0, collision: false, bulletImpact: true, billboard: false }
     },
@@ -39,7 +50,19 @@ export const BUILD_PROP_CATALOG = [
     },
     {
         kind: 'prop', label: 'Cámara TV',
-        template: { type: 'hormiguero_prop', variant: 'studio_camera', width: 3.4, height: 5.4, depth: 2.5, collision: true, bulletImpact: true }
+        template: {
+            type: 'hormiguero_prop',
+            variant: 'studio_camera',
+            width: 3.4,
+            height: 5.4,
+            depth: 2.5,
+            textureBody: 'assets/textures/studio_camera_body_lowres.png',
+            textureMetal: 'assets/textures/studio_camera_metal_lowres.png',
+            textureLens: 'assets/textures/studio_camera_lens_lowres.png',
+            textureAmber: 'assets/textures/studio_camera_amber_lowres.png',
+            collision: true,
+            bulletImpact: true
+        }
     },
     {
         kind: 'prop', label: 'Monitor',
@@ -95,7 +118,16 @@ export const BUILD_PROP_CATALOG = [
     }
 ];
 
-export const BUILD_CATALOG = [...BUILD_GRID_CATALOG, ...BUILD_PROP_CATALOG];
+// Lista interna única de todo lo que el jugador puede añadir desde el modo
+// Construcción. Las entradas de modelos que ya existen en el mapa se unen
+// después en buildCatalog(), pero nunca sustituyen estas definiciones base.
+export const BUILD_PLACEABLE_OBJECTS = Object.freeze([
+    ...BUILD_GRID_CATALOG,
+    ...BUILD_PROP_CATALOG
+]);
+
+// Alias de compatibilidad para cualquier código que ya use BUILD_CATALOG.
+export const BUILD_CATALOG = BUILD_PLACEABLE_OBJECTS;
 
 const ROTATE_STEP = 15;
 const ROTATE_STEP_FINE = 1;
@@ -174,7 +206,7 @@ export class ConstructionMode {
     // el mapa actual. Así la rueda también ofrece árboles, bancos OBJ y
     // cualquier prop adicional definido en modelos/<mapa>_models.json.
     buildCatalog() {
-        const catalog = [...BUILD_CATALOG];
+        const catalog = [...BUILD_PLACEABLE_OBJECTS];
         const signatures = new Set(
             catalog
                 .filter(entry => entry.kind === 'prop')
@@ -302,7 +334,9 @@ export class ConstructionMode {
                 return;
             }
             const step = fine ? LIFT_STEP_FINE : LIFT_STEP;
-            preview.lift = Math.max(0, (preview.lift || 0) + (code === 'ArrowUp' ? step : -step));
+            // Sin límite inferior: un prop puede bajar por debajo del suelo
+            // y atravesar otros objetos si el usuario así lo desea.
+            preview.lift = (preview.lift || 0) + (code === 'ArrowUp' ? step : -step);
         }
         this.updateHud();
     }
@@ -452,6 +486,9 @@ export class ConstructionMode {
             const i = this.world.staticModels.indexOf(holder);
             if (i >= 0) this.world.staticModels.splice(i, 1);
         }
+        // Los colliders hijos salen también para atravesar el fantasma.
+        this.preview.removedChildColliders =
+            this.world.removeHolderChildColliders?.(holder) || [];
         this.applyGhostLook(holder, this.preview);
         if (record.kind === 'prop') {
             this.preview.lift = 0;
@@ -518,6 +555,7 @@ export class ConstructionMode {
             preview.holder.rotation.y = preview.originalRotationY;
             preview.holder.updateMatrixWorld(true);
             this.world.refreshColliderFor?.(preview.holder);
+            this.world.restoreHolderChildColliders?.(preview.removedChildColliders);
             if (preview.wasInWalls && !this.world.walls.includes(preview.holder)) {
                 this.world.walls.push(preview.holder);
             }
@@ -577,8 +615,13 @@ export class ConstructionMode {
         let holder = null;
         try {
             if (model.type === 'crate' || model.type === 'caja') holder = this.world.createCrateProp(model);
+            else if (model.type === 'dustbin' || model.type === 'trash_bin' || model.type === 'dumpster') {
+                holder = this.world.createDustbinProp(model);
+            }
             else if (model.type === 'square' || model.type === 'cuadrado') holder = this.createSquareForConstruction(model);
             else if (model.type === 'hormiguero_prop' || model.type === 'map2_prop') holder = this.world.createHormigueroProp(model);
+            else if (model.type === 'hormiguero_desk') holder = this.world.createHormigueroDesk(model);
+            else if (model.type === 'hormiguero_bleachers') holder = this.world.createHormigueroBleachers(model);
             else if (model.type === 'vent_duct' || model.type === 'conducto') holder = this.world.createVentDuctProp(model);
             else if (model.type === 'vent_grate' || model.type === 'reja') holder = this.world.createVentGrateProp(model);
             else if (model.type === 'fountain' || model.type === 'fuente') holder = this.world.createFountainProp(model);
@@ -840,6 +883,7 @@ export class ConstructionMode {
         holder.rotation.y = THREE.MathUtils.degToRad(preview.yawDeg || 0);
         holder.updateMatrixWorld(true);
         this.world.refreshColliderFor?.(holder);
+        this.world.restoreHolderChildColliders?.(preview.removedChildColliders);
         const model = this.world.propModels?.[record.modelIndex];
         if (model) {
             model.position = { x: holder.position.x, y: holder.position.y, z: holder.position.z };
@@ -849,9 +893,12 @@ export class ConstructionMode {
                 model.rotation = preview.yawDeg || 0;
             }
         }
-        // Devolver colisión salvo que el modelo pida lo contrario.
+        // Devolver colisión salvo que el modelo pida lo contrario. Los
+        // holders con celdas hijas ya colisionan por celdas: no meter el
+        // grupo para no hinchar la colisión a su caja ejes-alineada.
         const wantsCollision = model ? model.collision !== false : true;
-        if (wantsCollision) {
+        const hasColliderCells = this.world.holderHasColliderCells?.(holder);
+        if (wantsCollision && !hasColliderCells) {
             if (!this.world.walls.includes(holder)) this.world.walls.push(holder);
             if (holder.userData?.isStatic && !this.world.staticModels.includes(holder)) {
                 this.world.staticModels.push(holder);
@@ -949,7 +996,7 @@ export class ConstructionMode {
                     ? (preview.baseY ?? preview.template?.position?.y ?? 0)
                     : (preview.baseY ?? 0);
                 const lift = preview.lift || 0;
-                preview.holder.position.set(target.x, Math.max(0, baseY + lift), target.z);
+                preview.holder.position.set(target.x, baseY + lift, target.z);
             }
             preview.holder.rotation.y = THREE.MathUtils.degToRad(preview.yawDeg || 0);
             preview.holder.updateMatrixWorld(true);
@@ -978,6 +1025,7 @@ export class ConstructionMode {
                 preview.holder.rotation.y = preview.originalRotationY;
                 preview.holder.updateMatrixWorld(true);
                 this.world.refreshColliderFor?.(preview.holder);
+                this.world.restoreHolderChildColliders?.(preview.removedChildColliders);
                 if (preview.wasInWalls && !this.world.walls.includes(preview.holder)) {
                     this.world.walls.push(preview.holder);
                 }
