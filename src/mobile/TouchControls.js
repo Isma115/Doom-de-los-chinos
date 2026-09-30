@@ -24,6 +24,7 @@ function ensureTouchRoot() {
       <button id="touch-btn-reload" class="touch-btn touch-btn-small" aria-label="Recargar">⟳</button>
       <button id="touch-btn-weapon" class="touch-btn touch-btn-small" aria-label="Cambiar arma">🔫</button>
       <button id="touch-btn-use" class="touch-btn touch-btn-small" aria-label="Usar">E</button>
+      <button id="touch-btn-gas" class="touch-btn touch-btn-small" aria-label="Pedo o eructo" title="Pedo/Eructo">💨</button>
     </div>`;
   document.body.appendChild(root);
   return root;
@@ -46,6 +47,7 @@ export function attachTouchControls(player) {
   const btnReload = root.querySelector('#touch-btn-reload');
   const btnWeapon = root.querySelector('#touch-btn-weapon');
   const btnUse = root.querySelector('#touch-btn-use');
+  const btnGas = root.querySelector('#touch-btn-gas');
 
   player.touchState = player.touchState || { moveX: 0, moveY: 0, active: false };
 
@@ -177,6 +179,11 @@ export function attachTouchControls(player) {
       player.tryInteract();
     }
   };
+  const pressGas = (e) => {
+    e.preventDefault();
+    player.audioManager?.resume?.();
+    player.makeGasNoise();
+  };
   const pressMenu = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -203,6 +210,7 @@ export function attachTouchControls(player) {
   btnReload.addEventListener('touchstart', pressReload, { passive: false });
   btnWeapon.addEventListener('touchstart', pressWeapon, { passive: false });
   btnUse.addEventListener('touchstart', pressUse, { passive: false });
+  btnGas.addEventListener('touchstart', pressGas, { passive: false });
   btnMenu.addEventListener('touchstart', pressMenu, { passive: false });
 
   // Mostrar UI táctil solo cuando el juego está en marcha (lock).
@@ -238,6 +246,7 @@ export function attachTouchControls(player) {
     btnReload.removeEventListener('touchstart', pressReload);
     btnWeapon.removeEventListener('touchstart', pressWeapon);
     btnUse.removeEventListener('touchstart', pressUse);
+    btnGas.removeEventListener('touchstart', pressGas);
     btnMenu.removeEventListener('touchstart', pressMenu);
     player.controls.removeEventListener('lock', syncVisibility);
     player.controls.removeEventListener('unlock', syncVisibility);

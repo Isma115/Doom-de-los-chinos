@@ -1,0 +1,60 @@
+# Materiales del coche low-poly
+
+newmtl car_body
+Kd .78 .14 .08
+Ks .32 .32 .32
+Ns 48
+d 1.0
+illum 2
+Ke .03 0 0
+
+newmtl car_glass
+Kd .045 .09 .15
+Ks .55 .62 .70
+Ns 90
+d 1.0
+illum 2
+
+newmtl car_tire
+Kd .035 .035 .04
+Ks .04 .04 .04
+Ns 10
+d 1.0
+illum 2
+
+newmtl car_rim
+Kd .58 .61 .66
+Ks .75 .78 .82
+Ns 80
+d 1.0
+illum 2
+
+newmtl car_trim
+Kd .15 .16 .18
+Ks .28 .28 .30
+Ns 34
+d 1.0
+illum 2
+
+newmtl car_headlight
+Kd .98 .87 .52
+Ks .72 .68 .50
+Ns 64
+d 1.0
+illum 2
+Ke .30 .24 .08
+
+newmtl car_taillight
+Kd .82 .06 .05
+Ks .62 .18 .16
+Ns 58
+d 1.0
+illum 2
+Ke .20 .01 0
+
+newmtl car_plate
+Kd .86 .86 .80
+Ks .30 .30 .28
+Ns 40
+d 1.0
+illum 2

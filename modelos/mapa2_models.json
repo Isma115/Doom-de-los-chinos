@@ -623,5 +623,19 @@
     "collision": true,
     "bulletImpact": true,
     "rotation": -60
+  },
+  {
+    "type": "obj",
+    "id": "coche-lowpoly-hormiguero",
+    "path": "assets/3D/coches/coche_lowpoly.obj",
+    "position": {
+      "x": -45,
+      "y": 0,
+      "z": 55
+    },
+    "rotation": 270,
+    "scale": 1,
+    "collision": true,
+    "bulletImpact": true
   }
 ]

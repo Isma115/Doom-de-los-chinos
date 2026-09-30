@@ -2,6 +2,16 @@
 // Descripción: Importación de constantes de configuración de audio.
 import { AUDIO_CONFIG } from '../Constants.js';
 // #endregion
+
+// #region Sonidos corporales (tecla V)
+// Descripción: Pedos y eructos que se eligen al azar cada vez que el jugador
+// pulsa la V. Mezclar ambos tipos evita que el chiste se agote a la tercera.
+const GAS_SOUND_KEYS = [
+    'fart1', 'fart2', 'fart3', 'fart4', 'fart5',
+    'burp1', 'burp2', 'burp3', 'burp4', 'burp5', 'burp6', 'burp7'
+];
+// #endregion
+
 // #region Constructor AudioManager
 // Descripción: Inicialización del gestor de audio y sus propiedades.
 export class AudioManager {
@@ -72,6 +82,19 @@ export class AudioManager {
             bloodSplat4: 'assets/sound/misc/blood-splat-4.mp3',
             bloodSplat5: 'assets/sound/misc/blood-splat-5.mp3',
             playerScream: 'assets/sound/misc/gas.mp3',
+            // Pedos y eructos de la tecla V (créditos en assets/sound/misc/CREDITOS-sonidos-corporales.md).
+            fart1: 'assets/sound/misc/fart-1.mp3',
+            fart2: 'assets/sound/misc/fart-2.mp3',
+            fart3: 'assets/sound/misc/fart-3.mp3',
+            fart4: 'assets/sound/misc/fart-4.mp3',
+            fart5: 'assets/sound/misc/fart-5.mp3',
+            burp1: 'assets/sound/misc/burp-1.mp3',
+            burp2: 'assets/sound/misc/burp-2.mp3',
+            burp3: 'assets/sound/misc/burp-3.mp3',
+            burp4: 'assets/sound/misc/burp-4.mp3',
+            burp5: 'assets/sound/misc/burp-5.mp3',
+            burp6: 'assets/sound/misc/burp-6.mp3',
+            burp7: 'assets/sound/misc/burp-7.mp3',
             playerHurt: 'assets/sound/player_hurt.mp3',
             grunt1: 'assets/sound/enemy_grunt1.mp3',
             grunt2: 'assets/sound/enemy_grunt2.mp3',
@@ -573,6 +596,17 @@ export class AudioManager {
     }
     // #endregion    // #region Utilidades de Sonido Audio
     // Descripción: Funciones auxiliares para sonido aleatorio y audio posicional 3D.
+    // Reproduce un pedo o un eructo al azar (tecla V). Solo tiene en cuenta los
+    // archivos que se cargaron bien, así que si falta alguno sigue sonando.
+    playRandomGas(volume = 0.9) {
+        const available = GAS_SOUND_KEYS.filter((key) => this.sounds[key]);
+        if (available.length === 0) return null;
+
+        const key = available[Math.floor(Math.random() * available.length)];
+        const pitch = 0.85 + Math.random() * 0.3;
+        return this.playSound(key, volume, false, pitch);
+    }
+
     playRandomEnemySound(enemyType) {
         if (!enemyType.sounds || enemyType.sounds.length === 0) return;
         const randomSound = enemyType.sounds[Math.floor(Math.random() * enemyType.sounds.length)];

@@ -322,7 +322,7 @@ export class Player {
                 break;
             case 'KeyV':
                 if (isDown) {
-                    this.scream();
+                    this.makeGasNoise();
                 }
                 break;
             case 'KeyR':
@@ -416,6 +416,13 @@ export class Player {
         if (this.audioManager && this.controls.isLocked && !this.isGameOver) {
             this.audioManager.playSound('playerScream', 1.0, false, 0.9 + Math.random() * 0.2);
             console.log("¡GRITO!");
+        }
+    }
+
+    // Tecla V: suelta un pedo o un eructo aleatorio.
+    makeGasNoise() {
+        if (this.audioManager && this.controls.isLocked && !this.isGameOver) {
+            this.audioManager.playRandomGas(0.9);
         }
     }
 
